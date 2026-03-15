@@ -121,9 +121,7 @@ function HeaderInner() {
       <div className="mx-auto flex h-16 items-center justify-between px-4 md:px-6 lg:px-8" style={{ maxWidth: '1400px' }}>
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2 shrink-0">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/70 shadow-lg shadow-primary/20">
-            <span className="text-sm font-extrabold text-white">T</span>
-          </div>
+          <img src="/startup_logo.png" alt="Terence" style={{ height: '22px', width: '22px', objectFit: 'contain', mixBlendMode: 'screen' }} />
           <span className="text-lg font-bold tracking-tight text-white hidden lg:inline">Terence</span>
         </Link>
 

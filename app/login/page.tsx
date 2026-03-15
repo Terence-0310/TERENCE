@@ -48,14 +48,15 @@ export default function LoginPage() {
       {/* Custom header for auth page */}
       <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-xl border-b border-white/10 px-4 md:px-6 lg:px-8 h-14 flex items-center">
         <Link href="/" className="shrink-0 flex items-center">
-          <div className="relative h-8 w-[116px] sm:w-[132px]">
+          <div className="relative h-8 w-8">
             <Image
-              src="/terence-logo.png"
+              src="/startup_logo.png"
               alt="Terence"
               fill
               priority
               className="object-contain"
-              sizes="132px"
+              style={{ mixBlendMode: 'screen' }}
+              sizes="32px"
             />
           </div>
         </Link>

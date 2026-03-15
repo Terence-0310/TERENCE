@@ -61,9 +61,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {/* Logo */}
         <div className="p-6 border-b border-border">
           <Link href="/" className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary/70 rounded-xl flex items-center justify-center">
-              <span className="text-lg font-bold text-white">T</span>
-            </div>
+            <img src="/startup_logo.png" alt="Terence" style={{ height: '22px', width: '22px', objectFit: 'contain', mixBlendMode: 'screen' }} />
             <span className="text-xl font-bold">Terence</span>
           </Link>
         </div>
@@ -119,9 +117,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             {/* Logo */}
             <div className="p-6 border-b border-border flex items-center justify-between">
               <Link href="/" className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary/70 rounded-xl flex items-center justify-center">
-                  <span className="text-lg font-bold text-white">T</span>
-                </div>
+                <img src="/startup_logo.png" alt="Terence" style={{ height: '22px', width: '22px', objectFit: 'contain', mixBlendMode: 'screen' }} />
                 <span className="text-xl font-bold">Terence</span>
               </Link>
               <button onClick={() => setSidebarOpen(false)}>

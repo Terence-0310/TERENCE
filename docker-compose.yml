@@ -1,13 +1,25 @@
 services:
-  app:
+  terence-app:
+    container_name: terence-local
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_SITE_URL: http://localhost:3000
+        NEXT_PUBLIC_TMDB_IMAGE_BASE_URL: https://image.tmdb.org/t/p
+        NEXT_PUBLIC_REGION: VN
     ports:
       - "3000:3000"
     env_file:
       - .env
-    restart: unless-stopped
     environment:
       - NODE_ENV=production
       - HOSTNAME=0.0.0.0
+      - PORT=3000
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

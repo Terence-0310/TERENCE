@@ -71,14 +71,15 @@ export default function SignupPage() {
         <div className="w-full max-w-md">
           {/* Logo */}
           <Link href="/" className="shrink-0 flex items-center mb-8">
-            <div className="relative h-9 w-[132px]">
+            <div className="relative h-9 w-9">
               <Image
-                src="/terence-logo.png"
+                src="/startup_logo.png"
                 alt="Terence"
                 fill
                 priority
                 className="object-contain"
-                sizes="132px"
+                style={{ mixBlendMode: 'screen' }}
+                sizes="36px"
               />
             </div>
           </Link>
