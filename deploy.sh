@@ -1,0 +1,78 @@
+#!/bin/bash
+# ============================================================
+# TERENCE — Deploy / Update Script
+# Run: cd /var/www/TERENCE && chmod +x deploy.sh && ./deploy.sh
+# ============================================================
+set -e
+
+APP_DIR="/var/www/TERENCE"
+APP_NAME="terence"
+BRANCH="main"
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+echo ""
+echo -e "${YELLOW}═══════════════════════════════════════${NC}"
+echo -e "${YELLOW}  TERENCE — Deploy Script${NC}"
+echo -e "${YELLOW}═══════════════════════════════════════${NC}"
+echo ""
+
+# ── 1. CD into app ──
+cd "$APP_DIR" || { echo -e "${RED}✗ Thư mục $APP_DIR không tồn tại${NC}"; exit 1; }
+echo -e "${GREEN}✓${NC} Thư mục: $APP_DIR"
+
+# ── 2. Pull code ──
+echo ""
+echo "📥 Pulling latest code from $BRANCH..."
+git pull origin "$BRANCH" || { echo -e "${RED}✗ Git pull thất bại${NC}"; exit 1; }
+echo -e "${GREEN}✓${NC} Code đã cập nhật"
+
+# ── 3. Install dependencies ──
+echo ""
+echo "📦 Installing dependencies..."
+npm install --production=false || { echo -e "${RED}✗ npm install thất bại${NC}"; exit 1; }
+echo -e "${GREEN}✓${NC} Dependencies đã cài xong"
+
+# ── 4. Build ──
+echo ""
+echo "🏗️  Building production..."
+npm run build || {
+    echo ""
+    echo -e "${RED}════════════════════════════════════${NC}"
+    echo -e "${RED}  ✗ BUILD THẤT BẠI — KHÔNG RESTART${NC}"
+    echo -e "${RED}  App cũ vẫn đang chạy (nếu có)${NC}"
+    echo -e "${RED}════════════════════════════════════${NC}"
+    exit 1
+}
+echo -e "${GREEN}✓${NC} Build thành công"
+
+# ── 5. Restart / Start PM2 ──
+echo ""
+echo "♻️  Restarting PM2..."
+if pm2 describe "$APP_NAME" > /dev/null 2>&1; then
+    pm2 restart "$APP_NAME"
+    echo -e "${GREEN}✓${NC} PM2 process '$APP_NAME' đã restart"
+else
+    echo "  → Process '$APP_NAME' chưa tồn tại, đang tạo mới..."
+    pm2 start ecosystem.config.js
+    echo -e "${GREEN}✓${NC} PM2 process '$APP_NAME' đã start"
+fi
+
+# ── 6. Save PM2 state ──
+pm2 save
+echo -e "${GREEN}✓${NC} PM2 state đã lưu"
+
+# ── 7. Summary ──
+echo ""
+echo -e "${GREEN}═══════════════════════════════════════${NC}"
+echo -e "${GREEN}  ✓ DEPLOY HOÀN TẤT${NC}"
+echo -e "${GREEN}═══════════════════════════════════════${NC}"
+echo ""
+echo "  🌐 https://terence.com.vn"
+echo "  📋 pm2 status"
+echo "  📋 pm2 logs $APP_NAME --lines 20"
+echo "  📋 curl -I http://127.0.0.1:3000"
+echo ""
