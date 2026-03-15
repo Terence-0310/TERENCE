@@ -3,7 +3,7 @@
 // ============================================
 
 import { tmdbFetch, tmdbFetchSafe } from '@/lib/tmdb/client'
-import { tmdbPosterUrl, tmdbBackdropUrl, tmdbProfileUrl, tmdbImageUrl } from '@/lib/tmdb/config'
+import { tmdbImage } from '@/lib/tmdb-image'
 import type { TmdbPaginatedResponse } from '@/types/tmdb'
 import type {
   TmdbTvShow,
@@ -26,8 +26,8 @@ function mapTvShow(raw: TmdbTvShow): Series {
     title: raw.name || raw.original_name,
     originalTitle: raw.original_name,
     overview: raw.overview,
-    posterUrl: tmdbPosterUrl(raw.poster_path),
-    backdropUrl: tmdbBackdropUrl(raw.backdrop_path),
+    posterUrl: tmdbImage(raw.poster_path, 'w500'),
+    backdropUrl: tmdbImage(raw.backdrop_path, 'w1280'),
     firstAirDate: raw.first_air_date || '',
     year,
     voteAverage: Math.round(raw.vote_average * 10) / 10,
@@ -44,7 +44,7 @@ function mapSeason(raw: TmdbSeason): Season {
     seasonNumber: raw.season_number,
     name: raw.name,
     overview: raw.overview,
-    posterUrl: tmdbPosterUrl(raw.poster_path),
+    posterUrl: tmdbImage(raw.poster_path, 'w500'),
     airDate: raw.air_date,
     episodeCount: raw.episode_count,
   }
@@ -60,7 +60,7 @@ function mapEpisode(raw: TmdbSeasonDetail['episodes'][number]): SeriesEpisode {
     seasonNumber: raw.season_number,
     title: raw.name || `Tập ${raw.episode_number}`,
     overview: raw.overview || '',
-    stillUrl: raw.still_path ? tmdbImageUrl(raw.still_path, 'w300') : null,
+    stillUrl: raw.still_path ? tmdbImage(raw.still_path, 'w300') : null,
     airDate: raw.air_date,
     voteAverage: Math.round(raw.vote_average * 10) / 10,
     runtime: raw.runtime,
@@ -123,8 +123,8 @@ export async function getTvDetail(id: number): Promise<SeriesDetail> {
     title: raw.name || raw.original_name,
     originalTitle: raw.original_name,
     overview: raw.overview,
-    posterUrl: tmdbPosterUrl(raw.poster_path),
-    backdropUrl: tmdbBackdropUrl(raw.backdrop_path),
+    posterUrl: tmdbImage(raw.poster_path, 'w500'),
+    backdropUrl: tmdbImage(raw.backdrop_path, 'w1280'),
     firstAirDate: raw.first_air_date || '',
     year: raw.first_air_date ? parseInt(raw.first_air_date.substring(0, 4), 10) : 0,
     voteAverage: Math.round(raw.vote_average * 10) / 10,
@@ -141,7 +141,7 @@ export async function getTvDetail(id: number): Promise<SeriesDetail> {
     creators: (raw.created_by || []).map(c => ({
       id: c.id,
       name: c.name,
-      profileUrl: tmdbProfileUrl(c.profile_path),
+      profileUrl: tmdbImage(c.profile_path, 'w185'),
     })),
   }
 }
@@ -157,7 +157,7 @@ export async function getSeasonDetail(tvId: number, seasonNumber: number): Promi
     seasonNumber: raw.season_number,
     name: raw.name,
     overview: raw.overview || '',
-    posterUrl: tmdbPosterUrl(raw.poster_path),
+    posterUrl: tmdbImage(raw.poster_path, 'w500'),
     airDate: raw.air_date,
     episodeCount: (raw.episodes || []).length,
     episodes: (raw.episodes || []).map(mapEpisode),

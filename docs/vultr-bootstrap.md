@@ -114,9 +114,9 @@ NODE_ENV=production
 PORT=3000
 NEXT_PUBLIC_SITE_URL=https://terence.com.vn
 TMDB_API_KEY=<key_v3_tu_tmdb>
-TMDB_ACCESS_TOKEN=<token_v4_tu_tmdb>
-NEXT_PUBLIC_TMDB_BASE_URL=https://api.themoviedb.org/3
-NEXT_PUBLIC_TMDB_IMAGE_BASE_URL=https://image.tmdb.org/t/p/original
+TMDB_READ_ACCESS_TOKEN=<token_v4_tu_tmdb>
+TMDB_BASE_URL=https://api.themoviedb.org/3
+NEXT_PUBLIC_TMDB_IMAGE_BASE_URL=https://image.tmdb.org/t/p
 NEXT_PUBLIC_REGION=VN
 ```
 

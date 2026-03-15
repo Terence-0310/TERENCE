@@ -9,7 +9,7 @@
 | `NODE_ENV` | Môi trường chạy | `production` |
 | `PORT` | Port nội bộ app | `3000` |
 | `TMDB_API_KEY` | API key v3 từ TMDB | `a1b2c3d4...` |
-| `TMDB_ACCESS_TOKEN` | Bearer token v4 từ TMDB | `eyJhbGciOi...` |
+| `TMDB_READ_ACCESS_TOKEN` | Bearer token v4 từ TMDB | `eyJhbGciOi...` |
 
 > Các biến này chỉ tồn tại trên server, không bao giờ xuất hiện trong JavaScript gửi tới browser.
 
@@ -19,7 +19,7 @@
 |------|--------|-------------------|
 | `NEXT_PUBLIC_SITE_URL` | URL công khai | `https://terence.com.vn` |
 | `NEXT_PUBLIC_TMDB_BASE_URL` | TMDB API endpoint | `https://api.themoviedb.org/3` |
-| `NEXT_PUBLIC_TMDB_IMAGE_BASE_URL` | TMDB image CDN | `https://image.tmdb.org/t/p/original` |
+| `NEXT_PUBLIC_TMDB_IMAGE_BASE_URL` | TMDB image CDN | `https://image.tmdb.org/t/p` |
 | `NEXT_PUBLIC_REGION` | Region cho TMDB | `VN` |
 
 > ⚠️ Biến `NEXT_PUBLIC_*` được nhúng vào client JS **tại thời điểm build**. Nếu thay đổi, **PHẢI build lại** (`npm run build`).

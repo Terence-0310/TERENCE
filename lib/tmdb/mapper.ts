@@ -4,7 +4,7 @@
 
 import type { TmdbMovie, TmdbMovieDetail, TmdbGenre, TmdbVideo, TmdbCast, TmdbCrew } from '@/types/tmdb'
 import type { Movie, MovieDetail, Genre, CastMember, CrewMember, VideoItem } from '@/types/movie'
-import { tmdbPosterUrl, tmdbBackdropUrl, tmdbProfileUrl } from './config'
+import { tmdbImage } from '@/lib/tmdb-image'
 
 export function mapMovie(raw: TmdbMovie): Movie {
   const year = raw.release_date ? parseInt(raw.release_date.substring(0, 4), 10) : 0
@@ -13,8 +13,8 @@ export function mapMovie(raw: TmdbMovie): Movie {
     title: raw.title || raw.original_title,
     originalTitle: raw.original_title,
     overview: raw.overview,
-    posterUrl: tmdbPosterUrl(raw.poster_path),
-    backdropUrl: tmdbBackdropUrl(raw.backdrop_path),
+    posterUrl: tmdbImage(raw.poster_path, 'w500'),
+    backdropUrl: tmdbImage(raw.backdrop_path, 'w1280'),
     releaseDate: raw.release_date || '',
     year,
     voteAverage: Math.round(raw.vote_average * 10) / 10,
@@ -86,7 +86,7 @@ function mapCast(raw: TmdbCast): CastMember {
     id: raw.id,
     name: raw.name,
     character: raw.character,
-    profileUrl: tmdbProfileUrl(raw.profile_path),
+    profileUrl: tmdbImage(raw.profile_path, 'w185'),
   }
 }
 

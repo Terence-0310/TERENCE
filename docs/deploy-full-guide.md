@@ -111,6 +111,6 @@ pm2 restart terence
 
 ```env
 TMDB_API_KEY=<lấy tại themoviedb.org/settings/api>
-TMDB_ACCESS_TOKEN=<bearer token v4>
+TMDB_READ_ACCESS_TOKEN=<bearer token v4>
 NEXT_PUBLIC_SITE_URL=https://terence.com.vn
 ```
