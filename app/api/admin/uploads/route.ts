@@ -1,0 +1,49 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { requireAdmin, errorResponse, successResponse } from '@/lib/admin/api-helpers'
+import { handleFileUpload } from '@/lib/admin/upload'
+import { logAdminAction, getClientIp } from '@/lib/admin/audit'
+import { prisma } from '@/lib/auth/db'
+
+// POST /api/admin/uploads — upload file
+export async function POST(req: NextRequest) {
+  const auth = await requireAdmin('uploads.manage')
+  if (auth instanceof Response) return auth
+
+  try {
+    const formData = await req.formData()
+    const file = formData.get('file') as File | null
+    const subDir = (formData.get('subDir') as string) || 'general'
+
+    if (!file) return errorResponse('No file provided')
+
+    const result = await handleFileUpload(file, subDir, auth.user.email)
+
+    await logAdminAction({
+      actorId: auth.user.email, action: 'upload', targetType: 'upload',
+      metadata: { fileName: result.fileName, size: result.size, mimeType: result.mimeType },
+      ipAddress: getClientIp(req.headers),
+    })
+
+    return successResponse(result, 201)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Upload failed'
+    return errorResponse(message)
+  }
+}
+
+// GET /api/admin/uploads — list uploads
+export async function GET(req: NextRequest) {
+  const auth = await requireAdmin('uploads.manage')
+  if (auth instanceof Response) return auth
+
+  const sp = req.nextUrl.searchParams
+  const page = Math.max(1, parseInt(sp.get('page') || '1', 10))
+  const limit = Math.min(100, parseInt(sp.get('limit') || '20', 10))
+
+  const [data, total] = await Promise.all([
+    prisma.upload.findMany({ skip: (page - 1) * limit, take: limit, orderBy: { createdAt: 'desc' } }),
+    prisma.upload.count(),
+  ])
+
+  return NextResponse.json({ data, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } })
+}

@@ -12,7 +12,7 @@ export function SearchBar({ defaultValue = '' }: SearchBarProps) {
   const router = useRouter()
   const [query, setQuery] = useState(defaultValue)
   const [isPending, startTransition] = useTransition()
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>()
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => setQuery(defaultValue), [defaultValue])

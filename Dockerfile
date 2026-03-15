@@ -5,6 +5,9 @@ FROM node:20-alpine AS deps
 WORKDIR /app
 
 COPY package.json package-lock.json ./
+COPY prisma ./prisma/
+
+# Install deps (postinstall runs prisma generate)
 RUN npm ci
 
 # ============================================
@@ -25,6 +28,12 @@ ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
 ENV NEXT_PUBLIC_TMDB_IMAGE_BASE_URL=$NEXT_PUBLIC_TMDB_IMAGE_BASE_URL
 ENV NEXT_PUBLIC_REGION=$NEXT_PUBLIC_REGION
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV DATABASE_URL="file:./dev.db"
+
+# Generate Prisma client + create DB + seed
+RUN npx prisma generate && \
+    npx prisma migrate deploy && \
+    npx prisma db seed
 
 RUN npm run build
 
@@ -36,6 +45,7 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV DATABASE_URL="file:./prisma/dev.db"
 
 # Create non-root user for security
 RUN addgroup --system --gid 1001 nodejs && \
@@ -47,6 +57,11 @@ COPY --from=builder /app/public ./public
 # Copy standalone build output (produced by output: 'standalone' in next.config)
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+# Copy Prisma schema + SQLite DB
+COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma ./node_modules/@prisma
 
 USER nextjs
 

@@ -1,0 +1,176 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ─── Users & Auth ───────────────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  passwordHash  String
+  role          String    @default("user") // super_admin | admin | staff | editor | user
+  avatar        String?
+  isActive      Boolean   @default(true)
+  status        String    @default("active") // active | suspended | banned
+  blockedReason String?
+  lastLoginAt   DateTime?
+  lastLoginIp   String?
+  loginCount    Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+
+  sessions      Session[]
+  adminLogs     AdminLog[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─── Movies ─────────────────────────────────────────────────────
+
+model Movie {
+  id              String    @id @default(cuid())
+  title           String
+  originalTitle   String?
+  slug            String    @unique
+  description     String?
+  shortDescription String?
+  type            String    @default("movie") // movie | series | anime | trailer | short
+  status          String    @default("draft") // draft | published | hidden | archived
+  posterUrl       String?
+  backdropUrl     String?
+  thumbnailUrl    String?
+  trailerUrl      String?
+  releaseYear     Int?
+  duration        Int?      // minutes
+  quality         String?   // CAM | HD | FHD | 4K
+  language        String?
+  rating          Float?    @default(0)
+  ageRating       String?   // P | C13 | C16 | C18
+  country         String?
+  genre           String?   // comma-separated
+  cast            String?   // comma-separated or JSON
+  director        String?
+  tags            String?   // comma-separated
+  seoTitle        String?
+  seoDescription  String?
+  seoKeywords     String?
+  isFeatured      Boolean   @default(false)
+  isTrending      Boolean   @default(false)
+  isRecommended   Boolean   @default(false)
+  isPublished     Boolean   @default(false)
+  sourceStatus    String    @default("pending") // active | missing | broken | pending
+  viewCount       Int       @default(0)
+  createdBy       String?
+  updatedBy       String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  episodes        Episode[]
+  shorts          Short[]
+}
+
+// ─── Episodes ───────────────────────────────────────────────────
+
+model Episode {
+  id              String   @id @default(cuid())
+  movieId         String
+  episodeNumber   Int      @default(1)
+  title           String?
+  slug            String?
+  sourceType      String   @default("mp4") // iframe | mp4 | hls | youtube
+  sourceUrl       String?
+  backupSourceUrl String?
+  subtitleUrl     String?
+  duration        Int?     // seconds
+  quality         String?
+  language        String?
+  sortOrder       Int      @default(0)
+  status          String   @default("active") // active | broken | hidden | pending
+  viewCount       Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  movie           Movie    @relation(fields: [movieId], references: [id], onDelete: Cascade)
+}
+
+// ─── Shorts ─────────────────────────────────────────────────────
+
+model Short {
+  id            String   @id @default(cuid())
+  movieId       String?
+  title         String
+  slug          String   @unique
+  description   String?
+  videoUrl      String?
+  sourceType    String   @default("mp4") // mp4 | hls | youtube | iframe
+  thumbnailUrl  String?
+  duration      Int?     // seconds
+  hashtags      String?  // comma-separated
+  status        String   @default("draft") // draft | published | hidden | archived
+  viewCount     Int      @default(0)
+  likeCount     Int      @default(0)
+  shareCount    Int      @default(0)
+  saveCount     Int      @default(0)
+  createdBy     String?
+  updatedBy     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  deletedAt     DateTime?
+
+  movie         Movie?   @relation(fields: [movieId], references: [id], onDelete: SetNull)
+}
+
+// ─── Admin Audit Log ────────────────────────────────────────────
+
+model AdminLog {
+  id          String   @id @default(cuid())
+  actorId     String
+  action      String   // login | create | update | delete | block | unblock | upload | change_role
+  targetType  String?  // movie | episode | short | user | upload
+  targetId    String?
+  metadata    String?  // JSON string
+  ipAddress   String?
+  createdAt   DateTime @default(now())
+
+  actor       User     @relation(fields: [actorId], references: [id], onDelete: Cascade)
+}
+
+// ─── Upload Tracking ────────────────────────────────────────────
+
+model Upload {
+  id          String   @id @default(cuid())
+  fileName    String
+  originalName String
+  mimeType    String
+  size        Int
+  path        String
+  url         String
+  uploadedBy  String?
+  createdAt   DateTime @default(now())
+}
+
+// ─── Page Views (minimal analytics) ─────────────────────────────
+
+model PageView {
+  id        String   @id @default(cuid())
+  path      String
+  movieId   String?
+  shortId   String?
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+}

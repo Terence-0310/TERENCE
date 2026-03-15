@@ -15,6 +15,8 @@ import {
   Bell,
   Search,
   ChevronDown,
+  Video,
+  FileText,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/contexts/auth-context'
@@ -22,8 +24,10 @@ import { useAuth } from '@/contexts/auth-context'
 const SIDEBAR_ITEMS = [
   { icon: LayoutDashboard, label: 'Tổng quan', href: '/dashboard' },
   { icon: Film, label: 'Quản lý phim', href: '/dashboard/movies' },
+  { icon: Video, label: 'Short Video', href: '/dashboard/shorts' },
   { icon: Users, label: 'Người dùng', href: '/dashboard/users' },
   { icon: BarChart3, label: 'Thống kê', href: '/dashboard/analytics' },
+  { icon: FileText, label: 'Nhật ký', href: '/dashboard/logs' },
   { icon: Settings, label: 'Cài đặt', href: '/dashboard/settings' },
 ]
 

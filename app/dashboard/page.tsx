@@ -1,61 +1,74 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { Film, Users, Eye, TrendingUp, ArrowUp, ArrowDown, Play } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import Link from 'next/link'
 
-const STATS = [
-  {
-    title: 'Tổng số phim',
-    value: '1,234',
-    change: '+12%',
-    trend: 'up',
-    icon: Film,
-    color: 'bg-blue-500/10 text-blue-500',
-  },
-  {
-    title: 'Người dùng',
-    value: '45,678',
-    change: '+8.2%',
-    trend: 'up',
-    icon: Users,
-    color: 'bg-green-500/10 text-green-500',
-  },
-  {
-    title: 'Lượt xem hôm nay',
-    value: '12,345',
-    change: '+23%',
-    trend: 'up',
-    icon: Eye,
-    color: 'bg-purple-500/10 text-purple-500',
-  },
-  {
-    title: 'Doanh thu tháng',
-    value: '234M',
-    change: '-2.4%',
-    trend: 'down',
-    icon: TrendingUp,
-    color: 'bg-orange-500/10 text-orange-500',
-  },
+interface StatItem {
+  title: string
+  value: string
+  change: string
+  trend: 'up' | 'down'
+}
+
+interface MovieItem {
+  id: number
+  title: string
+  views: number
+  status: string
+}
+
+interface UserItem {
+  id: number
+  name: string
+  email: string
+  watched: number
+}
+
+interface DashboardData {
+  stats: StatItem[]
+  recentMovies: MovieItem[]
+  topUsers: UserItem[]
+}
+
+const STAT_ICONS = [Film, Users, Eye, TrendingUp]
+const STAT_COLORS = [
+  'bg-blue-500/10 text-blue-500',
+  'bg-green-500/10 text-green-500',
+  'bg-purple-500/10 text-purple-500',
+  'bg-orange-500/10 text-orange-500',
 ]
 
-const RECENT_MOVIES = [
-  { id: 1, title: 'Tử Chiến Trên Không', views: 12345, status: 'active' },
-  { id: 2, title: 'Hoa Máu', views: 9876, status: 'active' },
-  { id: 3, title: 'Danh Dự Cuối Cùng', views: 8765, status: 'active' },
-  { id: 4, title: 'Bàn Tay Diệt Quỷ', views: 7654, status: 'pending' },
-  { id: 5, title: 'Chòm Sao Thiên Hậu', views: 6543, status: 'active' },
-]
-
-const TOP_USERS = [
-  { id: 1, name: 'Nguyễn Văn A', email: 'a@email.com', watched: 156 },
-  { id: 2, name: 'Trần Thị B', email: 'b@email.com', watched: 143 },
-  { id: 3, name: 'Lê Văn C', email: 'c@email.com', watched: 128 },
-  { id: 4, name: 'Phạm Thị D', email: 'd@email.com', watched: 115 },
-  { id: 5, name: 'Hoàng Văn E', email: 'e@email.com', watched: 98 },
-]
+// Fallback data used when API is unavailable
+const FALLBACK: DashboardData = {
+  stats: [
+    { title: 'Tổng số phim', value: '—', change: '—', trend: 'up' },
+    { title: 'Người dùng', value: '—', change: '—', trend: 'up' },
+    { title: 'Lượt xem hôm nay', value: '—', change: '—', trend: 'up' },
+    { title: 'Doanh thu tháng', value: '—', change: '—', trend: 'up' },
+  ],
+  recentMovies: [],
+  topUsers: [],
+}
 
 export default function DashboardPage() {
+  const [data, setData] = useState<DashboardData>(FALLBACK)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch('/api/admin/summary')
+      .then((res) => {
+        if (!res.ok) throw new Error('Failed')
+        return res.json()
+      })
+      .then((d: DashboardData) => setData(d))
+      .catch(() => setData(FALLBACK))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const stats = data.stats
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -66,27 +79,31 @@ export default function DashboardPage() {
 
       {/* Stats Grid */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {STATS.map((stat) => (
-          <Card key={stat.title} className="bg-card border-border">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div className={`p-3 rounded-lg ${stat.color}`}>
-                  <stat.icon className="w-5 h-5" />
+        {stats.map((stat, idx) => {
+          const Icon = STAT_ICONS[idx] || Film
+          const color = STAT_COLORS[idx] || STAT_COLORS[0]
+          return (
+            <Card key={stat.title} className="bg-card border-border">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div className={`p-3 rounded-lg ${color}`}>
+                    <Icon className="w-5 h-5" />
+                  </div>
+                  <div className={`flex items-center gap-1 text-sm ${
+                    stat.trend === 'up' ? 'text-green-500' : 'text-red-500'
+                  }`}>
+                    {stat.trend === 'up' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />}
+                    {stat.change}
+                  </div>
                 </div>
-                <div className={`flex items-center gap-1 text-sm ${
-                  stat.trend === 'up' ? 'text-green-500' : 'text-red-500'
-                }`}>
-                  {stat.trend === 'up' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />}
-                  {stat.change}
+                <div className="mt-4">
+                  <p className="text-2xl font-bold">{loading ? '...' : stat.value}</p>
+                  <p className="text-sm text-muted-foreground">{stat.title}</p>
                 </div>
-              </div>
-              <div className="mt-4">
-                <p className="text-2xl font-bold">{stat.value}</p>
-                <p className="text-sm text-muted-foreground">{stat.title}</p>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            </Card>
+          )
+        })}
       </div>
 
       {/* Charts Row */}
@@ -101,7 +118,10 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {RECENT_MOVIES.map((movie) => (
+              {data.recentMovies.length === 0 && !loading && (
+                <p className="text-muted-foreground text-sm">Chưa có dữ liệu</p>
+              )}
+              {data.recentMovies.map((movie) => (
                 <div key={movie.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center">
@@ -135,19 +155,22 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {TOP_USERS.map((user, idx) => (
-                <div key={user.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
+              {data.topUsers.length === 0 && !loading && (
+                <p className="text-muted-foreground text-sm">Chưa có dữ liệu</p>
+              )}
+              {data.topUsers.map((u) => (
+                <div key={u.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
-                      <span className="text-primary font-semibold">{user.name.charAt(0)}</span>
+                      <span className="text-primary font-semibold">{u.name.charAt(0)}</span>
                     </div>
                     <div>
-                      <p className="font-medium">{user.name}</p>
-                      <p className="text-xs text-muted-foreground">{user.email}</p>
+                      <p className="font-medium">{u.name}</p>
+                      <p className="text-xs text-muted-foreground">{u.email}</p>
                     </div>
                   </div>
                     <div className="text-right">
-                    <p className="font-semibold">{user.watched}</p>
+                    <p className="font-semibold">{u.watched}</p>
                     <p className="text-xs text-muted-foreground">phim đã xem</p>
                   </div>
                 </div>

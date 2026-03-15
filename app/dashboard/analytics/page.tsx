@@ -1,201 +1,237 @@
 'use client'
 
-import { TrendingUp, TrendingDown, Users, Eye, Film, DollarSign } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import {
+  Film, Users, Eye, Video, TrendingUp, AlertTriangle,
+  RefreshCw, ChevronDown, ChevronRight, Database, Upload,
+} from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 
-const DAILY_VIEWS = [
-  { day: 'T2', views: 4500 },
-  { day: 'T3', views: 5200 },
-  { day: 'T4', views: 4800 },
-  { day: 'T5', views: 6100 },
-  { day: 'T6', views: 7200 },
-  { day: 'T7', views: 8500 },
-  { day: 'CN', views: 9200 },
-]
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type OverviewData = Record<string, any>
 
-const TOP_MOVIES = [
-  { title: 'Tu Chien Tren Khong', views: 45678, percentage: 85 },
-  { title: 'Hoa Mau', views: 38765, percentage: 72 },
-  { title: 'Danh Du Cuoi Cung', views: 32456, percentage: 60 },
-  { title: 'Ban Tay Diet Quy', views: 28765, percentage: 53 },
-  { title: 'Chom Sao Thien Hau', views: 24567, percentage: 45 },
-]
+interface Warning {
+  type: string; count: number; label: string
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  items?: any[]
+}
 
-const GENRE_STATS = [
-  { name: 'Hanh dong', value: 35, color: 'bg-blue-500' },
-  { name: 'Tam ly', value: 25, color: 'bg-purple-500' },
-  { name: 'Lang man', value: 20, color: 'bg-pink-500' },
-  { name: 'Kinh di', value: 12, color: 'bg-red-500' },
-  { name: 'Hai', value: 8, color: 'bg-green-500' },
-]
+interface ReportData {
+  warnings: Warning[]
+  summary: { unpublishedMovies: number; archivedMovies: number; totalActive: number; totalUploads: number }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  recentlyUpdatedMovies: any[]
+}
 
 export default function AnalyticsPage() {
-  const maxViews = Math.max(...DAILY_VIEWS.map(d => d.views))
+  const [overview, setOverview] = useState<OverviewData | null>(null)
+  const [reports, setReports] = useState<ReportData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [expandedWarning, setExpandedWarning] = useState<string | null>(null)
+
+  const fetchData = useCallback(async () => {
+    setLoading(true)
+    try {
+      const [summaryRes, reportsRes] = await Promise.all([
+        fetch('/api/admin/summary'),
+        fetch('/api/admin/reports'),
+      ])
+      if (summaryRes.ok) {
+        const s = await summaryRes.json()
+        setOverview(s.overview || null)
+      }
+      if (reportsRes.ok) {
+        const r = await reportsRes.json()
+        setReports(r)
+      }
+    } catch { /* ignored */ }
+    setLoading(false)
+  }, [])
+
+  useEffect(() => { fetchData() }, [fetchData])
+
+  const o = overview || {}
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
-      <div>
-        <h1 className="text-2xl font-bold">Thống kê</h1>
-        <p className="text-muted-foreground">Theo dõi hiệu suất và xu hướng của hệ thống</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">Thống kê</h1>
+          <p className="text-muted-foreground">Theo dõi hiệu suất và sức khỏe hệ thống</p>
+        </div>
+        <Button variant="outline" size="icon" onClick={fetchData}><RefreshCw className="w-4 h-4" /></Button>
       </div>
 
-      {/* Overview Stats */}
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
-        <Card className="bg-card border-border">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div className="p-3 rounded-lg bg-blue-500/10">
-                <Eye className="w-5 h-5 text-blue-500" />
-              </div>
-              <div className="flex items-center gap-1 text-green-500 text-sm">
-                <TrendingUp className="w-4 h-4" />
-                +23%
-              </div>
-            </div>
-            <div className="mt-4">
-              <p className="text-2xl font-bold">1.2M</p>
-              <p className="text-sm text-muted-foreground">Tổng lượt xem tháng</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-card border-border">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div className="p-3 rounded-lg bg-green-500/10">
-                <Users className="w-5 h-5 text-green-500" />
-              </div>
-              <div className="flex items-center gap-1 text-green-500 text-sm">
-                <TrendingUp className="w-4 h-4" />
-                +12%
-              </div>
-            </div>
-            <div className="mt-4">
-              <p className="text-2xl font-bold">45,678</p>
-              <p className="text-sm text-muted-foreground">Người dùng hoạt động</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-card border-border">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div className="p-3 rounded-lg bg-purple-500/10">
-                <Film className="w-5 h-5 text-purple-500" />
-              </div>
-              <div className="flex items-center gap-1 text-green-500 text-sm">
-                <TrendingUp className="w-4 h-4" />
-                +8%
-              </div>
-            </div>
-            <div className="mt-4">
-              <p className="text-2xl font-bold">1,234</p>
-              <p className="text-sm text-muted-foreground">Tổng số phim</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-card border-border">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div className="p-3 rounded-lg bg-orange-500/10">
-                <DollarSign className="w-5 h-5 text-orange-500" />
-              </div>
-              <div className="flex items-center gap-1 text-red-500 text-sm">
-                <TrendingDown className="w-4 h-4" />
-                -2.4%
-              </div>
-            </div>
-            <div className="mt-4">
-              <p className="text-2xl font-bold">234M</p>
-              <p className="text-sm text-muted-foreground">Doanh thu tháng</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Charts Row */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Daily Views Chart */}
-        <Card className="bg-card border-border">
-          <CardHeader>
-            <CardTitle className="text-lg">Lượt xem theo ngày</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-end justify-between h-48 gap-2">
-              {DAILY_VIEWS.map((day) => (
-                <div key={day.day} className="flex-1 flex flex-col items-center gap-2">
-                  <div
-                    className="w-full bg-primary/80 rounded-t-lg transition-all hover:bg-primary"
-                    style={{ height: `${(day.views / maxViews) * 100}%` }}
-                  />
-                  <span className="text-xs text-muted-foreground">{day.day}</span>
-                </div>
-              ))}
-            </div>
-            <div className="mt-4 flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Tuần này</span>
-              <span className="font-medium text-green-500">+15% so với tuần trước</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Genre Distribution */}
-        <Card className="bg-card border-border">
-          <CardHeader>
-            <CardTitle className="text-lg">Phân bố thể loại</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {GENRE_STATS.map((genre) => (
-                <div key={genre.name} className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span>{genre.name}</span>
-                    <span className="font-medium">{genre.value}%</span>
-                  </div>
-                  <div className="h-2 bg-muted rounded-full overflow-hidden">
-                    <div
-                      className={`h-full ${genre.color} rounded-full transition-all`}
-                      style={{ width: `${genre.value}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Top Movies */}
-      <Card className="bg-card border-border">
-        <CardHeader>
-          <CardTitle className="text-lg">Phim xem nhiều nhất</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {TOP_MOVIES.map((movie, idx) => (
-              <div key={movie.title} className="flex items-center gap-4">
-                <span className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-xs font-semibold text-primary">
-                  {idx + 1}
-                </span>
-                <div className="flex-1">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-medium">{movie.title}</span>
-                    <span className="text-sm text-muted-foreground">{movie.views.toLocaleString()} lượt xem</span>
-                  </div>
-                  <div className="h-2 bg-muted rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-primary rounded-full"
-                      style={{ width: `${movie.percentage}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
-            ))}
+      {loading ? (
+        <div className="flex justify-center py-12">
+          <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full" />
+        </div>
+      ) : (
+        <>
+          {/* Overview Stats */}
+          <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+            <StatCard icon={Film} color="blue" label="Tổng phim" value={o.totalMovies || 0}
+              sub={`${o.totalSingleMovies || 0} phim lẻ · ${o.totalSeries || 0} bộ · ${o.totalAnime || 0} anime`} />
+            <StatCard icon={Users} color="green" label="Người dùng" value={o.totalUsers || 0}
+              sub={`${o.totalAdmins || 0} admin · +${o.newUsers7d || 0} tuần`} />
+            <StatCard icon={Video} color="purple" label="Short Video" value={o.totalShorts || 0}
+              sub={`${o.publishedShorts || 0} xuất bản · ${o.draftShorts || 0} nháp`} />
+            <StatCard icon={Eye} color="orange" label="Lượt xem" value={o.totalMovieViews || 0}
+              sub={`Hôm nay: ${o.viewsToday || 0} · 7 ngày: ${o.views7d || 0}`} />
           </div>
-        </CardContent>
-      </Card>
+
+          {/* Movie status breakdown */}
+          <div className="grid gap-4 grid-cols-2 lg:grid-cols-5">
+            <MiniCard label="Đã xuất bản" value={o.publishedMovies || 0} color="text-green-400" />
+            <MiniCard label="Nháp" value={o.draftMovies || 0} color="text-yellow-400" />
+            <MiniCard label="Đã ẩn" value={o.hiddenMovies || 0} color="text-red-400" />
+            <MiniCard label="Lưu trữ" value={o.archivedMovies || 0} color="text-gray-400" />
+            <MiniCard label="Tổng tập" value={o.totalEpisodes || 0} color="text-cyan-400" />
+          </div>
+
+          {/* Content Health Warnings */}
+          {reports && (
+            <Card className="bg-card border-border">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5 text-amber-400" />
+                  Kiểm tra sức khỏe nội dung
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {reports.warnings.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-8">Không có cảnh báo nào. Hệ thống hoạt động tốt!</p>
+                ) : (
+                  <div className="space-y-2">
+                    {reports.warnings.map((w) => (
+                      <div key={w.type} className="rounded-lg bg-muted/50">
+                        <div
+                          className="flex items-center justify-between p-3 cursor-pointer hover:bg-muted transition-colors rounded-lg"
+                          onClick={() => setExpandedWarning(expandedWarning === w.type ? null : w.type)}
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className={`text-2xl font-bold ${w.count > 0 ? 'text-amber-400' : 'text-green-400'}`}>
+                              {w.count}
+                            </span>
+                            <span className="font-medium">{w.label}</span>
+                          </div>
+                          {w.items && w.items.length > 0 && (
+                            expandedWarning === w.type
+                              ? <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                              : <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                          )}
+                        </div>
+                        {expandedWarning === w.type && w.items && w.items.length > 0 && (
+                          <div className="px-4 pb-3 space-y-1">
+                            {w.items.slice(0, 10).map((item, i) => (
+                              <div key={i} className="text-sm text-muted-foreground pl-10">
+                                • {item.title || item.slug || JSON.stringify(item)}
+                              </div>
+                            ))}
+                            {w.items.length > 10 && (
+                              <div className="text-xs text-muted-foreground pl-10">
+                                ... và {w.items.length - 10} mục khác
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* System Info */}
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card className="bg-card border-border">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Database className="w-4 h-4" /> Tổng quan hệ thống
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3 text-sm">
+                  <InfoRow label="Phim chưa xuất bản" value={reports?.summary.unpublishedMovies || 0} />
+                  <InfoRow label="Phim đã lưu trữ" value={reports?.summary.archivedMovies || 0} />
+                  <InfoRow label="Phim đang hoạt động" value={reports?.summary.totalActive || 0} />
+                  <InfoRow label="Tổng file upload" value={reports?.summary.totalUploads || 0} />
+                  <InfoRow label="Nguồn lỗi" value={o.brokenSources || 0} />
+                  <InfoRow label="User bị khóa" value={o.blockedUsers || 0} />
+                  <InfoRow label="Phim thiếu poster" value={o.missingPoster || 0} />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-card border-border">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Upload className="w-4 h-4" /> Phim mới cập nhật
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {(reports?.recentlyUpdatedMovies || []).slice(0, 5).map((m) => (
+                    <div key={m.id} className="flex items-center justify-between text-sm p-2 rounded bg-muted/50">
+                      <span className="font-medium truncate max-w-[200px]">{m.title}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(m.updatedAt).toLocaleDateString('vi')}
+                      </span>
+                    </div>
+                  ))}
+                  {(!reports?.recentlyUpdatedMovies || reports.recentlyUpdatedMovies.length === 0) && (
+                    <p className="text-muted-foreground text-sm text-center py-4">Chưa có dữ liệu</p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ─── Helper components ──────────────────────────────────────────
+
+function StatCard({ icon: Icon, color, label, value, sub }: {
+  icon: React.ElementType; color: string; label: string; value: number; sub: string
+}) {
+  const colorClass = `bg-${color}-500/10 text-${color}-500`
+  return (
+    <Card className="bg-card border-border">
+      <CardContent className="p-6">
+        <div className="flex items-center gap-3">
+          <div className={`p-3 rounded-lg ${colorClass}`}><Icon className="w-5 h-5" /></div>
+          <div>
+            <p className="text-2xl font-bold">{value.toLocaleString()}</p>
+            <p className="text-sm text-muted-foreground">{label}</p>
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground mt-2">{sub}</p>
+      </CardContent>
+    </Card>
+  )
+}
+
+function MiniCard({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <Card className="bg-card border-border">
+      <CardContent className="p-4 text-center">
+        <p className={`text-2xl font-bold ${color}`}>{value}</p>
+        <p className="text-xs text-muted-foreground">{label}</p>
+      </CardContent>
+    </Card>
+  )
+}
+
+function InfoRow({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="flex justify-between items-center">
+      <span className="text-muted-foreground">{label}</span>
+      <span className={`font-semibold ${value > 0 ? 'text-amber-400' : 'text-green-400'}`}>{value}</span>
     </div>
   )
 }

@@ -121,9 +121,7 @@ export default function LoginPage() {
                     required
                   />
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Demo admin: admin@terence.vn | Demo user: user@terence.vn
-                </p>
+
               </div>
             ) : (
               <div className="space-y-2">

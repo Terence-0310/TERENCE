@@ -1,0 +1,48 @@
+import { NextRequest } from 'next/server'
+import { requireAdmin, errorResponse, successResponse } from '@/lib/admin/api-helpers'
+import { handleMovieMediaUpload, deleteUploadedFile } from '@/lib/admin/upload'
+import { logAdminAction, getClientIp } from '@/lib/admin/audit'
+import { prisma } from '@/lib/auth/db'
+
+// POST /api/admin/uploads/movie-thumbnail — upload thumbnail image for a movie
+export async function POST(req: NextRequest) {
+  const auth = await requireAdmin('uploads.manage')
+  if (auth instanceof Response) return auth
+
+  try {
+    const formData = await req.formData()
+    const file = formData.get('file') as File | null
+    const movieId = formData.get('movieId') as string | null
+
+    if (!file) return errorResponse('Chưa chọn file')
+    if (!movieId) return errorResponse('movieId là bắt buộc')
+
+    const movie = await prisma.movie.findUnique({ where: { id: movieId }, select: { id: true, title: true, thumbnailUrl: true } })
+    if (!movie) return errorResponse('Không tìm thấy phim', 404)
+
+    // Upload thumbnail
+    const result = await handleMovieMediaUpload(file, movieId, 'thumbnail', auth.user.email)
+
+    // Delete old thumbnail if local
+    if (movie.thumbnailUrl && movie.thumbnailUrl.startsWith('/uploads/')) {
+      await deleteUploadedFile(movie.thumbnailUrl)
+    }
+
+    // Update movie.thumbnailUrl
+    await prisma.movie.update({
+      where: { id: movieId },
+      data: { thumbnailUrl: result.url, updatedBy: auth.user.email },
+    })
+
+    await logAdminAction({
+      actorId: auth.user.email, action: 'upload', targetType: 'movie', targetId: movieId,
+      metadata: { field: 'thumbnailUrl', fileName: result.fileName, size: result.size, oldUrl: movie.thumbnailUrl },
+      ipAddress: getClientIp(req.headers),
+    })
+
+    return successResponse({ url: result.url, fileName: result.fileName, size: result.size }, 201)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Upload thất bại'
+    return errorResponse(message)
+  }
+}

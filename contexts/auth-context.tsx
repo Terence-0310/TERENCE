@@ -8,7 +8,7 @@ export interface User {
   email: string
   name: string
   role: 'admin' | 'user'
-  avatar?: string
+  avatar?: string | null
 }
 
 interface AuthContextType {
@@ -21,62 +21,9 @@ interface AuthContextType {
   isAuthenticated: boolean
 }
 
-// ── Constants ──
-
-const STORAGE_KEY = 'terence:auth-user'
-const DEMO_DELAY_MS = 800
-
-/** Pre-defined demo accounts (password: any non-empty string) */
-const DEMO_ACCOUNTS: Record<string, User> = {
-  'admin@terence.vn': { email: 'admin@terence.vn', name: 'Admin Terence', role: 'admin' },
-  'user@terence.vn': { email: 'user@terence.vn', name: 'Người dùng Demo', role: 'user' },
-}
-
 // ── Context ──
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
-
-// ── Helpers ──
-
-function loadUser(): User | null {
-  if (typeof window === 'undefined') return null
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    return raw ? JSON.parse(raw) : null
-  } catch {
-    localStorage.removeItem(STORAGE_KEY)
-    return null
-  }
-}
-
-function persistUser(user: User | null): void {
-  if (typeof window === 'undefined') return
-  if (user) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(user))
-  } else {
-    localStorage.removeItem(STORAGE_KEY)
-  }
-}
-
-function resolveUser(identifier: string, name?: string): User {
-  // Check demo accounts first
-  const demo = DEMO_ACCOUNTS[identifier.toLowerCase()]
-  if (demo) return demo
-
-  // Fallback: create user from identifier
-  const isAdmin = identifier.toLowerCase().includes('admin')
-  const displayName = name || identifier.split('@')[0] || 'User'
-  return {
-    email: identifier,
-    name: displayName,
-    role: isAdmin ? 'admin' : 'user',
-  }
-}
-
-/** Simulate async API call */
-function simulateDelay(): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, DEMO_DELAY_MS))
-}
 
 // ── Provider ──
 
@@ -84,36 +31,62 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  // Restore session on mount
+  // Restore session on mount via /api/auth/me
   useEffect(() => {
-    setUser(loadUser())
-    setIsLoading(false)
+    fetch('/api/auth/me')
+      .then((res) => res.json())
+      .then((data: { user: User | null }) => {
+        setUser(data.user ?? null)
+      })
+      .catch(() => setUser(null))
+      .finally(() => setIsLoading(false))
   }, [])
 
   const login = useCallback(async (identifier: string, password: string): Promise<boolean> => {
     if (!identifier.trim() || !password.trim()) return false
 
-    await simulateDelay()
-    const resolvedUser = resolveUser(identifier)
-    setUser(resolvedUser)
-    persistUser(resolvedUser)
-    return true
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: identifier.trim(), password }),
+      })
+
+      if (!res.ok) return false
+
+      const data = await res.json() as { user: User }
+      setUser(data.user)
+      return true
+    } catch {
+      return false
+    }
   }, [])
 
   const signup = useCallback(async (name: string, email: string, password: string): Promise<boolean> => {
     if (!name.trim() || !email.trim() || !password.trim()) return false
     if (password.length < 8) return false
 
-    await simulateDelay()
-    const newUser = resolveUser(email, name)
-    setUser(newUser)
-    persistUser(newUser)
-    return true
+    try {
+      const res = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), email: email.trim(), password }),
+      })
+
+      if (!res.ok) return false
+
+      const data = await res.json() as { user: User }
+      setUser(data.user)
+      return true
+    } catch {
+      return false
+    }
   }, [])
 
   const logout = useCallback(() => {
-    setUser(null)
-    persistUser(null)
+    fetch('/api/auth/logout', { method: 'POST' })
+      .catch(() => {})
+      .finally(() => setUser(null))
   }, [])
 
   return (
@@ -123,7 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login,
       signup,
       logout,
-      isAdmin: user?.role === 'admin',
+      isAdmin: !!user && ['super_admin', 'admin', 'staff', 'editor'].includes(user.role),
       isAuthenticated: !!user,
     }}>
       {children}
