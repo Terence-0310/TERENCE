@@ -2,12 +2,12 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { Eye, EyeOff, Mail, Lock, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useAuth } from '@/contexts/auth-context'
+import { TerenceLogo } from '@/components/terence-logo'
 
 export default function SignupPage() {
   const router = useRouter()
@@ -70,18 +70,9 @@ export default function SignupPage() {
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="w-full max-w-md">
           {/* Logo */}
-          <Link href="/" className="shrink-0 flex items-center mb-8">
-            <div className="relative h-9 w-9">
-              <Image
-                src="/startup_logo.png"
-                alt="Terence"
-                fill
-                priority
-                className="object-contain"
-                style={{ mixBlendMode: 'screen' }}
-                sizes="36px"
-              />
-            </div>
+          <Link href="/" className="shrink-0 flex items-center gap-2 mb-8">
+            <TerenceLogo size={36} />
+            <span className="text-xl font-bold tracking-tight text-white">Terence</span>
           </Link>
 
           <h1 className="text-3xl font-bold mb-2">Tạo tài khoản</h1>

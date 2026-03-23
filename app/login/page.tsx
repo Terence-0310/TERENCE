@@ -2,12 +2,12 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { Eye, EyeOff, Mail, Lock, Phone } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useAuth } from '@/contexts/auth-context'
+import { TerenceLogo } from '@/components/terence-logo'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -47,18 +47,9 @@ export default function LoginPage() {
     <div className="min-h-screen bg-background flex flex-col">
       {/* Custom header for auth page */}
       <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-xl border-b border-white/10 px-4 md:px-6 lg:px-8 h-14 flex items-center">
-        <Link href="/" className="shrink-0 flex items-center">
-          <div className="relative h-8 w-8">
-            <Image
-              src="/startup_logo.png"
-              alt="Terence"
-              fill
-              priority
-              className="object-contain"
-              style={{ mixBlendMode: 'screen' }}
-              sizes="32px"
-            />
-          </div>
+        <Link href="/" className="shrink-0 flex items-center gap-2">
+          <TerenceLogo size={32} />
+          <span className="text-lg font-bold tracking-tight text-white">Terence</span>
         </Link>
       </header>
 

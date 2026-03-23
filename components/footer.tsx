@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { TerenceLogo } from '@/components/terence-logo'
 
 export function Footer() {
   return (
@@ -8,7 +9,7 @@ export function Footer() {
           {/* Brand */}
           <div>
             <Link href="/" className="flex items-center gap-2">
-              <img src="/startup_logo.png" alt="Terence" style={{ height: '22px', width: '22px', objectFit: 'contain', mixBlendMode: 'screen' }} />
+              <TerenceLogo size={24} />
               <span className="text-lg font-bold text-white">Terence</span>
             </Link>
             <p className="mt-3 text-sm text-muted-foreground">

@@ -1,13 +1,9 @@
-# v0 runtime files
-__v0_runtime_loader.js
-__v0_devtools.tsx
-__v0_jsx-dev-runtime.ts
-
 # Dependencies
 node_modules/
 
 # Next.js build
 .next/
+out/
 
 # Environment (secrets — NEVER commit these)
 .env
@@ -17,6 +13,13 @@ node_modules/
 .env.development
 .env.staging
 # .env.example is safe to commit (contains only placeholders)
+
+# Database (local dev)
+prisma/dev.db
+prisma/dev.db-journal
+
+# TypeScript
+tsconfig.tsbuildinfo
 
 # OS
 .DS_Store
@@ -29,3 +32,6 @@ logs/
 .vscode/
 *.swp
 *.swo
+
+# Temp
+tmp/

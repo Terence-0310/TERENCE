@@ -7,6 +7,7 @@ import { Search, Menu, X, LogOut, LayoutDashboard, ChevronDown } from 'lucide-re
 import { useAuth } from '@/contexts/auth-context'
 import { GENRES, genreBrowseUrl } from '@/lib/data/genres'
 import { COUNTRIES, countryBrowseUrl } from '@/lib/data/countries'
+import { TerenceLogo } from '@/components/terence-logo'
 
 // Nav items — "Thể loại" and "Quốc gia" are mega dropdowns, not links
 const NAV_ITEMS = [
@@ -121,7 +122,7 @@ function HeaderInner() {
       <div className="mx-auto flex h-16 items-center justify-between px-4 md:px-6 lg:px-8" style={{ maxWidth: '1400px' }}>
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2 shrink-0">
-          <img src="/startup_logo.png" alt="Terence" style={{ height: '22px', width: '22px', objectFit: 'contain', mixBlendMode: 'screen' }} />
+          <TerenceLogo size={28} />
           <span className="text-lg font-bold tracking-tight text-white hidden lg:inline">Terence</span>
         </Link>
 

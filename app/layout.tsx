@@ -23,8 +23,8 @@ export const metadata: Metadata = {
     type: 'website',
   },
   icons: {
-    icon: '/startup_logo.png',
-    apple: '/startup_logo.png',
+    icon: '/assets/logo/terence-logo.svg',
+    apple: '/assets/logo/terence-logo.svg',
   },
 }
 
