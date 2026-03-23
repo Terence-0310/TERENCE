@@ -128,9 +128,27 @@ function HeaderInner() {
 
         {/* Desktop Nav */}
         <nav className="hidden items-center md:flex">
-          {/* First 6 items (before dropdowns) */}
           {NAV_ITEMS.slice(0, 6).map((item) => {
-            const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href.split('?')[0]))
+            // Smart active check: items with query params must match both pathname + query
+            const [itemPath, itemQuery] = item.href.split('?')
+            const itemParams = new URLSearchParams(itemQuery || '')
+            const hasQuery = itemQuery !== undefined
+
+            let isActive: boolean
+            if (item.href === '/') {
+              // Home: exact match only
+              isActive = pathname === '/'
+            } else if (hasQuery) {
+              // Items with query params: match pathname + specific param
+              isActive = pathname === itemPath &&
+                Array.from(itemParams.entries()).every(
+                  ([key, val]) => searchParams.get(key) === val
+                )
+            } else {
+              // Items without query: match pathname exactly, but NOT if there are category params
+              isActive = pathname === itemPath && !searchParams.get('category')
+            }
+
             return (
               <Link key={item.href} href={item.href} className={navLinkClass(isActive)}>
                 {item.label}
@@ -206,7 +224,7 @@ function HeaderInner() {
 
           {/* Remaining items (after dropdowns) */}
           {NAV_ITEMS.slice(6).map((item) => {
-            const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href.split('?')[0]))
+            const isActive = pathname === item.href
             return (
               <Link key={item.href} href={item.href} className={navLinkClass(isActive)}>
                 {item.label}
