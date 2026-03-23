@@ -30,16 +30,18 @@ echo "📥 Pulling latest code from $BRANCH..."
 git pull origin "$BRANCH" || { echo -e "${RED}✗ Git pull thất bại${NC}"; exit 1; }
 echo -e "${GREEN}✓${NC} Code đã cập nhật"
 
-# ── 3. Check .env.local exists ──
+# ── 3. Check .env exists ──
 echo ""
-if [ ! -f ".env.local" ]; then
-    echo -e "${RED}✗ File .env.local không tồn tại!${NC}"
+if [ ! -f ".env" ]; then
+    echo -e "${RED}✗ File .env không tồn tại!${NC}"
     echo "  → Copy từ .env.example:"
-    echo "    cp .env.example .env.local"
-    echo "    nano .env.local"
+    echo "    cp .env.example .env"
+    echo "    nano .env"
+    echo "  → Nếu đang có .env.local, đổi tên:"
+    echo "    mv .env.local .env"
     exit 1
 fi
-echo -e "${GREEN}✓${NC} File .env.local tồn tại"
+echo -e "${GREEN}✓${NC} File .env tồn tại"
 
 # ── 4. Install dependencies ──
 echo ""
