@@ -30,13 +30,44 @@ echo "📥 Pulling latest code from $BRANCH..."
 git pull origin "$BRANCH" || { echo -e "${RED}✗ Git pull thất bại${NC}"; exit 1; }
 echo -e "${GREEN}✓${NC} Code đã cập nhật"
 
-# ── 3. Install dependencies ──
+# ── 3. Check .env.local exists ──
+echo ""
+if [ ! -f ".env.local" ]; then
+    echo -e "${RED}✗ File .env.local không tồn tại!${NC}"
+    echo "  → Copy từ .env.example:"
+    echo "    cp .env.example .env.local"
+    echo "    nano .env.local"
+    exit 1
+fi
+echo -e "${GREEN}✓${NC} File .env.local tồn tại"
+
+# ── 4. Install dependencies ──
 echo ""
 echo "📦 Installing dependencies..."
 npm install --production=false || { echo -e "${RED}✗ npm install thất bại${NC}"; exit 1; }
 echo -e "${GREEN}✓${NC} Dependencies đã cài xong"
 
-# ── 4. Build ──
+# ── 5. Generate Prisma client ──
+echo ""
+echo "🗄️  Generating Prisma client..."
+npx prisma generate || { echo -e "${RED}✗ Prisma generate thất bại${NC}"; exit 1; }
+echo -e "${GREEN}✓${NC} Prisma client generated"
+
+# ── 6. Run migrations & seed (if fresh) ──
+echo ""
+echo "🗄️  Running Prisma migrations..."
+npx prisma migrate deploy 2>/dev/null || {
+    echo "  → First time setup, running migrate dev..."
+    npx prisma migrate dev --name init --skip-generate 2>/dev/null || true
+}
+
+if [ ! -f "prisma/dev.db" ] || [ $(stat -c%s "prisma/dev.db" 2>/dev/null || echo 0) -lt 1000 ]; then
+    echo "  → Database mới, seeding data..."
+    npx prisma db seed || echo "  ⚠️  Seed có lỗi nhưng tiếp tục"
+fi
+echo -e "${GREEN}✓${NC} Database ready"
+
+# ── 7. Build ──
 echo ""
 echo "🏗️  Building production..."
 npm run build || {
@@ -49,7 +80,7 @@ npm run build || {
 }
 echo -e "${GREEN}✓${NC} Build thành công"
 
-# ── 5. Restart / Start PM2 ──
+# ── 8. Restart / Start PM2 ──
 echo ""
 echo "♻️  Restarting PM2..."
 if pm2 describe "$APP_NAME" > /dev/null 2>&1; then
@@ -61,11 +92,11 @@ else
     echo -e "${GREEN}✓${NC} PM2 process '$APP_NAME' đã start"
 fi
 
-# ── 6. Save PM2 state ──
+# ── 9. Save PM2 state ──
 pm2 save
 echo -e "${GREEN}✓${NC} PM2 state đã lưu"
 
-# ── 7. Summary ──
+# ── 10. Summary ──
 echo ""
 echo -e "${GREEN}═══════════════════════════════════════${NC}"
 echo -e "${GREEN}  ✓ DEPLOY HOÀN TẤT${NC}"

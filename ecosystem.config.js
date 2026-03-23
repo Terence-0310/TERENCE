@@ -1,13 +1,14 @@
 // ============================================
 // TERENCE — PM2 Ecosystem Config
+// Đường dẫn: /var/www/TERENCE
 // ============================================
 module.exports = {
   apps: [
     {
       name: 'terence',
       cwd: '/var/www/TERENCE',
-      script: 'npm',
-      args: 'run start',
+      script: 'node_modules/.bin/next',
+      args: 'start -p 3000 -H 0.0.0.0',
       env: {
         NODE_ENV: 'production',
         PORT: 3000,
