@@ -51,16 +51,6 @@ NEXT_PUBLIC_REGION=VN
 ```
 
 Lưu: `Ctrl+O` → `Enter` → `Ctrl+X`
-
-> [!CAUTION]
-> **XÓA** các biến sau vì dự án **KHÔNG DÙNG**:
-> - ~~NEXTAUTH_URL~~ ❌
-> - ~~NEXTAUTH_SECRET~~ ❌
-> - ~~AUTH_SECRET~~ ❌
-> - ~~JWT_SECRET~~ ❌
-> - ~~NEXT_PUBLIC_TMDB_BASE_URL~~ ❌ (phải là `TMDB_BASE_URL` không có `NEXT_PUBLIC_`)
-> - ~~TMDB_ACCESS_TOKEN~~ ❌ (phải là `TMDB_READ_ACCESS_TOKEN`)
-
 > [!WARNING]
 > **Phải dùng `.env`** — KHÔNG dùng `.env.local`!
 > Prisma CLI chỉ đọc `.env`, nếu dùng `.env.local` sẽ bị lỗi `DATABASE_URL not found`.
@@ -73,7 +63,6 @@ cd /var/www/TERENCE
 
 # Cài dependencies
 npm install
-
 # Generate Prisma client
 npx prisma generate
 

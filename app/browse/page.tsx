@@ -86,23 +86,25 @@ export default async function BrowsePage({ searchParams }: PageProps) {
             <div className="flex flex-wrap gap-1.5">
               <Link
                 href="/browse"
-                className={`rounded-full px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wider transition ${
+                className={`rounded-full px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wider transition animate-chip-in ${
                   !genreId && !category
                     ? 'bg-primary text-white shadow-md shadow-primary/20'
                     : 'bg-white/[0.04] text-white/50 border border-white/[0.06] hover:bg-white/[0.08] hover:text-white/70'
                 }`}
+                style={{ '--i': 0 } as React.CSSProperties}
               >
                 Tất cả
               </Link>
-              {genres.map((g) => (
+              {genres.map((g, i) => (
                 <Link
                   key={g.id}
                   href={`/browse?genre=${g.id}`}
-                  className={`rounded-full px-3.5 py-1.5 text-[11px] font-semibold transition ${
+                  className={`rounded-full px-3.5 py-1.5 text-[11px] font-semibold transition animate-chip-in ${
                     genreId === g.id
                       ? 'bg-primary text-white shadow-md shadow-primary/20'
                       : 'bg-white/[0.04] text-white/50 border border-white/[0.06] hover:bg-white/[0.08] hover:text-white/70'
                   }`}
+                  style={{ '--i': i + 1 } as React.CSSProperties}
                 >
                   {g.name}
                 </Link>
@@ -116,7 +118,7 @@ export default async function BrowsePage({ searchParams }: PageProps) {
       <div className="mx-auto max-w-7xl px-5 py-8 md:px-8 lg:px-10">
         {/* Title + count */}
         <div className="mb-6 flex items-center justify-between">
-          <h1 className="text-xl font-bold text-white md:text-2xl">{title}</h1>
+          <h1 className="text-xl font-bold text-white md:text-2xl animate-slide-in-left">{title}</h1>
           {result.totalResults > 0 && (
             <span className="rounded-lg bg-white/5 px-3 py-1 text-xs font-medium text-muted-foreground border border-white/5">
               {result.totalResults.toLocaleString()} phim
@@ -127,8 +129,10 @@ export default async function BrowsePage({ searchParams }: PageProps) {
         {/* Grid */}
         {result.items.length > 0 ? (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-            {result.items.map((m) => (
-              <MovieCard key={m.id} movie={m} />
+            {result.items.map((m, i) => (
+              <div key={m.id} className="animate-card-reveal" style={{ '--i': i } as React.CSSProperties}>
+                <MovieCard movie={m} />
+              </div>
             ))}
           </div>
         ) : (

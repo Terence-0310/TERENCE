@@ -31,12 +31,7 @@ const FALLBACK_GENRES = [
   { id: 10770, name: 'Phim Truyền Hình' },
 ]
 
-// Genre icons/emojis for visual appeal
-const GENRE_ICONS: Record<number, string> = {
-  28: '⚔️', 12: '🗺️', 16: '🎨', 35: '😂', 80: '🔫', 99: '📹',
-  18: '🎭', 10751: '👨‍👩‍👧‍👦', 14: '🧙', 36: '📜', 27: '👻', 10402: '🎵',
-  9648: '🔍', 10749: '💕', 878: '🚀', 53: '😱', 10752: '🎖️', 37: '🤠', 10770: '📺',
-}
+
 
 async function getGenres() {
   try {
@@ -55,20 +50,20 @@ export default async function GenresPage() {
   return (
     <main className="min-h-screen bg-background px-4 md:px-6 lg:px-8 py-8">
       <div className="mx-auto max-w-5xl">
-        <div className="mb-8">
+        <div className="mb-8 animate-slide-in-left">
           <h1 className="text-white text-2xl md:text-3xl font-extrabold tracking-tight mb-2">Thể loại phim</h1>
           <p className="text-muted-foreground text-sm">Chọn thể loại yêu thích để khám phá</p>
         </div>
 
         {genres.length > 0 ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-            {genres.map((genre) => (
+            {genres.map((genre, i) => (
               <Link
                 key={genre.id}
                 href={`/browse?genre=${genre.id}`}
-                className="group flex items-center gap-3 rounded-xl border border-white/[0.06] bg-card/40 px-4 py-4 transition hover:bg-card/60 hover:border-primary/20"
+                className="group rounded-xl border border-white/[0.06] bg-card/40 px-4 py-4 transition hover:bg-card/60 hover:border-primary/20 animate-chip-in"
+                style={{ '--i': i } as React.CSSProperties}
               >
-                <span className="text-xl flex-shrink-0">{GENRE_ICONS[genre.id] ?? '🎬'}</span>
                 <span className="text-sm font-medium text-white/80 group-hover:text-white truncate">
                   {genre.name}
                 </span>

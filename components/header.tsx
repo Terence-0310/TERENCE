@@ -174,14 +174,13 @@ function HeaderInner() {
                     <Link
                       key={g.id}
                       href={genreBrowseUrl(g.id)}
-                      className={`flex items-center gap-2 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors duration-150 ${
+                      className={`rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors duration-150 ${
                         activeGenreId === g.id
                           ? 'bg-primary/15 text-primary'
                           : 'text-white/70 hover:bg-white/[0.06] hover:text-white'
                       }`}
                     >
-                      <span className="text-base leading-none shrink-0">{g.icon}</span>
-                      <span>{g.name}</span>
+                      {g.name}
                     </Link>
                   ))}
                 </div>
@@ -207,14 +206,13 @@ function HeaderInner() {
                     <Link
                       key={c.code}
                       href={countryBrowseUrl(c.code)}
-                      className={`flex items-center gap-2 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors duration-150 ${
+                      className={`rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors duration-150 ${
                         activeCountryCode === c.code
                           ? 'bg-primary/15 text-primary'
                           : 'text-white/70 hover:bg-white/[0.06] hover:text-white'
                       }`}
                     >
-                      <span className="text-base leading-none shrink-0">{c.flag}</span>
-                      <span>{c.name}</span>
+                      {c.name}
                     </Link>
                   ))}
                 </div>
@@ -305,9 +303,8 @@ function HeaderInner() {
             <p className="px-3 pt-1 pb-0.5 text-[10px] uppercase tracking-widest text-white/30 font-semibold">Thể loại</p>
             <div className="grid grid-cols-2 gap-1 px-1">
               {GENRES.map((g) => (
-                <Link key={g.id} href={genreBrowseUrl(g.id)} onClick={() => setMobileOpen(false)} className="flex items-center gap-2 rounded-lg px-2 py-2 text-sm text-white/60 hover:bg-white/5 hover:text-white transition">
-                  <span>{g.icon}</span>
-                  <span className="truncate">{g.name}</span>
+                <Link key={g.id} href={genreBrowseUrl(g.id)} onClick={() => setMobileOpen(false)} className="rounded-lg px-2 py-2 text-sm text-white/60 hover:bg-white/5 hover:text-white transition">
+                  {g.name}
                 </Link>
               ))}
             </div>
@@ -317,9 +314,8 @@ function HeaderInner() {
             <p className="px-3 pt-1 pb-0.5 text-[10px] uppercase tracking-widest text-white/30 font-semibold">Quốc gia</p>
             <div className="grid grid-cols-2 gap-1 px-1">
               {COUNTRIES.map((c) => (
-                <Link key={c.code} href={countryBrowseUrl(c.code)} onClick={() => setMobileOpen(false)} className="flex items-center gap-2 rounded-lg px-2 py-2 text-sm text-white/60 hover:bg-white/5 hover:text-white transition">
-                  <span>{c.flag}</span>
-                  <span className="truncate">{c.name}</span>
+                <Link key={c.code} href={countryBrowseUrl(c.code)} onClick={() => setMobileOpen(false)} className="rounded-lg px-2 py-2 text-sm text-white/60 hover:bg-white/5 hover:text-white transition">
+                  {c.name}
                 </Link>
               ))}
             </div>

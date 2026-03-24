@@ -48,17 +48,18 @@ export default async function PeoplePage({
   return (
     <main className="min-h-screen bg-background px-4 md:px-6 lg:px-8 py-8">
       <div className="mx-auto max-w-6xl">
-        <div className="mb-8">
+        <div className="mb-8 animate-slide-in-left">
           <h1 className="text-white text-2xl md:text-3xl font-extrabold tracking-tight mb-2">Diễn viên nổi tiếng</h1>
           <p className="text-muted-foreground text-sm">Khám phá các nghệ sĩ được yêu thích</p>
         </div>
 
         {data.results.length > 0 ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-            {data.results.map((person) => (
+            {data.results.map((person, i) => (
               <div
                 key={person.id}
-                className="group rounded-xl border border-white/[0.06] bg-card/40 overflow-hidden transition hover:bg-card/60 hover:border-primary/20"
+                className="group rounded-xl border border-white/[0.06] bg-card/40 overflow-hidden transition hover:bg-card/60 hover:border-primary/20 animate-card-reveal"
+                style={{ '--i': i } as React.CSSProperties}
               >
                 {/* Avatar */}
                 <div className="relative aspect-[2/3] bg-white/5">

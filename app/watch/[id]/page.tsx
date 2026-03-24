@@ -37,8 +37,14 @@ export default async function WatchPage({ params, searchParams }: PageProps) {
     notFound()
   }
 
-  // Resolve video source via provider system
-  const source = await resolveMovieSource(movie, episodeSlug)
+  // Resolve video source via provider system (safe — never crash)
+  let source
+  try {
+    source = await resolveMovieSource(movie, episodeSlug)
+  } catch (err) {
+    console.error('[WatchPage] Source resolution failed:', err)
+    source = { available: false, playback: null, episodes: [], providerName: '' }
+  }
   const director = movie.crew.find((c) => c.job === 'Director')
 
   return (

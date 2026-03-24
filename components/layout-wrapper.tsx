@@ -1,8 +1,10 @@
 'use client'
 
 import { usePathname } from 'next/navigation'
+import { Suspense } from 'react'
 import { Header } from '@/components/header'
 import { Footer } from '@/components/footer'
+import { RouteProgress } from '@/components/route-progress'
 
 const HIDE_LAYOUT_PREFIXES = ['/dashboard']
 const HIDE_FOOTER_PREFIXES = ['/watch/']
@@ -21,6 +23,9 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
 
   return (
     <>
+      <Suspense>
+        <RouteProgress />
+      </Suspense>
       <Header />
       {children}
       {!hideFooter && <Footer />}

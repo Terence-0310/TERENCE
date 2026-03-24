@@ -62,38 +62,73 @@ export async function tmdbFetch<T>(
     headers.Authorization = `Bearer ${TMDB_CONFIG.accessToken}`
   }
 
-  // AbortController for timeout
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), timeout)
+  // Retry configuration
+  const MAX_RETRIES = 2
+  let lastError: unknown
 
-  try {
-    const response = await fetch(url.toString(), {
-      headers,
-      signal: controller.signal,
-      next: revalidate !== false ? { revalidate } : undefined,
-    })
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    // AbortController for timeout
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), timeout)
 
-    if (!response.ok) {
-      // Safe log: never log full URL (contains api_key)
-      console.error(`[TMDB] HTTP ${response.status} — ${endpoint}`)
-      throw new TmdbApiError(response.status, endpoint, response.statusText)
+    try {
+      const response = await fetch(url.toString(), {
+        headers,
+        signal: controller.signal,
+        next: revalidate !== false ? { revalidate } : undefined,
+      })
+
+      if (!response.ok) {
+        // Safe log: never log full URL (contains api_key)
+        console.error(`[TMDB] HTTP ${response.status} — ${endpoint}`)
+        
+        // Don't retry 4xx client errors (not-found, unauthorized, etc.)
+        if (response.status >= 400 && response.status < 500) {
+          throw new TmdbApiError(response.status, endpoint, response.statusText)
+        }
+        
+        // Retry 5xx server errors
+        lastError = new TmdbApiError(response.status, endpoint, response.statusText)
+        if (attempt < MAX_RETRIES) {
+          await sleep(300 * (attempt + 1)) // 300ms, 600ms backoff
+          continue
+        }
+        throw lastError
+      }
+
+      return response.json() as Promise<T>
+    } catch (error) {
+      if (error instanceof TmdbApiError) throw error
+
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        console.error(`[TMDB] Timeout after ${timeout}ms — ${endpoint} (attempt ${attempt + 1})`)
+        lastError = new TmdbTimeoutError(endpoint)
+        if (attempt < MAX_RETRIES) {
+          await sleep(300 * (attempt + 1))
+          continue
+        }
+        throw lastError
+      }
+
+      // Network or unknown error — safe log (no secrets)
+      console.error(`[TMDB] Fetch failed — ${endpoint}: ${(error as Error).message} (attempt ${attempt + 1})`)
+      lastError = error
+      if (attempt < MAX_RETRIES) {
+        await sleep(300 * (attempt + 1))
+        continue
+      }
+      throw error
+    } finally {
+      clearTimeout(timeoutId)
     }
-
-    return response.json() as Promise<T>
-  } catch (error) {
-    if (error instanceof TmdbApiError) throw error
-
-    if (error instanceof DOMException && error.name === 'AbortError') {
-      console.error(`[TMDB] Timeout after ${timeout}ms — ${endpoint}`)
-      throw new TmdbTimeoutError(endpoint)
-    }
-
-    // Network or unknown error — safe log (no secrets)
-    console.error(`[TMDB] Fetch failed — ${endpoint}:`, (error as Error).message)
-    throw error
-  } finally {
-    clearTimeout(timeoutId)
   }
+
+  throw lastError
+}
+
+/** Simple async sleep helper */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 /**

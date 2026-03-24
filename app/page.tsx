@@ -51,38 +51,50 @@ export default async function HomePage() {
 
       {/* Content Sections */}
       <div className="-mt-8 relative z-10 space-y-10 pb-16">
-        <MovieRow
-          title="🔥 Xu hướng tuần này"
-          movies={trending.items}
-          href="/browse?category=trending"
-          showRank
-        />
+        <div className="animate-row-in" style={{ '--row': 0 } as React.CSSProperties}>
+          <MovieRow
+            title="🔥 Xu hướng tuần này"
+            movies={trending.items}
+            href="/browse?category=trending"
+            showRank
+          />
+        </div>
 
-        <MovieRow
-          title="🎬 Phim phổ biến"
-          movies={popular.items}
-          href="/browse?category=popular"
-        />
+        <div className="animate-row-in" style={{ '--row': 1 } as React.CSSProperties}>
+          <MovieRow
+            title="🎬 Phim phổ biến"
+            movies={popular.items}
+            href="/browse?category=popular"
+          />
+        </div>
 
-        <GenreChips genres={genres} />
+        <div className="animate-row-in" style={{ '--row': 2 } as React.CSSProperties}>
+          <GenreChips genres={genres} />
+        </div>
 
-        <MovieRow
-          title="⭐ Đánh giá cao nhất"
-          movies={topRated.items}
-          href="/browse?category=top-rated"
-        />
+        <div className="animate-row-in" style={{ '--row': 3 } as React.CSSProperties}>
+          <MovieRow
+            title="⭐ Đánh giá cao nhất"
+            movies={topRated.items}
+            href="/browse?category=top-rated"
+          />
+        </div>
 
-        <MovieRow
-          title="🍿 Đang chiếu rạp"
-          movies={nowPlaying.items}
-          href="/browse?category=now-playing"
-        />
+        <div className="animate-row-in" style={{ '--row': 4 } as React.CSSProperties}>
+          <MovieRow
+            title="🍿 Đang chiếu rạp"
+            movies={nowPlaying.items}
+            href="/browse?category=now-playing"
+          />
+        </div>
 
-        <MovieRow
-          title="📅 Sắp ra mắt"
-          movies={upcoming.items}
-          href="/browse?category=upcoming"
-        />
+        <div className="animate-row-in" style={{ '--row': 5 } as React.CSSProperties}>
+          <MovieRow
+            title="📅 Sắp ra mắt"
+            movies={upcoming.items}
+            href="/browse?category=upcoming"
+          />
+        </div>
       </div>
 
       {/* TMDB Attribution */}

@@ -38,7 +38,7 @@ export function MovieRow({ title, movies, href, loading, showRank }: MovieRowPro
     <section className="group/row relative space-y-3">
       {/* Section Header */}
       <div className="flex items-center justify-between px-5 md:px-8 lg:px-10">
-        <h2 className="text-lg font-bold tracking-tight text-white md:text-xl">
+        <h2 className="text-lg font-bold tracking-tight text-white md:text-xl animate-slide-in-left">
           {title}
         </h2>
         {href && (
@@ -78,7 +78,7 @@ export function MovieRow({ title, movies, href, loading, showRank }: MovieRowPro
                 </div>
               ))
             : movies.map((movie, i) => (
-                <div key={movie.id} className="w-[130px] flex-shrink-0 sm:w-[150px] md:w-[170px] lg:w-[190px]">
+                <div key={movie.id} className="w-[130px] flex-shrink-0 sm:w-[150px] md:w-[170px] lg:w-[190px] animate-card-reveal" style={{ '--i': i } as React.CSSProperties}>
                   <MovieCard movie={movie} priority={i < 5} showRank={showRank ? i + 1 : undefined} />
                 </div>
               ))}

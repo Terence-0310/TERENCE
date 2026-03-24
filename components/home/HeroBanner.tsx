@@ -67,7 +67,7 @@ export function HeroBanner({ movies }: HeroBannerProps) {
       {/* Content */}
       <div className="absolute inset-0 flex items-end pb-24 md:items-center md:pb-0">
         <div className="mx-auto w-full max-w-7xl px-5 md:px-8 lg:px-10">
-          <div className="max-w-xl space-y-5 animate-fade-in-up" key={movie.id}>
+          <div className="max-w-xl space-y-5 animate-hero-in" key={movie.id}>
             {/* Tags */}
             <div className="flex flex-wrap items-center gap-2.5">
               <span className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-white shadow-lg shadow-primary/25">
