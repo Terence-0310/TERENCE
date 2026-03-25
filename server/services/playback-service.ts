@@ -264,3 +264,89 @@ export async function getMoviePlaybackByTmdbId(
   if (!movie) return null
   return getMoviePlaybackData(movie.id, episodeSlug)
 }
+
+/**
+ * Search for a movie by title — used as final fallback when TMDB ID
+ * doesn't match any DB record.
+ *
+ * Strategy:
+ * 1. Convert title to slug and try exact slug match
+ * 2. Try case-insensitive title match
+ * 3. Try partial title match (first significant word ≥ 3 chars)
+ *
+ * Only returns movies that have at least one episode with a streamUrl.
+ */
+export async function getMoviePlaybackByTitle(
+  title: string,
+  episodeSlug?: string,
+): Promise<MoviePlaybackData | null> {
+  // Generate slug from title
+  const slug = toSlug(title)
+
+  // 1. Exact slug match
+  const bySlug = await prisma.movie.findFirst({
+    where: {
+      slug,
+      isActive: true,
+      episodes: { some: { streamUrl: { not: null } } },
+    },
+  })
+  if (bySlug) return getMoviePlaybackData(bySlug.id, episodeSlug)
+
+  // 2. Case-insensitive title match
+  // SQLite doesn't have native ilike, but LIKE is case-insensitive for ASCII
+  const byTitle = await prisma.movie.findFirst({
+    where: {
+      title: { equals: title },
+      isActive: true,
+      episodes: { some: { streamUrl: { not: null } } },
+    },
+  })
+  if (byTitle) return getMoviePlaybackData(byTitle.id, episodeSlug)
+
+  // 3. Slug-contains match (e.g., "one-piece-film-gold" contains "one-piece")
+  //    Try progressively shorter slug prefixes
+  const slugParts = slug.split('-')
+  if (slugParts.length >= 2) {
+    // Try matching first 2-3 significant words
+    for (let len = Math.min(slugParts.length, 4); len >= 2; len--) {
+      const partialSlug = slugParts.slice(0, len).join('-')
+      if (partialSlug.length < 4) continue // too short, skip
+
+      const byPartialSlug = await prisma.movie.findFirst({
+        where: {
+          slug: { startsWith: partialSlug },
+          isActive: true,
+          episodes: { some: { streamUrl: { not: null } } },
+        },
+        orderBy: { updatedAt: 'desc' },
+      })
+      if (byPartialSlug) return getMoviePlaybackData(byPartialSlug.id, episodeSlug)
+    }
+  }
+
+  // 4. Title contains search — find DB movies whose title appears in search title
+  const byContains = await prisma.movie.findFirst({
+    where: {
+      title: { contains: title.split(':')[0].split('(')[0].trim() },
+      isActive: true,
+      episodes: { some: { streamUrl: { not: null } } },
+    },
+    orderBy: { updatedAt: 'desc' },
+  })
+  if (byContains) return getMoviePlaybackData(byContains.id, episodeSlug)
+
+  return null
+}
+
+// ── Slug helper ──
+function toSlug(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+}
+

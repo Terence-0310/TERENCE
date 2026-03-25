@@ -5,7 +5,7 @@ import { ArrowLeft, Play, Film, Share2, Heart, Users, Star, Clock, Tv } from 'lu
 import { WatchPageClient } from '@/components/player/WatchPageClient'
 import { EpisodeListBar } from '@/components/watch/EpisodeListBar'
 import { getMovieDetail } from '@/services/tmdb/movie-service'
-import { getMoviePlaybackData, getMoviePlaybackByTmdbId } from '@/server/services/playback-service'
+import { getMoviePlaybackData, getMoviePlaybackByTmdbId, getMoviePlaybackByTitle } from '@/server/services/playback-service'
 import { resolveMovieSource } from '@/services/video-source'
 import { MovieRow } from '@/components/shared/MovieRow'
 import { getSession } from '@/lib/auth/session'
@@ -51,6 +51,16 @@ export default async function WatchPage({ params, searchParams }: PageProps) {
       tmdbMovie = await getMovieDetail(movieId)
     } catch {
       // TMDB not available — no problem if we have DB data
+    }
+  }
+
+  // ── Step 1b: If still no DB match, try title-based fuzzy search ──
+  // This bridges TMDB movies (e.g. "One Piece Film: Gold") to OPhim DB (slug "one-piece")
+  if (!dbPlayback && tmdbMovie) {
+    dbPlayback = await getMoviePlaybackByTitle(tmdbMovie.title, episodeSlug || undefined)
+    // Also try original title if different
+    if (!dbPlayback && tmdbMovie.originalTitle && tmdbMovie.originalTitle !== tmdbMovie.title) {
+      dbPlayback = await getMoviePlaybackByTitle(tmdbMovie.originalTitle, episodeSlug || undefined)
     }
   }
 
