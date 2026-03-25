@@ -13,9 +13,9 @@ const generateSlug = (t: string) => t.toLowerCase().normalize('NFD').replace(/[\
 
 const EMPTY_FORM = {
   title: '', originalTitle: '', slug: '', description: '', shortDescription: '',
-  type: 'movie', status: 'draft', posterUrl: '', backdropUrl: '', thumbnailUrl: '',
-  trailerUrl: '', releaseYear: '', duration: '', quality: 'HD', language: 'vi',
-  country: 'Việt Nam', genre: '', rating: '', ageRating: '', cast: '', director: '',
+  contentType: 'movie', status: 'draft', posterUrl: '', backdropUrl: '', thumbUrl: '',
+  trailerUrl: '', year: '', duration: '', quality: 'HD', language: 'vi',
+  countryText: 'Việt Nam', categoryText: '', rating: '', ageRating: '', actorText: '', directorText: '',
   tags: '', seoTitle: '', seoDescription: '', seoKeywords: '',
   isFeatured: false, isTrending: false, isRecommended: false,
 }
@@ -34,12 +34,12 @@ export default function NewMoviePage() {
       const body = {
         ...form,
         slug: form.slug || generateSlug(form.title),
-        releaseYear: form.releaseYear ? parseInt(form.releaseYear) : undefined,
+        year: form.year ? parseInt(form.year) : undefined,
         duration: form.duration ? parseInt(form.duration) : undefined,
         rating: form.rating ? parseFloat(form.rating) : undefined,
         posterUrl: form.posterUrl || undefined,
         backdropUrl: form.backdropUrl || undefined,
-        thumbnailUrl: form.thumbnailUrl || undefined,
+        thumbUrl: form.thumbUrl || undefined,
       }
       const res = await fetch('/api/admin/movies', {
         method: 'POST',
@@ -92,7 +92,7 @@ export default function NewMoviePage() {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div><label className={labelCls}>Loại phim</label>
-                <select className={selectCls} value={form.type} onChange={(e) => up('type', e.target.value)}>
+                <select className={selectCls} value={form.contentType} onChange={(e) => up('contentType', e.target.value)}>
                   <option value="movie">Phim lẻ</option><option value="series">Phim bộ</option>
                   <option value="anime">Anime</option><option value="trailer">Trailer</option><option value="short">Short</option>
                 </select></div>
@@ -102,7 +102,7 @@ export default function NewMoviePage() {
                   <option value="hidden">Ẩn</option><option value="archived">Lưu trữ</option>
                 </select></div>
               <div><label className={labelCls}>Năm</label>
-                <Input type="number" className={inputCls} value={form.releaseYear} onChange={(e) => up('releaseYear', e.target.value)} /></div>
+                <Input type="number" className={inputCls} value={form.year} onChange={(e) => up('year', e.target.value)} /></div>
               <div><label className={labelCls}>Thời lượng (phút)</label>
                 <Input type="number" className={inputCls} value={form.duration} onChange={(e) => up('duration', e.target.value)} /></div>
             </div>
@@ -112,7 +112,7 @@ export default function NewMoviePage() {
                   <option value="CAM">CAM</option><option value="HD">HD</option><option value="FHD">Full HD</option><option value="4K">4K</option>
                 </select></div>
               <div><label className={labelCls}>Ngôn ngữ</label><Input className={inputCls} value={form.language} onChange={(e) => up('language', e.target.value)} /></div>
-              <div><label className={labelCls}>Quốc gia</label><Input className={inputCls} value={form.country} onChange={(e) => up('country', e.target.value)} /></div>
+              <div><label className={labelCls}>Quốc gia</label><Input className={inputCls} value={form.countryText} onChange={(e) => up('countryText', e.target.value)} /></div>
               <div><label className={labelCls}>Xếp hạng tuổi</label>
                 <select className={selectCls} value={form.ageRating} onChange={(e) => up('ageRating', e.target.value)}>
                   <option value="">Chưa chọn</option><option value="P">P (mọi lứa tuổi)</option>
@@ -121,7 +121,7 @@ export default function NewMoviePage() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div><label className={labelCls}>Thể loại</label><Input className={inputCls} placeholder="Hành động, Tâm lý, Kinh dị"
-                value={form.genre} onChange={(e) => up('genre', e.target.value)} /></div>
+                value={form.categoryText} onChange={(e) => up('categoryText', e.target.value)} /></div>
               <div><label className={labelCls}>Rating (0-10)</label><Input type="number" step="0.1" min="0" max="10" className={inputCls}
                 value={form.rating} onChange={(e) => up('rating', e.target.value)} /></div>
             </div>
@@ -133,10 +133,10 @@ export default function NewMoviePage() {
           <CardHeader><CardTitle className="text-lg">Diễn viên & Đạo diễn</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div><label className={labelCls}>Đạo diễn</label><Input className={inputCls} placeholder="Nguyễn Văn A"
-              value={form.director} onChange={(e) => up('director', e.target.value)} /></div>
+              value={form.directorText} onChange={(e) => up('directorText', e.target.value)} /></div>
             <div><label className={labelCls}>Diễn viên</label>
               <textarea className="w-full mt-1 px-3 py-2 bg-muted border border-border rounded-lg h-20 resize-none text-sm"
-                placeholder="Nguyễn Văn B, Trần Thị C, ..." value={form.cast} onChange={(e) => up('cast', e.target.value)} /></div>
+                placeholder="Nguyễn Văn B, Trần Thị C, ..." value={form.actorText} onChange={(e) => up('actorText', e.target.value)} /></div>
             <div><label className={labelCls}>Tags</label><Input className={inputCls} placeholder="action, thriller, vn-2025"
               value={form.tags} onChange={(e) => up('tags', e.target.value)} /></div>
           </CardContent>
@@ -149,7 +149,7 @@ export default function NewMoviePage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div><label className={labelCls}>Poster URL</label><Input className={inputCls} placeholder="https://..." value={form.posterUrl} onChange={(e) => up('posterUrl', e.target.value)} /></div>
               <div><label className={labelCls}>Backdrop URL</label><Input className={inputCls} placeholder="https://..." value={form.backdropUrl} onChange={(e) => up('backdropUrl', e.target.value)} /></div>
-              <div><label className={labelCls}>Thumbnail URL</label><Input className={inputCls} placeholder="https://..." value={form.thumbnailUrl} onChange={(e) => up('thumbnailUrl', e.target.value)} /></div>
+              <div><label className={labelCls}>Thumbnail URL</label><Input className={inputCls} placeholder="https://..." value={form.thumbUrl} onChange={(e) => up('thumbUrl', e.target.value)} /></div>
             </div>
             <div><label className={labelCls}>Trailer URL</label><Input className={inputCls} placeholder="https://youtube.com/watch?v=..."
               value={form.trailerUrl} onChange={(e) => up('trailerUrl', e.target.value)} /></div>

@@ -7,7 +7,9 @@ import { prisma } from '@/lib/auth/db'
 const FIELD_MAP: Record<string, { dbField: string; mediaField: MovieMediaField }> = {
   posterUrl: { dbField: 'posterUrl', mediaField: 'poster' },
   backdropUrl: { dbField: 'backdropUrl', mediaField: 'backdrop' },
-  thumbnailUrl: { dbField: 'thumbnailUrl', mediaField: 'thumbnail' },
+  thumbUrl: { dbField: 'thumbUrl', mediaField: 'thumbnail' },
+  // Keep legacy alias for backward compat with existing UI code
+  thumbnailUrl: { dbField: 'thumbUrl', mediaField: 'thumbnail' },
 }
 
 // POST /api/admin/uploads/movie-media — unified upload for poster/backdrop/thumbnail
@@ -24,7 +26,7 @@ export async function POST(req: NextRequest) {
     if (!file) return errorResponse('Chưa chọn file')
     if (!movieId) return errorResponse('movieId là bắt buộc')
     if (!field || !FIELD_MAP[field]) {
-      return errorResponse('field phải là: posterUrl, backdropUrl, hoặc thumbnailUrl')
+      return errorResponse('field phải là: posterUrl, backdropUrl, hoặc thumbUrl')
     }
 
     const { dbField, mediaField } = FIELD_MAP[field]

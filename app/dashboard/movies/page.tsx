@@ -12,8 +12,8 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 interface Movie {
-  id: string; title: string; slug: string; type: string; genre: string | null
-  status: string; viewCount: number; posterUrl: string | null; releaseYear: number | null
+  id: string; title: string; slug: string; contentType: string; categoryText: string | null
+  status: string; viewCount: number; posterUrl: string | null; year: number | null
   quality: string | null; isFeatured: boolean; isTrending: boolean; isRecommended: boolean
   sourceStatus: string; deletedAt: string | null; createdAt: string
   _count?: { episodes: number }
@@ -177,7 +177,7 @@ export default function MoviesPage() {
                         </div>
                       </div>
                     </td>
-                    <td className="py-4 px-4 text-sm text-muted-foreground">{typeLabel(movie.type)}</td>
+                    <td className="py-4 px-4 text-sm text-muted-foreground">{typeLabel(movie.contentType)}</td>
                     <td className="py-4 px-4 text-sm">{movie.viewCount.toLocaleString()}</td>
                     <td className="py-4 px-4"><span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColor(movie.status)}`}>{statusLabel(movie.status)}</span></td>
                     <td className="py-4 px-4 text-sm">{movie._count?.episodes || 0}</td>

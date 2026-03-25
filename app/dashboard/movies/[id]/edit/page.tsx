@@ -48,16 +48,16 @@ export default function EditMoviePage({ params }: PageProps) {
         title: str('title'), originalTitle: str('originalTitle') || null,
         slug: str('slug'), description: str('description') || null,
         shortDescription: str('shortDescription') || null,
-        type: str('type'), status: str('status'),
+        contentType: str('contentType'), status: str('status'),
         posterUrl: str('posterUrl') || null, backdropUrl: str('backdropUrl') || null,
-        thumbnailUrl: str('thumbnailUrl') || null, trailerUrl: str('trailerUrl') || null,
-        releaseYear: num('releaseYear') ? parseInt(num('releaseYear')) : null,
+        thumbUrl: str('thumbUrl') || null, trailerUrl: str('trailerUrl') || null,
+        year: num('year') ? parseInt(num('year')) : null,
         duration: num('duration') ? parseInt(num('duration')) : null,
         quality: str('quality') || null, language: str('language') || null,
-        country: str('country') || null, genre: str('genre') || null,
+        countryText: str('countryText') || null, categoryText: str('categoryText') || null,
         rating: num('rating') ? parseFloat(num('rating')) : null,
-        ageRating: str('ageRating') || null, cast: str('cast') || null,
-        director: str('director') || null, tags: str('tags') || null,
+        ageRating: str('ageRating') || null, actorText: str('actorText') || null,
+        directorText: str('directorText') || null, tags: str('tags') || null,
         seoTitle: str('seoTitle') || null, seoDescription: str('seoDescription') || null,
         seoKeywords: str('seoKeywords') || null,
         isFeatured: bool('isFeatured'), isTrending: bool('isTrending'),
@@ -151,7 +151,7 @@ export default function EditMoviePage({ params }: PageProps) {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div><label className={labelCls}>Loại phim</label>
-                <select className={selectCls} value={str('type')} onChange={(e) => up('type', e.target.value)}>
+                <select className={selectCls} value={str('contentType')} onChange={(e) => up('contentType', e.target.value)}>
                   <option value="movie">Phim lẻ</option><option value="series">Phim bộ</option>
                   <option value="anime">Anime</option><option value="trailer">Trailer</option><option value="short">Short</option>
                 </select></div>
@@ -160,7 +160,7 @@ export default function EditMoviePage({ params }: PageProps) {
                   <option value="draft">Nháp</option><option value="published">Xuất bản</option>
                   <option value="hidden">Ẩn</option><option value="archived">Lưu trữ</option>
                 </select></div>
-              <div><label className={labelCls}>Năm</label><Input type="number" className={inputCls} value={num('releaseYear')} onChange={(e) => up('releaseYear', e.target.value)} /></div>
+              <div><label className={labelCls}>Năm</label><Input type="number" className={inputCls} value={num('year')} onChange={(e) => up('year', e.target.value)} /></div>
               <div><label className={labelCls}>Thời lượng (phút)</label><Input type="number" className={inputCls} value={num('duration')} onChange={(e) => up('duration', e.target.value)} /></div>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -170,7 +170,7 @@ export default function EditMoviePage({ params }: PageProps) {
                   <option value="FHD">Full HD</option><option value="4K">4K</option>
                 </select></div>
               <div><label className={labelCls}>Ngôn ngữ</label><Input className={inputCls} value={str('language')} onChange={(e) => up('language', e.target.value)} /></div>
-              <div><label className={labelCls}>Quốc gia</label><Input className={inputCls} value={str('country')} onChange={(e) => up('country', e.target.value)} /></div>
+              <div><label className={labelCls}>Quốc gia</label><Input className={inputCls} value={str('countryText')} onChange={(e) => up('countryText', e.target.value)} /></div>
               <div><label className={labelCls}>Xếp hạng tuổi</label>
                 <select className={selectCls} value={str('ageRating')} onChange={(e) => up('ageRating', e.target.value)}>
                   <option value="">Chưa chọn</option><option value="P">P</option><option value="C13">C13</option>
@@ -178,7 +178,7 @@ export default function EditMoviePage({ params }: PageProps) {
                 </select></div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div><label className={labelCls}>Thể loại</label><Input className={inputCls} value={str('genre')} onChange={(e) => up('genre', e.target.value)} /></div>
+              <div><label className={labelCls}>Thể loại</label><Input className={inputCls} value={str('categoryText')} onChange={(e) => up('categoryText', e.target.value)} /></div>
               <div><label className={labelCls}>Rating (0-10)</label><Input type="number" step="0.1" min="0" max="10" className={inputCls} value={num('rating')} onChange={(e) => up('rating', e.target.value)} /></div>
             </div>
             <div><label className={labelCls}>Trạng thái nguồn</label>
@@ -193,10 +193,10 @@ export default function EditMoviePage({ params }: PageProps) {
         <Card className="bg-card border-border">
           <CardHeader><CardTitle className="text-lg">Diễn viên & Đạo diễn</CardTitle></CardHeader>
           <CardContent className="space-y-4">
-            <div><label className={labelCls}>Đạo diễn</label><Input className={inputCls} value={str('director')} onChange={(e) => up('director', e.target.value)} /></div>
+            <div><label className={labelCls}>Đạo diễn</label><Input className={inputCls} value={str('directorText')} onChange={(e) => up('directorText', e.target.value)} /></div>
             <div><label className={labelCls}>Diễn viên</label>
               <textarea className="w-full mt-1 px-3 py-2 bg-muted border border-border rounded-lg h-20 resize-none text-sm"
-                value={str('cast')} onChange={(e) => up('cast', e.target.value)} /></div>
+                value={str('actorText')} onChange={(e) => up('actorText', e.target.value)} /></div>
             <div><label className={labelCls}>Tags</label><Input className={inputCls} value={str('tags')} onChange={(e) => up('tags', e.target.value)} /></div>
           </CardContent>
         </Card>
@@ -208,7 +208,7 @@ export default function EditMoviePage({ params }: PageProps) {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <MediaField field="posterUrl" label="Poster" />
               <MediaField field="backdropUrl" label="Backdrop" />
-              <MediaField field="thumbnailUrl" label="Thumbnail" />
+              <MediaField field="thumbUrl" label="Thumbnail" />
             </div>
             <div><label className={labelCls}>Trailer URL</label><Input className={inputCls} value={str('trailerUrl')} onChange={(e) => up('trailerUrl', e.target.value)} /></div>
           </CardContent>

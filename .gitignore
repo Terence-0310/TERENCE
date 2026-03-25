@@ -17,6 +17,9 @@ out/
 # Database (local dev)
 prisma/dev.db
 prisma/dev.db-journal
+prisma/prisma/
+*.db
+*.db-journal
 
 # TypeScript
 tsconfig.tsbuildinfo

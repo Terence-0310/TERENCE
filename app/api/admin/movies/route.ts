@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (status) where.status = status
-  if (type) where.type = type
+  if (type) where.contentType = type
   if (featured === 'true') where.isFeatured = true
   if (trending === 'true') where.isTrending = true
   if (recommended === 'true') where.isRecommended = true
@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
     updated: { updatedAt: 'desc' },
     views: { viewCount: 'desc' },
     rating: { rating: 'desc' },
-    year: { releaseYear: 'desc' },
+    year: { year: 'desc' },
     title: { title: 'asc' },
   }
   const orderBy = orderByMap[sortBy] || orderByMap.newest
@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
 
   await logAdminAction({
     actorId: auth.user.email, action: 'create', targetType: 'movie', targetId: movie.id,
-    metadata: { title: movie.title, type: movie.type }, ipAddress: getClientIp(req.headers),
+    metadata: { title: movie.title, type: movie.contentType }, ipAddress: getClientIp(req.headers),
   })
 
   return successResponse(movie, 201)

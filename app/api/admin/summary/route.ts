@@ -25,9 +25,9 @@ export async function GET() {
       recentLogs,
     ] = await Promise.all([
       prisma.movie.count({ where: notDeleted }),
-      prisma.movie.count({ where: { type: 'movie', ...notDeleted } }),
-      prisma.movie.count({ where: { type: 'series', ...notDeleted } }),
-      prisma.movie.count({ where: { type: 'anime', ...notDeleted } }),
+      prisma.movie.count({ where: { contentType: 'movie', ...notDeleted } }),
+      prisma.movie.count({ where: { contentType: 'series', ...notDeleted } }),
+      prisma.movie.count({ where: { contentType: 'anime', ...notDeleted } }),
       prisma.short.count({ where: { deletedAt: null } }),
       prisma.user.count(),
       prisma.user.count({ where: { role: { in: ['super_admin', 'admin'] } } }),

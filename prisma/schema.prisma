@@ -26,8 +26,9 @@ model User {
   updatedAt     DateTime  @updatedAt
   deletedAt     DateTime?
 
-  sessions      Session[]
-  adminLogs     AdminLog[]
+  sessions        Session[]
+  adminLogs       AdminLog[]
+  watchHistories  WatchHistory[]
 }
 
 model Session {
@@ -41,46 +42,77 @@ model Session {
 // ─── Movies ─────────────────────────────────────────────────────
 
 model Movie {
-  id              String    @id @default(cuid())
-  title           String
-  originalTitle   String?
-  slug            String    @unique
-  description     String?
+  id               String    @id @default(cuid())
+  ophimId          String?   @unique  // OPhim sync ID
+  tmdbId           Int?               // TMDB ID
+  imdbId           String?            // IMDb ID (e.g. tt1234567)
+  slug             String    @unique
+  title            String
+  originalTitle    String?
+  description      String?
   shortDescription String?
-  type            String    @default("movie") // movie | series | anime | trailer | short
-  status          String    @default("draft") // draft | published | hidden | archived
-  posterUrl       String?
-  backdropUrl     String?
-  thumbnailUrl    String?
-  trailerUrl      String?
-  releaseYear     Int?
-  duration        Int?      // minutes
-  quality         String?   // CAM | HD | FHD | 4K
-  language        String?
-  rating          Float?    @default(0)
-  ageRating       String?   // P | C13 | C16 | C18
-  country         String?
-  genre           String?   // comma-separated
-  cast            String?   // comma-separated or JSON
-  director        String?
-  tags            String?   // comma-separated
-  seoTitle        String?
-  seoDescription  String?
-  seoKeywords     String?
-  isFeatured      Boolean   @default(false)
-  isTrending      Boolean   @default(false)
-  isRecommended   Boolean   @default(false)
-  isPublished     Boolean   @default(false)
-  sourceStatus    String    @default("pending") // active | missing | broken | pending
-  viewCount       Int       @default(0)
-  createdBy       String?
-  updatedBy       String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  deletedAt       DateTime?
+  contentType      String    @default("movie") // movie | series | anime | trailer | short
+  status           String    @default("draft") // draft | published | hidden | archived
+  quality          String?            // CAM | HD | FHD | 4K
+  language         String?
+  year             Int?               // release year
+  duration         Int?               // minutes
+  episodeCurrent   String?            // e.g. "12/24" or "Full"
+  episodeTotal     Int?               // total number of episodes
+  trailerUrl       String?
+  trailerSite      String?            // YouTube | Vimeo
+  trailerKey       String?            // video key for embed
+  thumbUrl         String?            // thumbnail
+  posterUrl        String?
+  backdropUrl      String?
+  rating           Float?    @default(0)
+  ageRating        String?            // P | C13 | C16 | C18
+  actorText        String?            // comma-separated actor names
+  directorText     String?            // comma-separated director names
+  countryText      String?            // comma-separated country names
+  categoryText     String?            // comma-separated category/genre names
+  tags             String?            // comma-separated tags
+  seoTitle         String?
+  seoDescription   String?
+  seoKeywords      String?
+  isCopyright      Boolean   @default(false)
+  isActive         Boolean   @default(true)
+  isFeatured       Boolean   @default(false)
+  isTrending       Boolean   @default(false)
+  isRecommended    Boolean   @default(false)
+  isPublished      Boolean   @default(false)
+  metadataSource   String?            // ophim | tmdb | manual
+  matchConfidence  Float?             // 0-1 confidence score for TMDB match
+  sourceStatus     String    @default("pending") // active | missing | broken | pending
+  viewCount        Int       @default(0)
+  publishedAt      DateTime?
+  lastSyncedAt     DateTime?
+  createdBy        String?
+  updatedBy        String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
 
-  episodes        Episode[]
-  shorts          Short[]
+  episodes         Episode[]
+  shorts           Short[]
+  categories       MovieCategory[]
+  countries        MovieCountry[]
+  people           MoviePerson[]
+  movieSources     MovieSource[]
+  syncLogs         SyncLog[]
+  watchHistories   WatchHistory[]
+
+  @@index([title])
+  @@index([originalTitle])
+  @@index([year])
+  @@index([tmdbId])
+  @@index([imdbId])
+  @@index([isActive])
+  @@index([contentType])
+  @@index([status])
+  @@index([isPublished])
+  @@index([isFeatured])
+  @@index([lastSyncedAt])
 }
 
 // ─── Episodes ───────────────────────────────────────────────────
@@ -88,23 +120,248 @@ model Movie {
 model Episode {
   id              String   @id @default(cuid())
   movieId         String
+  sourceName      String?          // e.g. "OPhim", "Fshare", "Manual"
+  serverName      String?          // e.g. "Server #1", "Server Vietsub"
+  episodeName     String?          // display name: "Tập 1", "Tập Full"
+  episodeSlug     String?          // e.g. "tap-1"
   episodeNumber   Int      @default(1)
-  title           String?
-  slug            String?
-  sourceType      String   @default("mp4") // iframe | mp4 | hls | youtube
-  sourceUrl       String?
+  episodeOrder    Int      @default(0)  // sort order
+  title           String?          // episode title
+  slug            String?          // legacy slug
+  streamType      String   @default("mp4") // iframe | mp4 | hls | youtube | dash
+  streamUrl       String?          // primary stream URL
+  sourceUrl       String?          // legacy source URL
   backupSourceUrl String?
   subtitleUrl     String?
-  duration        Int?     // seconds
+  duration        Int?             // seconds
   quality         String?
   language        String?
   sortOrder       Int      @default(0)
   status          String   @default("active") // active | broken | hidden | pending
+  isActive        Boolean  @default(true)
   viewCount       Int      @default(0)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
   movie           Movie    @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  watchHistories  WatchHistory[]
+
+  @@index([movieId])
+  @@index([episodeSlug])
+  @@index([isActive])
+}
+
+// ─── Categories (Genres) ────────────────────────────────────────
+
+model Category {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  slug      String   @unique
+  tmdbId    Int?     @unique       // TMDB genre ID for mapping
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  movies    MovieCategory[]
+
+  @@index([slug])
+  @@index([isActive])
+}
+
+model MovieCategory {
+  id         String   @id @default(cuid())
+  movieId    String
+  categoryId String
+  createdAt  DateTime @default(now())
+
+  movie      Movie    @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([movieId, categoryId])
+  @@index([movieId])
+  @@index([categoryId])
+}
+
+// ─── Countries ──────────────────────────────────────────────────
+
+model Country {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  slug      String   @unique
+  code      String?  @unique       // ISO 3166-1 alpha-2 (US, VN, KR, ...)
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  movies    MovieCountry[]
+
+  @@index([slug])
+  @@index([code])
+  @@index([isActive])
+}
+
+model MovieCountry {
+  id        String   @id @default(cuid())
+  movieId   String
+  countryId String
+  createdAt DateTime @default(now())
+
+  movie     Movie   @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  country   Country @relation(fields: [countryId], references: [id], onDelete: Cascade)
+
+  @@unique([movieId, countryId])
+  @@index([movieId])
+  @@index([countryId])
+}
+
+// ─── People (Actors, Directors, etc.) ───────────────────────────
+
+model Person {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  tmdbId      Int?     @unique
+  imdbId      String?
+  profileUrl  String?            // photo URL
+  biography   String?
+  birthDate   DateTime?
+  deathDate   DateTime?
+  gender      Int?               // 0: not specified, 1: female, 2: male, 3: non-binary
+  knownFor    String?            // Acting | Directing | Writing | Production
+  popularity  Float?   @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  movies      MoviePerson[]
+
+  @@index([name])
+  @@index([slug])
+  @@index([tmdbId])
+  @@index([isActive])
+}
+
+model MoviePerson {
+  id        String   @id @default(cuid())
+  movieId   String
+  personId  String
+  role      String   @default("actor") // actor | director | writer | producer | creator
+  character String?                     // character name for actors
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  movie     Movie  @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  person    Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@unique([movieId, personId, role])
+  @@index([movieId])
+  @@index([personId])
+  @@index([role])
+}
+
+// ─── Movie Sources (multi-source links) ─────────────────────────
+
+model MovieSource {
+  id          String   @id @default(cuid())
+  movieId     String
+  sourceName  String             // OPhim | KKPhim | Fshare | Manual | TMDB
+  sourceUrl   String?            // external URL or reference
+  sourceId    String?            // ID on external source
+  quality     String?            // HD | FHD | 4K
+  language    String?            // vietsub | thuyetminh | engsub | raw
+  priority    Int      @default(0) // higher = preferred
+  isActive    Boolean  @default(true)
+  metadata    String?            // JSON string for extra data
+  lastChecked DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  movie       Movie    @relation(fields: [movieId], references: [id], onDelete: Cascade)
+
+  @@index([movieId])
+  @@index([sourceName])
+  @@index([isActive])
+}
+
+// ─── Sync Jobs ──────────────────────────────────────────────────
+
+model SyncJob {
+  id            String    @id @default(cuid())
+  source        String              // ophim | tmdb | kkphim
+  jobType       String              // full | incremental | single
+  status        String    @default("pending") // pending | running | completed | failed | cancelled
+  totalItems    Int       @default(0)
+  processedItems Int     @default(0)
+  failedItems   Int       @default(0)
+  skippedItems  Int       @default(0)
+  errorMessage  String?
+  metadata      String?             // JSON string with extra info
+  startedAt     DateTime?
+  completedAt   DateTime?
+  createdBy     String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  syncLogs      SyncLog[]
+
+  @@index([source])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// ─── Sync Logs ──────────────────────────────────────────────────
+
+model SyncLog {
+  id          String   @id @default(cuid())
+  syncJobId   String?
+  movieId     String?
+  source      String             // ophim | tmdb | kkphim
+  action      String             // create | update | skip | fail | match | enrich
+  status      String   @default("success") // success | warning | error
+  message     String?
+  metadata    String?            // JSON string with sync details
+  createdAt   DateTime @default(now())
+
+  syncJob     SyncJob? @relation(fields: [syncJobId], references: [id], onDelete: SetNull)
+  movie       Movie?   @relation(fields: [movieId], references: [id], onDelete: SetNull)
+
+  @@index([syncJobId])
+  @@index([movieId])
+  @@index([source])
+  @@index([action])
+  @@index([createdAt])
+}
+
+// ─── Watch Histories ────────────────────────────────────────────
+
+model WatchHistory {
+  id            String    @id @default(cuid())
+  userId        String
+  movieId       String
+  episodeId     String?
+  watchedAt     DateTime  @default(now())
+  lastWatchedAt DateTime  @default(now())
+  progress      Float     @default(0) // 0-100%
+  duration      Int?                   // total duration in seconds
+  currentTime   Int?                   // current playback position in seconds
+  isCompleted   Boolean   @default(false)
+  deviceType    String?                // mobile | desktop | tablet | tv
+  ipAddress     String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  movie         Movie    @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  episode       Episode? @relation(fields: [episodeId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, movieId, episodeId])
+  @@index([userId])
+  @@index([movieId])
+  @@index([episodeId])
+  @@index([lastWatchedAt])
+  @@index([isCompleted])
 }
 
 // ─── Shorts ─────────────────────────────────────────────────────
@@ -139,8 +396,8 @@ model Short {
 model AdminLog {
   id          String   @id @default(cuid())
   actorId     String
-  action      String   // login | create | update | delete | block | unblock | upload | change_role
-  targetType  String?  // movie | episode | short | user | upload
+  action      String   // login | create | update | delete | block | unblock | upload | change_role | sync
+  targetType  String?  // movie | episode | short | user | upload | sync_job
   targetId    String?
   metadata    String?  // JSON string
   ipAddress   String?

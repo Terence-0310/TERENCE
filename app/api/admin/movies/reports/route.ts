@@ -16,7 +16,7 @@ export async function GET() {
   ] = await Promise.all([
     prisma.movie.findMany({ where: { posterUrl: null, deletedAt: null }, select, take: 50 }),
     prisma.movie.findMany({ where: { backdropUrl: null, deletedAt: null }, select, take: 50 }),
-    prisma.movie.findMany({ where: { thumbnailUrl: null, deletedAt: null }, select, take: 50 }),
+    prisma.movie.findMany({ where: { thumbUrl: null, deletedAt: null }, select, take: 50 }),
     prisma.movie.findMany({ where: { description: null, deletedAt: null }, select, take: 50 }),
     prisma.movie.findMany({ where: { sourceStatus: 'missing', deletedAt: null }, select, take: 50 }),
     prisma.movie.findMany({ where: { sourceStatus: 'broken', deletedAt: null }, select, take: 50 }),

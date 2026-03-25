@@ -17,26 +17,26 @@ export async function POST(req: NextRequest) {
     if (!file) return errorResponse('Chưa chọn file')
     if (!movieId) return errorResponse('movieId là bắt buộc')
 
-    const movie = await prisma.movie.findUnique({ where: { id: movieId }, select: { id: true, title: true, thumbnailUrl: true } })
+    const movie = await prisma.movie.findUnique({ where: { id: movieId }, select: { id: true, title: true, thumbUrl: true } })
     if (!movie) return errorResponse('Không tìm thấy phim', 404)
 
     // Upload thumbnail
     const result = await handleMovieMediaUpload(file, movieId, 'thumbnail', auth.user.email)
 
     // Delete old thumbnail if local
-    if (movie.thumbnailUrl && movie.thumbnailUrl.startsWith('/uploads/')) {
-      await deleteUploadedFile(movie.thumbnailUrl)
+    if (movie.thumbUrl && movie.thumbUrl.startsWith('/uploads/')) {
+      await deleteUploadedFile(movie.thumbUrl)
     }
 
-    // Update movie.thumbnailUrl
+    // Update movie.thumbUrl
     await prisma.movie.update({
       where: { id: movieId },
-      data: { thumbnailUrl: result.url, updatedBy: auth.user.email },
+      data: { thumbUrl: result.url, updatedBy: auth.user.email },
     })
 
     await logAdminAction({
       actorId: auth.user.email, action: 'upload', targetType: 'movie', targetId: movieId,
-      metadata: { field: 'thumbnailUrl', fileName: result.fileName, size: result.size, oldUrl: movie.thumbnailUrl },
+      metadata: { field: 'thumbUrl', fileName: result.fileName, size: result.size, oldUrl: movie.thumbUrl },
       ipAddress: getClientIp(req.headers),
     })
 

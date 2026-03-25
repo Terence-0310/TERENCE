@@ -12,12 +12,21 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev --name init",
     "db:seed": "npx prisma db seed",
-    "db:reset": "prisma migrate reset --force"
+    "db:reset": "prisma migrate reset --force",
+    "sync:ophim:catalog": "npx tsx scripts/sync-ophim-catalog.ts",
+    "sync:ophim:movie": "npx tsx scripts/sync-ophim-movie.ts",
+    "sync:ophim18:movie": "npx tsx scripts/sync-ophim18-movie.ts",
+    "sync:ophim18:catalog": "npx tsx scripts/sync-ophim18-catalog.ts",
+    "enrich:tmdb": "npx tsx scripts/enrich-tmdb.ts",
+    "pipeline:movie": "npx tsx scripts/pipeline-movie.ts",
+    "elastic:reindex": "npx tsx scripts/elastic-reindex.ts",
+    "elastic:sync": "npx tsx scripts/elastic-reindex.ts"
   },
   "prisma": {
     "seed": "npx tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@elastic/elasticsearch": "^9.3.4",
     "@hookform/resolvers": "^3.9.1",
     "@prisma/client": "^6.19.2",
     "@radix-ui/react-accordion": "1.2.12",
