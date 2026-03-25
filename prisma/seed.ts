@@ -283,18 +283,24 @@ async function main() {
     }
   }
 
-  // ── Episodes for series/anime ──
+  // ── Episodes for series/anime (only seed if movie has NO episodes yet) ──
   console.log('   📺 Seeding episodes...')
-  const seriesMovies = await prisma.movie.findMany({ where: { contentType: { in: ['series', 'anime'] } } })
+  const seriesMovies = await prisma.movie.findMany({
+    where: { contentType: { in: ['series', 'anime'] } },
+    include: { _count: { select: { episodes: true } } },
+  })
   for (const s of seriesMovies) {
+    // Skip movies that already have episodes (e.g. from OPhim sync)
+    if (s._count.episodes > 0) {
+      console.log(`     ⏭  Skipping "${s.title}" — already has ${s._count.episodes} episodes`)
+      continue
+    }
     const epCount = s.contentType === 'anime' ? 12 : 5
     for (let ep = 1; ep <= epCount; ep++) {
       const epSlug = `${s.slug}-tap-${ep}`
       const epId = `seed-${s.id}-${ep}`
-      await prisma.episode.upsert({
-        where: { id: epId },
-        update: {},
-        create: {
+      await prisma.episode.create({
+        data: {
           id: epId,
           movieId: s.id,
           episodeNumber: ep,
@@ -305,17 +311,17 @@ async function main() {
           slug: epSlug,
           sourceName: 'Manual',
           serverName: 'Server #1',
-          streamType: 'mp4',
-          streamUrl: `https://example.com/video/${epSlug}.mp4`,
-          sourceUrl: `https://example.com/video/${epSlug}.mp4`,
+          streamType: 'hls',
+          streamUrl: process.env.DEMO_HLS_URL || 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
+          sourceUrl: process.env.DEMO_HLS_URL || 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
           sortOrder: ep,
           status: ep === epCount ? 'pending' : 'active',
           isActive: ep !== epCount,
+          isPublished: ep !== epCount,
           viewCount: Math.floor(Math.random() * 2000),
         },
-      })
+      }).catch(() => { /* skip if duplicate */ })
     }
-    // Update movie episodeCurrent / episodeTotal
     await prisma.movie.update({
       where: { id: s.id },
       data: {
@@ -323,6 +329,150 @@ async function main() {
         episodeTotal: epCount,
       },
     })
+  }
+
+  // ── HLS Demo: standalone movie episodes + video sources + subtitles ──
+  console.log('   🎬 Seeding HLS demo data...')
+
+  // Public HLS test streams (legal, free for testing)
+  const DEMO_HLS_MAIN = process.env.DEMO_HLS_URL || 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8'
+  const DEMO_HLS_BACKUP = 'https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_fmp4/master.m3u8'
+  const DEMO_SUBTITLE_EN = 'https://raw.githubusercontent.com/nicmart/x36xhzz-captions/main/x36xhzz.en.vtt'
+
+  // 1. Seed playable episodes for standalone movies (only if no episode exists yet)
+  const demoStandaloneMovies = await prisma.movie.findMany({
+    where: { contentType: 'movie', isPublished: true, isActive: true },
+    include: { _count: { select: { episodes: true } } },
+    take: 2,
+  })
+
+  for (const demoMovie of demoStandaloneMovies) {
+    // Skip if movie already has episodes
+    if (demoMovie._count.episodes > 0) {
+      console.log(`     ⏭  Skipping "${demoMovie.title}" — already has episodes`)
+      continue
+    }
+
+    const demoEpId = `demo-ep-${demoMovie.id}`
+    const ep = await prisma.episode.create({
+      data: {
+        id: demoEpId,
+        movieId: demoMovie.id,
+        episodeNumber: 1,
+        episodeOrder: 1,
+        episodeName: 'Tập Full',
+        episodeSlug: 'tap-full',
+        title: demoMovie.title,
+        slug: `${demoMovie.slug}-full`,
+        sourceName: 'Demo',
+        serverName: 'Server HLS',
+        streamType: 'hls',
+        streamUrl: DEMO_HLS_MAIN,
+        sourceUrl: DEMO_HLS_MAIN,
+        sortOrder: 1,
+        status: 'active',
+        isActive: true,
+        isPublished: true,
+        duration: 634,
+      },
+    }).catch(() => null)
+
+    if (!ep) continue
+
+    // Add VideoSource records
+    await prisma.videoSource.create({
+      data: {
+        id: `demo-src-main-${demoMovie.id}`,
+        episodeId: demoEpId,
+        sourceType: 'hls',
+        url: DEMO_HLS_MAIN,
+        label: 'Main HLS',
+        mimeType: 'application/x-mpegURL',
+        isPrimary: true,
+        isActive: true,
+        priority: 10,
+      },
+    }).catch(() => { /* skip */ })
+
+    await prisma.videoSource.create({
+      data: {
+        id: `demo-src-backup-${demoMovie.id}`,
+        episodeId: demoEpId,
+        sourceType: 'hls',
+        url: DEMO_HLS_BACKUP,
+        label: 'Backup HLS',
+        mimeType: 'application/x-mpegURL',
+        isPrimary: false,
+        isActive: true,
+        priority: 5,
+      },
+    }).catch(() => { /* skip */ })
+
+    // Add subtitle tracks
+    await prisma.subtitleTrack.create({
+      data: {
+        id: `demo-sub-vi-${demoMovie.id}`,
+        episodeId: demoEpId,
+        label: 'Tiếng Việt',
+        lang: 'vi',
+        url: DEMO_SUBTITLE_EN, // placeholder — same file for demo
+        isDefault: true,
+        kind: 'subtitles',
+        isActive: true,
+      },
+    }).catch(() => { /* skip */ })
+
+    await prisma.subtitleTrack.create({
+      data: {
+        id: `demo-sub-en-${demoMovie.id}`,
+        episodeId: demoEpId,
+        label: 'English',
+        lang: 'en',
+        url: DEMO_SUBTITLE_EN,
+        isDefault: false,
+        kind: 'subtitles',
+        isActive: true,
+      },
+    }).catch(() => { /* skip */ })
+  }
+
+  // 2. Add VideoSource + SubtitleTrack for first series episodes
+  const firstSeries = await prisma.movie.findFirst({
+    where: { contentType: { in: ['series', 'anime'] }, isPublished: true },
+  })
+  if (firstSeries) {
+    const seriesEps = await prisma.episode.findMany({
+      where: { movieId: firstSeries.id, isActive: true },
+      take: 3,
+    })
+    for (const ep of seriesEps) {
+      await prisma.videoSource.create({
+        data: {
+          id: `demo-vs-${ep.id}`,
+          episodeId: ep.id,
+          sourceType: 'hls',
+          url: DEMO_HLS_MAIN,
+          label: 'HLS 720p',
+          mimeType: 'application/x-mpegURL',
+          isPrimary: true,
+          isActive: true,
+          priority: 10,
+        },
+      }).catch(() => { /* skip if exists */ })
+
+      await prisma.subtitleTrack.create({
+        data: {
+          id: `demo-sub-${ep.id}`,
+          episodeId: ep.id,
+          label: 'English',
+          lang: 'en',
+          url: DEMO_SUBTITLE_EN,
+          isDefault: false,
+          kind: 'subtitles',
+          isActive: true,
+        },
+      }).catch(() => { /* skip if exists */ })
+    }
   }
 
   // ── Shorts ──
@@ -359,12 +509,16 @@ async function main() {
     })
   }
 
-  // ── Sample Watch History ──
+  // ── Sample Watch History (with episode reference) ──
   console.log('   👁️ Seeding watch history...')
-  const firstMovie = await prisma.movie.findFirst({ where: { isPublished: true } })
-  if (firstMovie) {
+  const firstPublishedMovie = await prisma.movie.findFirst({
+    where: { isPublished: true },
+    include: { episodes: { where: { isActive: true }, take: 1 } },
+  })
+  if (firstPublishedMovie) {
+    const targetEpisode = firstPublishedMovie.episodes[0] || null
     const existingWatch = await prisma.watchHistory.findFirst({
-      where: { userId: demoUser.id, movieId: firstMovie.id, episodeId: null },
+      where: { userId: demoUser.id, movieId: firstPublishedMovie.id, episodeId: targetEpisode?.id || null },
     })
     if (existingWatch) {
       await prisma.watchHistory.update({
@@ -375,7 +529,8 @@ async function main() {
       await prisma.watchHistory.create({
         data: {
           userId: demoUser.id,
-          movieId: firstMovie.id,
+          movieId: firstPublishedMovie.id,
+          episodeId: targetEpisode?.id || null,
           progress: 45.5,
           currentTime: 2730,
           duration: 6000,
@@ -394,8 +549,9 @@ async function main() {
   console.log('   admin@terence.vn / Admin@12345 (super_admin)')
   console.log('   staff@terence.vn / Staff@12345 (staff)')
   console.log('   user@terence.vn  / User@12345  (user)')
-  console.log(`   ${movieData.length} movies, ${shortData.length} shorts, episodes for series/anime`)
+  console.log(`   ${movieData.length} movies, ${shortData.length} shorts`)
   console.log(`   ${categoryData.length} categories, ${countryData.length} countries, ${peopleData.length} people`)
+  console.log('   🎥 HLS demo: VideoSource + SubtitleTrack seeded for standalone + series episodes')
 }
 
 main()

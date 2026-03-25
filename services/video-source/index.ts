@@ -1,4 +1,5 @@
 export { resolveMovieSource } from './resolver'
 export type { VideoSourceProvider } from './provider'
+export { DbVideoProvider } from './db-video-provider'
 export { DemoVideoProvider } from './demo-video-provider'
 export { TmdbTrailerProvider } from './tmdb-trailer-provider'

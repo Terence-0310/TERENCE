@@ -223,6 +223,10 @@ export default function MoviesPage() {
                               onClick={() => router.push(`/dashboard/movies/${movie.id}/edit`)}>
                               <Edit className="w-4 h-4" />
                             </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" title="Quản lý tập & nguồn phát"
+                              onClick={() => router.push(`/dashboard/movies/${movie.id}/episodes`)}>
+                              <Eye className="w-4 h-4 text-primary" />
+                            </Button>
                             <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" title="Xóa mềm"
                               onClick={() => handleDelete(movie.id, movie.title)}>
                               <Trash2 className="w-4 h-4" />
