@@ -58,3 +58,13 @@ export async function parseBody<T>(req: NextRequest): Promise<T | null> {
     return null
   }
 }
+
+/**
+ * Extract a human-readable message from an unknown caught value.
+ * Use this in catch blocks instead of `catch (err: any) { err.message }`.
+ */
+export function getErrorMessage(error: unknown, fallback = 'Internal server error'): string {
+  if (error instanceof Error) return error.message
+  if (typeof error === 'string') return error
+  return fallback
+}

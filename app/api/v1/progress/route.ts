@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized — use localStorage instead' }, { status: 401 })
   }
 
-  let body: any
+  let body: { movieId?: string; episodeId?: string; progressSeconds?: number; durationSeconds?: number }
   try {
     body = await req.json()
   } catch {

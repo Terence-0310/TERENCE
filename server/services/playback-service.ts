@@ -339,6 +339,158 @@ export async function getMoviePlaybackByTitle(
   return null
 }
 
+// ── Multi-Server Sources ──
+
+export interface ServerSource {
+  name: string
+  episodes: { name: string; slug: string; url: string }[]
+}
+
+/**
+ * Get all available server sources for a specific episode.
+ * Groups episodes with the same episodeNumber but different serverName.
+ * Used for multi-server fallback in HLSPlayer.
+ */
+export async function getMultiServerSources(
+  movieId: string,
+  episodeNumber: number,
+): Promise<ServerSource[]> {
+  // Find all episodes for this movie with the same episode number
+  const episodes = await prisma.episode.findMany({
+    where: {
+      movieId,
+      episodeNumber,
+      isActive: true,
+      isPublished: true,
+      status: 'active',
+    },
+    include: {
+      videoSources: {
+        where: { isActive: true },
+        orderBy: [{ isPrimary: 'desc' }, { priority: 'desc' }],
+      },
+    },
+    orderBy: [{ episodeOrder: 'asc' }],
+  })
+
+  // Group by serverName
+  const serverMap = new Map<string, { name: string; slug: string; url: string }[]>()
+
+  for (const ep of episodes) {
+    const serverName = ep.serverName || 'Server 1'
+    const epName = ep.episodeName || `Tập ${ep.episodeNumber}`
+    const epSlug = ep.episodeSlug || `tap-${ep.episodeNumber}`
+
+    // Try VideoSource records first
+    for (const src of ep.videoSources) {
+      if (!isValidUrl(src.url)) continue
+      if (src.sourceType === 'hls' && !isHlsUrl(src.url)) continue
+
+      if (!serverMap.has(serverName)) {
+        serverMap.set(serverName, [])
+      }
+      serverMap.get(serverName)!.push({
+        name: epName,
+        slug: epSlug,
+        url: src.url,
+      })
+    }
+
+    // Fallback to legacy streamUrl
+    if (!serverMap.has(serverName) && ep.streamUrl && isValidUrl(ep.streamUrl)) {
+      const isHls = ep.streamType === 'hls' || ep.streamType === 'm3u8'
+      if (isHls && !isHlsUrl(ep.streamUrl)) continue
+
+      serverMap.set(serverName, [{
+        name: epName,
+        slug: epSlug,
+        url: ep.streamUrl,
+      }])
+    }
+  }
+
+  // Convert to array
+  const servers: ServerSource[] = []
+  for (const [name, eps] of serverMap) {
+    if (eps.length > 0) {
+      servers.push({ name, episodes: eps })
+    }
+  }
+
+  return servers
+}
+
+/**
+ * Get all servers for a movie with full episode lists.
+ * Each server has all its episodes with stream URLs.
+ * Used for building the complete server list in the watch page.
+ */
+export async function getAllMovieServers(
+  movieId: string,
+): Promise<ServerSource[]> {
+  const episodes = await prisma.episode.findMany({
+    where: {
+      movieId,
+      isActive: true,
+      isPublished: true,
+      status: 'active',
+    },
+    include: {
+      videoSources: {
+        where: { isActive: true },
+        orderBy: [{ isPrimary: 'desc' }, { priority: 'desc' }],
+      },
+    },
+    orderBy: [{ episodeOrder: 'asc' }, { episodeNumber: 'asc' }],
+  })
+
+  // Group by serverName
+  const serverMap = new Map<string, { name: string; slug: string; url: string }[]>()
+
+  for (const ep of episodes) {
+    const serverName = ep.serverName || 'Server 1'
+    const epName = ep.episodeName || `Tập ${ep.episodeNumber}`
+    const epSlug = ep.episodeSlug || `tap-${ep.episodeNumber}`
+
+    let streamUrl: string | null = null
+
+    // Try VideoSource records first
+    for (const src of ep.videoSources) {
+      if (!isValidUrl(src.url)) continue
+      if (src.sourceType === 'hls' && !isHlsUrl(src.url)) continue
+      streamUrl = src.url
+      break
+    }
+
+    // Fallback to legacy streamUrl
+    if (!streamUrl && ep.streamUrl && isValidUrl(ep.streamUrl)) {
+      const isHls = ep.streamType === 'hls' || ep.streamType === 'm3u8'
+      if (isHls && !isHlsUrl(ep.streamUrl)) continue
+      streamUrl = ep.streamUrl
+    }
+
+    if (streamUrl) {
+      if (!serverMap.has(serverName)) {
+        serverMap.set(serverName, [])
+      }
+      serverMap.get(serverName)!.push({
+        name: epName,
+        slug: epSlug,
+        url: streamUrl,
+      })
+    }
+  }
+
+  const servers: ServerSource[] = []
+  for (const [name, eps] of serverMap) {
+    if (eps.length > 0) {
+      servers.push({ name, episodes: eps })
+    }
+  }
+
+  return servers
+}
+
 // ── Slug helper ──
 function toSlug(text: string): string {
   return text

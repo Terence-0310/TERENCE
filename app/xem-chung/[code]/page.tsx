@@ -1,265 +1,925 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+// ============================================
+// Watch Party Room Page — Phase 2 Full Experience
+// ============================================
+// /xem-chung/[code]
+// Player + Chat + Members + LiveKit Call + Sync
+
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, Send, Users, Play, Pause, Clock, MessageCircle, Settings, Volume2 } from 'lucide-react'
+import {
+  ArrowLeft, Users, Loader2, Copy, Check,
+  MessageCircle, Phone, PhoneOff, Mic, MicOff,
+  Video, VideoOff, Send, Crown, Monitor, Smile,
+} from 'lucide-react'
 import Link from 'next/link'
-import useSWR from 'swr'
-import type { WatchRoom, WatchRoomMember, WatchRoomMessage } from '@/lib/watch-party/types'
+import { useLiveKitRoom } from '@/hooks/useLiveKitRoom'
+import { WatchPlayer, type WatchPlayerRef } from '@/components/watch/WatchPlayer'
+import { useWatchSync, type ChatMessage } from '@/hooks/useWatchSync'
 
-const fetcher = (url: string) => fetch(url).then(r => r.json())
+// ── Reaction emoji config ──
+const REACTION_EMOJIS = ['😂', '❤️', '🔥', '👏', '😮', '😢', '💯', '🎬']
 
-function formatTime(seconds: number): string {
-  const h = Math.floor(seconds / 3600)
-  const m = Math.floor((seconds % 3600) / 60)
-  const s = Math.floor(seconds % 60)
-  return h > 0
-    ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
-    : `${m}:${String(s).padStart(2, '0')}`
+interface FloatingReaction {
+  id: number
+  emoji: string
+  x: number // percentage
 }
+
+let reactionIdCounter = 0
+
+// ── Types ──
+
+interface RoomData {
+  id: string
+  roomCode: string
+  title: string
+  status: string
+  movieId: string | null
+  episodeId: string | null
+  hostUserId: string | null
+  host: { id: string; name: string; avatar?: string } | null
+  movie?: { id: string; title?: string; posterUrl?: string | null; backdropUrl?: string | null } | null
+  createdAt: string
+  lastSyncedAt: string | null
+}
+
+interface ParticipantData {
+  id: string
+  displayName: string
+  role: string
+  isOnline: boolean
+  joinedAt: string
+}
+
+interface StateData {
+  playbackTime: number
+  isPlaying: boolean
+  playbackRate: number
+  episodeId: string | null
+  lastEventType: string | null
+  lastEventBy: string | null
+  version: number
+  updatedAt: string
+}
+
+interface MessageData {
+  id: string
+  participantId: string | null
+  senderName: string
+  type: string
+  content: string
+  createdAt: string
+}
+
+// ── Guest user ──
+
+function getGuestUser(): { id: string; name: string } {
+  if (typeof window === 'undefined') return { id: 'guest', name: 'Khách' }
+  let uid = sessionStorage.getItem('terence:wp-id')
+  if (!uid) {
+    uid = `g-${Math.random().toString(36).substring(2, 8)}`
+    sessionStorage.setItem('terence:wp-id', uid)
+  }
+  let name = sessionStorage.getItem('terence:wp-name')
+  if (!name) {
+    name = 'Khách ' + uid.slice(-3)
+    sessionStorage.setItem('terence:wp-name', name)
+  }
+  return { id: uid, name }
+}
+
+// ── Polling interval ──
+const POLL_INTERVAL = 2500
 
 export default function WatchRoomPage() {
   const params = useParams()
   const router = useRouter()
   const code = (params.code as string)?.toUpperCase()
-  const chatEndRef = useRef<HTMLDivElement>(null)
+  const user = useRef(getGuestUser())
+
+  // ── Core state ──
+  const [room, setRoom] = useState<RoomData | null>(null)
+  const [participants, setParticipants] = useState<ParticipantData[]>([])
+  const [state, setState] = useState<StateData | null>(null)
+  const [messages, setMessages] = useState<MessageData[]>([])
+  const [myParticipantId, setMyParticipantId] = useState('')
+  const [isHost, setIsHost] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  // ── UI state ──
+  const [panelTab, setPanelTab] = useState<'chat' | 'members' | 'call'>('chat')
+  const [showPanel, setShowPanel] = useState(true)
   const [chatInput, setChatInput] = useState('')
-  const [showChat, setShowChat] = useState(true)
+  const [copied, setCopied] = useState(false)
+  const [showReactionBar, setShowReactionBar] = useState(false)
+  const [floatingReactions, setFloatingReactions] = useState<FloatingReaction[]>([])
+  const chatEndRef = useRef<HTMLDivElement>(null)
+  const lastPollRef = useRef<string | null>(null)
 
-  const { data, error, isLoading, mutate } = useSWR<{
-    room: WatchRoom
-    members: WatchRoomMember[]
-    messages: WatchRoomMessage[]
-  }>(code ? `/api/watch-rooms/${code}` : null, fetcher, { refreshInterval: 3000 })
+  // ── Player ref (imperative control via WatchPlayer) ──
+  const playerRef = useRef<WatchPlayerRef>(null)
+  const [syncStatus, setSyncStatus] = useState<'waiting' | 'synced' | 'resyncing'>('waiting')
+  const [socketReady, setSocketReady] = useState(false)
 
-  const room = data?.room
-  const membersList = data?.members ?? []
-  const chatMessages = data?.messages ?? []
+  // ── LiveKit ──
+  const liveKit = useLiveKitRoom({
+    roomCode: code ?? null,
+    userName: user.current.name,
+    userId: user.current.id,
+    enabled: !!code,
+  })
+  const liveKitParticipantCount = (liveKit.connectionState === 'connected')
+    ? liveKit.remoteParticipants.length + 1
+    : 0
 
-  // Auto-scroll chat
+  // Auto-join LiveKit when room loads (audio only)
+  const liveKitAutoJoined = useRef(false)
+  useEffect(() => {
+    if (!loading && !error && room && !liveKitAutoJoined.current) {
+      liveKitAutoJoined.current = true
+      // Slight delay to let room fully render
+      const timer = setTimeout(() => {
+        liveKit.connect(true, false).catch(() => {})
+      }, 1500)
+      return () => clearTimeout(timer)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, error, room])
+
+  // ════════════════════════════════════════════
+  // 1. JOIN ROOM on mount
+  // ── Socket.IO Sync ──
+  const watchSync = useWatchSync({
+    roomCode: code,
+    userId: user.current.id,
+    displayName: user.current.name,
+    isHost,
+    enabled: socketReady,
+    onPlay: (currentTime) => {
+      const p = playerRef.current
+      if (!p) return
+      p.seekTo(currentTime)
+      p.play()
+      setSyncStatus('synced')
+    },
+    onPause: (currentTime) => {
+      const p = playerRef.current
+      if (!p) return
+      p.seekTo(currentTime)
+      p.pause()
+      setSyncStatus('synced')
+    },
+    onSeek: (currentTime) => {
+      playerRef.current?.seekTo(currentTime)
+      setSyncStatus('synced')
+    },
+    onStateSync: (syncState) => {
+      const p = playerRef.current
+      if (!p) return
+      if (Math.abs(p.getCurrentTime() - syncState.playbackTime) > 3) {
+        p.seekTo(syncState.playbackTime)
+      }
+      if (syncState.isPlaying) p.play()
+      else p.pause()
+      setSyncStatus('synced')
+    },
+    onTimeRequest: () => {
+      const p = playerRef.current
+      if (!p) return null
+      const video = p.getVideo()
+      return {
+        currentTime: p.getCurrentTime(),
+        isPlaying: video ? !video.paused : false,
+      }
+    },
+    onChatMessage: (msg: ChatMessage) => {
+      setMessages((prev) => {
+        const ids = new Set(prev.map((m) => m.id))
+        if (ids.has(msg.id)) return prev
+        return [...prev, {
+          id: msg.id,
+          participantId: msg.senderId,
+          senderName: msg.senderName,
+          type: msg.type,
+          content: msg.content,
+          createdAt: msg.createdAt,
+        }]
+      })
+    },
+    onHostChanged: (newHostId, _newHostName) => {
+      setIsHost(user.current.id === newHostId)
+    },
+    onUserJoined: (_userId, _displayName, count) => {
+      // Will be reflected in next metadata poll
+      console.log(`[WP] User joined, count: ${count}`)
+    },
+    onUserLeft: (_userId, _displayName, count) => {
+      console.log(`[WP] User left, count: ${count}`)
+    },
+  })
+
+  // ════════════════════════════════════════════
+  useEffect(() => {
+    if (!code) return
+    let cancelled = false
+
+    async function init() {
+      try {
+        // Join
+        const joinRes = await fetch('/api/watch-party/join', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            roomCode: code,
+            displayName: user.current.name,
+          }),
+        })
+
+        if (!joinRes.ok) {
+          const err = await joinRes.json().catch(() => ({}))
+          setError(err.error || 'Không thể tham gia phòng')
+          setLoading(false)
+          return
+        }
+
+        const joinData = await joinRes.json()
+        if (cancelled) return
+
+        setMyParticipantId(joinData.participant.id)
+        setIsHost(joinData.participant.role === 'HOST')
+
+        // Fetch full room state
+        const roomRes = await fetch(`/api/watch-party/${code}`)
+        if (roomRes.ok) {
+          const roomData = await roomRes.json()
+          if (cancelled) return
+          setRoom(roomData.room)
+          setParticipants(roomData.participants)
+          setState(roomData.state)
+        }
+
+        // Fetch messages
+        const msgRes = await fetch(`/api/watch-party/${code}/messages`)
+        if (msgRes.ok) {
+          const msgData = await msgRes.json()
+          if (cancelled) return
+          setMessages(msgData.messages)
+          if (msgData.messages.length > 0) {
+            lastPollRef.current = msgData.messages[msgData.messages.length - 1].createdAt
+          }
+        }
+
+        setLoading(false)
+      } catch {
+        setError('Lỗi kết nối')
+        setLoading(false)
+      }
+    }
+
+    init()
+    return () => { cancelled = true }
+  }, [code])
+
+  // ════════════════════════════════════════════
+  // 2. METADATA POLL (reduced — socket handles sync/chat)
+  // ════════════════════════════════════════════
+  useEffect(() => {
+    if (!code || loading || error) return
+
+    // Enable socket once room is loaded
+    if (!socketReady) setSocketReady(true)
+
+    const timer = setInterval(async () => {
+      try {
+        // Poll room metadata + participants only
+        const res = await fetch(`/api/watch-party/${code}`)
+        if (!res.ok) return
+        const data = await res.json()
+
+        setRoom(data.room)
+        setParticipants(data.participants)
+
+        // Update state version from server
+        if (data.state) setState(data.state as StateData)
+
+        // Check if host changed (DB source of truth)
+        const me = data.participants.find((p: ParticipantData) => p.id === myParticipantId)
+        if (me) setIsHost(me.role === 'HOST')
+
+        // Room ended?
+        if (data.room.status === 'ENDED') {
+          setError('Phòng đã kết thúc')
+        }
+      } catch {
+        // Silent retry
+      }
+    }, 10_000) // Reduced to 10s — socket handles real-time sync
+
+    return () => clearInterval(timer)
+  }, [code, loading, error, myParticipantId, socketReady])
+
+  // WatchPlayer handles HLS init internally — just sync initial state when ready
+  useEffect(() => {
+    if (!room || !state || !playerRef.current) return
+    // Apply initial state on mount (delayed to let player init)
+    const timer = setTimeout(() => {
+      const p = playerRef.current
+      if (!p) return
+      if (state.playbackTime > 0) p.seekTo(state.playbackTime)
+      if (state.isPlaying) p.play()
+      setSyncStatus('synced')
+    }, 1500)
+    return () => clearTimeout(timer)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [room?.id])
+
+  // ── Auto-scroll chat ──
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [chatMessages.length])
+  }, [messages.length])
 
-  async function handleSendChat(e: React.FormEvent) {
+  // ════════════════════════════════════════════
+  // HANDLERS
+  // ════════════════════════════════════════════
+
+  // Player sync callbacks (called by WatchPlayer → emit via Socket.IO)
+  const handlePlayerPlay = useCallback((currentTime: number) => {
+    // Socket.IO instant broadcast
+    watchSync.emitPlay(currentTime)
+    // Also persist to DB for recovery
+    fetch(`/api/watch-party/${code}/sync`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        playbackTime: currentTime, isPlaying: true,
+        eventType: 'PLAY', eventBy: myParticipantId,
+      }),
+    }).catch(() => {})
+    setSyncStatus('synced')
+  }, [code, myParticipantId, watchSync])
+
+  const handlePlayerPause = useCallback((currentTime: number) => {
+    watchSync.emitPause(currentTime)
+    fetch(`/api/watch-party/${code}/sync`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        playbackTime: currentTime, isPlaying: false,
+        eventType: 'PAUSE', eventBy: myParticipantId,
+      }),
+    }).catch(() => {})
+    setSyncStatus('synced')
+  }, [code, myParticipantId, watchSync])
+
+  const handlePlayerSeeked = useCallback((currentTime: number) => {
+    setSyncStatus('resyncing')
+    watchSync.emitSeek(currentTime)
+    fetch(`/api/watch-party/${code}/sync`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        playbackTime: currentTime,
+        eventType: 'SEEK', eventBy: myParticipantId,
+      }),
+    }).then(() => setSyncStatus('synced')).catch(() => {})
+  }, [code, myParticipantId, watchSync])
+
+  // Chat — via Socket.IO (instant) + REST fallback
+  function handleSendChat(e: React.FormEvent) {
     e.preventDefault()
     if (!chatInput.trim() || !code) return
 
-    await fetch(`/api/watch-rooms/${code}/messages`, {
+    const content = chatInput.trim().slice(0, 1000)
+    setChatInput('')
+
+    // Send via Socket.IO for instant delivery
+    if (watchSync.status === 'connected') {
+      watchSync.sendChat(content)
+    }
+
+    // Also persist to DB
+    fetch(`/api/watch-party/${code}/messages`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ senderName: 'Bạn', content: chatInput.trim() }),
-    })
-    setChatInput('')
-    mutate()
+      body: JSON.stringify({
+        participantId: myParticipantId,
+        senderName: user.current.name,
+        content,
+      }),
+    }).catch(() => {})
   }
 
-  async function handlePlayPause() {
-    if (!room || !code) return
-    const newState = room.playbackState === 'playing' ? 'paused' : 'playing'
-    await fetch(`/api/watch-rooms/${code}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ state: newState }),
-    })
-    mutate()
+  // Copy invite link
+  function handleCopy() {
+    navigator.clipboard.writeText(`${window.location.origin}/xem-chung/${code}`)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
   }
 
-  // Loading state
-  if (isLoading) {
+  // Leave room
+  async function handleLeave() {
+    // Socket.IO disconnect (instant)
+    watchSync.leave()
+    // REST cleanup (persistent)
+    if (code && myParticipantId) {
+      fetch('/api/watch-party/leave', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roomCode: code, participantId: myParticipantId }),
+      }).catch(() => {})
+    }
+    liveKit.disconnect()
+    router.push('/xem-chung')
+  }
+
+  // ════════════════════════════════════════════
+  // RENDERS
+  // ════════════════════════════════════════════
+
+  const onlineCount = useMemo(() => participants.filter((p) => p.isOnline).length, [participants])
+
+  // ── LOADING ──
+  if (loading) {
     return (
-      <main className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center space-y-3">
-          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-white/60 text-sm">Đang kết nối phòng...</p>
+      <main className="min-h-screen bg-[#020617] flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="relative">
+            <div className="w-16 h-16 rounded-full border-2 border-primary/20 border-t-primary animate-spin mx-auto" />
+            <Users className="w-6 h-6 text-primary/60 absolute inset-0 m-auto" />
+          </div>
+          <p className="text-white/50 text-sm">Đang kết nối phòng <span className="font-mono text-primary">{code}</span></p>
         </div>
       </main>
     )
   }
 
-  // Room not found
+  // ── ERROR / NOT FOUND ──
   if (error || !room) {
     return (
-      <main className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center space-y-4 max-w-sm">
-          <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mx-auto">
-            <Users className="w-7 h-7 text-white/20" />
+      <main className="min-h-screen bg-[#020617] flex items-center justify-center">
+        <div className="text-center space-y-5 max-w-sm px-6">
+          <div className="w-20 h-20 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto">
+            <Users className="w-8 h-8 text-white/15" />
           </div>
-          <h2 className="text-xl font-bold text-white">Không tìm thấy phòng</h2>
-          <p className="text-sm text-white/50">
-            Mã phòng <span className="font-mono text-primary">{code}</span> không tồn tại hoặc đã đóng.
+          <h2 className="text-xl font-bold text-white">{error || 'Không tìm thấy phòng'}</h2>
+          <p className="text-sm text-white/40">
+            Phòng <span className="font-mono text-primary">{code}</span> không tồn tại hoặc đã kết thúc.
           </p>
-          <Link href="/xem-chung" className="inline-block mt-2 px-4 py-2 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 transition">
-            ← Quay lại
+          <Link
+            href="/xem-chung"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white text-sm font-bold hover:bg-primary/90 transition"
+          >
+            <ArrowLeft className="w-4 h-4" /> Quay lại
           </Link>
         </div>
       </main>
     )
   }
 
-  const onlineCount = membersList.filter(m => m.isOnline).length
-  const isLive = room.status === 'live'
-  const isPlaying = room.playbackState === 'playing'
+  const isLive = room.status === 'ACTIVE'
+  const isVideoPlaying = state?.isPlaying ?? false
 
+  // ── Reaction handler ──
+  function handleReaction(emoji: string) {
+    const id = ++reactionIdCounter
+    const x = 10 + Math.random() * 80
+    setFloatingReactions(prev => [...prev, { id, emoji, x }])
+    // Send to others via socket chat
+    if (watchSync.status === 'connected') {
+      watchSync.sendChat(emoji)
+    }
+    // Auto-clean after animation
+    setTimeout(() => {
+      setFloatingReactions(prev => prev.filter(r => r.id !== id))
+    }, 2500)
+  }
+
+  // ════════════════════════════════════════════
+  // MAIN UI
+  // ════════════════════════════════════════════
   return (
-    <main className="min-h-screen bg-[#020617]">
-      {/* Top bar */}
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/[0.06] bg-black/40">
-        <div className="flex items-center gap-3">
-          <button onClick={() => router.push('/xem-chung')} className="p-1.5 rounded-lg hover:bg-white/10 transition text-white/60 hover:text-white">
+    <main className="min-h-screen bg-[#020617] relative">
+      {/* ═══ TOP BAR ═══ */}
+      <header className="flex items-center justify-between px-4 py-2 border-b border-white/[0.06] bg-black/60 backdrop-blur-md z-30 relative">
+        <div className="flex items-center gap-3 min-w-0">
+          <button onClick={() => router.push('/xem-chung')} className="p-1.5 rounded-lg hover:bg-white/10 transition text-white/50 hover:text-white shrink-0">
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <div>
-            <h1 className="text-sm font-semibold text-white truncate max-w-[300px]">{room.roomName}</h1>
-            <p className="text-[11px] text-white/40">
-              Chủ phòng: {room.host.name} • Mã: <span className="font-mono text-primary">{code}</span>
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {isLive && (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-red-500/20 border border-red-500/30 px-2.5 py-1 text-[11px] font-medium text-red-400">
-              <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-              LIVE
-            </span>
-          )}
-          <span className="inline-flex items-center gap-1 rounded-full bg-white/5 border border-white/[0.06] px-2.5 py-1 text-[11px] text-white/60">
-            <Users className="w-3 h-3" />
-            {onlineCount}/{room.maxMembers}
-          </span>
-          <button
-            onClick={() => setShowChat(!showChat)}
-            className={`p-2 rounded-lg transition ${showChat ? 'bg-primary/20 text-primary' : 'bg-white/5 text-white/50 hover:bg-white/10'}`}
-          >
-            <MessageCircle className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-
-      {/* Content: Player + Chat */}
-      <div className="flex h-[calc(100vh-49px)]">
-        {/* Player area */}
-        <div className="flex-1 flex flex-col">
-          {/* Video placeholder */}
-          <div className="flex-1 relative bg-black flex items-center justify-center">
-            <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=1600&q=80')] bg-cover bg-center opacity-20" />
-            <div className="absolute inset-0 bg-black/60" />
-
-            <div className="relative text-center space-y-4 z-10">
-              <div className="w-20 h-20 rounded-full bg-white/10 border border-white/20 flex items-center justify-center mx-auto backdrop-blur-sm">
-                {isPlaying ? (
-                  <Volume2 className="w-8 h-8 text-primary animate-pulse" />
-                ) : (
-                  <Play className="w-8 h-8 text-white/80 ml-1" />
-                )}
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-white">{room.roomName}</h3>
-                <p className="text-xs text-white/40 mt-1">
-                  {isPlaying ? 'Đang phát' : room.status === 'upcoming' ? 'Sắp công chiếu' : 'Đang chờ'}
-                  {room.currentPlaybackTime > 0 && ` • ${formatTime(room.currentPlaybackTime)}`}
-                </p>
-              </div>
+          <div className="min-w-0">
+            <h1 className="text-sm font-semibold text-white truncate">{room.title}</h1>
+            <div className="flex items-center gap-2 text-[11px] text-white/40">
+              <span>Mã: <span className="font-mono text-primary">{code}</span></span>
+              {isHost && <span className="text-amber-400 flex items-center gap-0.5"><Crown className="w-3 h-3" /> Host</span>}
             </div>
           </div>
 
-          {/* Player controls */}
-          <div className="flex items-center justify-between px-4 py-3 border-t border-white/[0.06] bg-black/60">
-            <div className="flex items-center gap-3">
-              <button
-                onClick={handlePlayPause}
-                className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-white hover:bg-primary/80 transition"
-              >
-                {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
-              </button>
-              <span className="text-xs font-mono text-white/50">
-                {formatTime(room.currentPlaybackTime)}
-              </span>
-            </div>
-
-            {/* Progress bar placeholder */}
-            <div className="flex-1 mx-4">
-              <div className="h-1 bg-white/10 rounded-full overflow-hidden">
-                <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${Math.min((room.currentPlaybackTime / 7200) * 100, 100)}%` }} />
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Clock className="w-3.5 h-3.5 text-white/30" />
-              <span className="text-xs text-white/40 font-mono">2:00:00</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Chat sidebar */}
-        {showChat && (
-          <div className="w-80 lg:w-96 border-l border-white/[0.06] flex flex-col bg-[#0B1120]">
-            {/* Members */}
-            <div className="px-4 py-3 border-b border-white/[0.06]">
-              <h3 className="text-xs font-semibold text-white/70 uppercase tracking-wider mb-2">
-                Thành viên ({onlineCount})
-              </h3>
-              <div className="flex flex-wrap gap-1.5">
-                {membersList.map(m => (
-                  <span
-                    key={m.id}
-                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] border ${
-                      m.isOnline
-                        ? 'bg-primary/10 border-primary/20 text-primary'
-                        : 'bg-white/5 border-white/[0.06] text-white/30'
-                    }`}
-                  >
-                    <span className={`w-1.5 h-1.5 rounded-full ${m.isOnline ? 'bg-primary' : 'bg-white/20'}`} />
-                    {m.guestName ?? (m.role === 'host' ? room.host.name : 'User')}
-                    {m.role === 'host' && <span className="text-[9px] ml-0.5 opacity-70">👑</span>}
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            {/* Chat messages */}
-            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2.5 scrollbar-hide">
-              {chatMessages.length === 0 && (
-                <p className="text-xs text-white/30 text-center py-8">Chưa có tin nhắn</p>
-              )}
-              {chatMessages.map(msg => (
-                <div key={msg.id}>
-                  {msg.type === 'system' ? (
-                    <p className="text-[10px] text-white/30 text-center py-1">— {msg.content} —</p>
-                  ) : (
-                    <div>
-                      <span className="text-[11px] font-semibold text-primary">{msg.senderName}</span>
-                      <p className="text-xs text-white/70 leading-relaxed">{msg.content}</p>
-                    </div>
+          {/* ── Participant Avatars (compact strip) ── */}
+          {participants.length > 0 && (
+            <div className="hidden md:flex items-center gap-0 ml-3">
+              {participants.slice(0, 5).map((p, i) => (
+                <div
+                  key={p.id}
+                  className={`relative flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-bold border-2 border-[#020617] transition-transform hover:scale-110 hover:z-10 ${
+                    p.role === 'HOST'
+                      ? 'bg-gradient-to-br from-amber-500/30 to-amber-600/20 text-amber-400 ring-1 ring-amber-500/30'
+                      : p.isOnline
+                        ? 'bg-gradient-to-br from-primary/20 to-primary/10 text-primary'
+                        : 'bg-white/5 text-white/30'
+                  }`}
+                  style={{ marginLeft: i > 0 ? '-6px' : '0', zIndex: 5 - i }}
+                  title={p.id === myParticipantId ? 'Bạn' : p.displayName}
+                >
+                  {p.displayName.charAt(0).toUpperCase()}
+                  {p.isOnline && (
+                    <span className="absolute -bottom-px -right-px h-2 w-2 rounded-full bg-emerald-400 border border-[#020617]" />
                   )}
                 </div>
               ))}
-              <div ref={chatEndRef} />
+              {participants.length > 5 && (
+                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-white/5 border-2 border-[#020617] text-[9px] font-medium text-white/40" style={{ marginLeft: '-6px' }}>
+                  +{participants.length - 5}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center gap-1.5 shrink-0">
+          {/* Sync badge */}
+          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+            syncStatus === 'synced' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20' :
+            syncStatus === 'resyncing' ? 'bg-amber-500/15 text-amber-400 border border-amber-500/20' :
+            'bg-white/5 text-white/40 border border-white/[0.06]'
+          }`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${
+              syncStatus === 'synced' ? 'bg-emerald-400' : syncStatus === 'resyncing' ? 'bg-amber-400 animate-pulse' : 'bg-white/30'
+            }`} />
+            {syncStatus === 'synced' ? 'Đồng bộ' : syncStatus === 'resyncing' ? 'Sync...' : 'Chờ'}
+          </span>
+
+          {isLive && (
+            isVideoPlaying ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-red-500/15 border border-red-500/20 px-2 py-0.5 text-[10px] font-bold text-red-400">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" /> LIVE
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 border border-amber-500/20 px-2 py-0.5 text-[10px] font-bold text-amber-400">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" /> PAUSED
+              </span>
+            )
+          )}
+
+          <span className="inline-flex items-center gap-1 rounded-full bg-white/5 border border-white/[0.06] px-2 py-0.5 text-[10px] text-white/50">
+            <Users className="w-3 h-3" /> {onlineCount}
+          </span>
+
+          <button onClick={handleCopy} className="p-1.5 rounded-lg bg-white/5 border border-white/[0.06] text-white/50 hover:text-white hover:bg-white/10 transition" title="Copy link mời">
+            {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+          </button>
+
+          {/* LiveKit call indicator */}
+          {liveKit.connectionState === 'connected' && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 border border-emerald-500/20 px-2 py-0.5 text-[10px] font-medium text-emerald-400">
+              <Phone className="w-3 h-3" /> {liveKitParticipantCount}
+            </span>
+          )}
+          {liveKit.connectionState === 'connecting' && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 border border-amber-500/20 px-2 py-0.5 text-[10px] font-medium text-amber-400">
+              <Loader2 className="w-3 h-3 animate-spin" /> Gọi...
+            </span>
+          )}
+
+          <button onClick={() => setShowPanel(!showPanel)} className={`p-1.5 rounded-lg transition ${showPanel ? 'bg-primary/20 text-primary' : 'bg-white/5 text-white/50 hover:bg-white/10'}`}>
+            <MessageCircle className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </header>
+
+      {/* ═══ CONTENT ═══ */}
+      <div className="flex h-[calc(100vh-45px)]">
+        {/* ── Player ── */}
+        <div className="flex-1 flex flex-col min-w-0">
+          <div className="flex-1 relative bg-black">
+            <WatchPlayer
+              ref={playerRef}
+              streamUrl={null}
+              poster={null}
+              isHost={isHost}
+              title={room.title}
+              autoPlay={true}
+              onPlay={handlePlayerPlay}
+              onPause={handlePlayerPause}
+              onSeeked={handlePlayerSeeked}
+            />
+          </div>
+
+          {/* Info bar with poster blur */}
+          <div className="border-t border-white/[0.06] relative overflow-hidden">
+            {/* Blurred poster background */}
+            <div className="absolute inset-0 bg-cover bg-center opacity-[0.07] blur-sm scale-110" style={{ backgroundImage: room.movie?.posterUrl ? `url(${room.movie.posterUrl})` : 'none' }} />
+            <div className="absolute inset-0 bg-gradient-to-r from-[#0a0e1a] via-[#0a0e1a]/90 to-[#0a0e1a]" />
+            <div className="relative px-4 py-2.5 flex items-center justify-between">
+              <div className="min-w-0 flex-1">
+                <h2 className="text-sm font-bold text-white truncate">{room.title}</h2>
+                <p className="text-[11px] text-white/40 mt-0.5 flex items-center gap-2">
+                  {state && (
+                    <span className="flex items-center gap-1">
+                      <span className={`w-1.5 h-1.5 rounded-full ${state.isPlaying ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+                      {state.isPlaying ? '▶ Playing' : '⏸ Paused'} • {Math.floor(state.playbackTime)}s
+                    </span>
+                  )}
+                  {room.host && <span className="flex items-center gap-1"><Crown className="w-3 h-3 text-amber-400/60" /> {room.host.name}</span>}
+                </p>
+              </div>
+              {/* Quick reaction bar */}
+              <div className="flex items-center gap-1 shrink-0 ml-3">
+                <button
+                  onClick={() => setShowReactionBar(!showReactionBar)}
+                  className={`p-1.5 rounded-lg transition text-xs ${showReactionBar ? 'bg-primary/20 text-primary' : 'bg-white/5 text-white/40 hover:bg-white/10 hover:text-white/60'}`}
+                  title="Reactions"
+                >
+                  <Smile className="w-4 h-4" />
+                </button>
+                {showReactionBar && (
+                  <div className="flex items-center gap-0.5 bg-[#0B1120] border border-white/[0.08] rounded-xl px-2 py-1 shadow-xl animate-in slide-in-from-right-2">
+                    {REACTION_EMOJIS.map((emoji) => (
+                      <button
+                        key={emoji}
+                        onClick={() => handleReaction(emoji)}
+                        className="w-7 h-7 flex items-center justify-center rounded-lg text-sm hover:bg-white/10 hover:scale-125 transition-all duration-150 active:scale-90"
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Floating reactions */}
+          {floatingReactions.length > 0 && (
+            <div className="absolute bottom-16 left-0 right-0 pointer-events-none z-50" style={{ height: '200px' }}>
+              {floatingReactions.map((r) => (
+                <span
+                  key={r.id}
+                  className="absolute text-2xl animate-float-up"
+                  style={{ left: `${r.x}%`, bottom: 0 }}
+                >
+                  {r.emoji}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* ── Side Panel ── */}
+        {showPanel && (
+          <div className="w-80 lg:w-96 flex flex-col border-l border-white/[0.06] bg-[#0B1120] shrink-0">
+            {/* Tabs */}
+            <div className="flex border-b border-white/[0.06]">
+              {(['chat', 'members', 'call'] as const).map((tab) => (
+                <button key={tab} onClick={() => setPanelTab(tab)}
+                  className={`flex-1 px-3 py-2.5 text-xs font-medium transition ${panelTab === tab ? 'border-b-2 border-primary text-primary' : 'text-white/40 hover:text-white/60'}`}
+                >
+                  {tab === 'chat' && <><MessageCircle className="inline w-3.5 h-3.5 mr-1" />Chat</>}
+                  {tab === 'members' && <><Users className="inline w-3.5 h-3.5 mr-1" />({onlineCount})</>}
+                  {tab === 'call' && <><Phone className="inline w-3.5 h-3.5 mr-1" />Call</>}
+                </button>
+              ))}
             </div>
 
-            {/* Chat input */}
-            <form onSubmit={handleSendChat} className="px-3 py-2.5 border-t border-white/[0.06]">
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={chatInput}
-                  onChange={e => setChatInput(e.target.value)}
-                  placeholder="Nhập tin nhắn..."
-                  className="flex-1 rounded-lg bg-white/[0.04] border border-white/[0.06] px-3 py-2 text-xs text-white placeholder:text-white/30 outline-none focus:border-primary/40 transition"
-                />
-                <button
-                  type="submit"
-                  disabled={!chatInput.trim()}
-                  className="w-9 h-9 rounded-lg bg-primary/20 border border-primary/20 text-primary flex items-center justify-center hover:bg-primary/30 transition disabled:opacity-30"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </form>
+            {/* Panel Content */}
+            <div className="flex-1 overflow-hidden">
+              {/* ── CHAT ── */}
+              {panelTab === 'chat' && (
+                <div className="flex h-full flex-col">
+                  <div className="flex-1 overflow-y-auto px-4 py-3 space-y-1.5 scrollbar-hide">
+                    {messages.length === 0 && (
+                      <p className="py-12 text-center text-xs text-white/20">Chưa có tin nhắn.</p>
+                    )}
+                    {messages.map((msg) => (
+                      <div key={msg.id}>
+                        {msg.type === 'system' ? (
+                          <p className="py-1 text-center text-[10px] text-white/20 italic">— {msg.content} —</p>
+                        ) : (
+                          <div className={`rounded-lg px-3 py-2 ${
+                            msg.participantId === myParticipantId
+                              ? 'ml-8 bg-primary/10 border border-primary/20'
+                              : 'mr-8 bg-white/[0.04] border border-white/[0.06]'
+                          }`}>
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] font-semibold text-primary/70">{msg.senderName}</span>
+                              <span className="text-[9px] text-white/15">
+                                {new Date(msg.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </div>
+                            <p className="mt-0.5 text-xs leading-relaxed text-white/65">{msg.content}</p>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                    <div ref={chatEndRef} />
+                  </div>
+
+                  <form onSubmit={handleSendChat} className="border-t border-white/[0.06] px-3 py-2.5">
+                    <div className="flex gap-2">
+                      <input type="text" value={chatInput} onChange={(e) => setChatInput(e.target.value)}
+                        placeholder="Nhập tin nhắn..." maxLength={1000}
+                        className="flex-1 rounded-lg border border-white/[0.06] bg-white/[0.04] px-3 py-2 text-xs text-white outline-none placeholder:text-white/25 focus:border-primary/40 transition"
+                      />
+                      <button type="submit" disabled={!chatInput.trim()}
+                        className="flex h-9 w-9 items-center justify-center rounded-lg border border-primary/20 bg-primary/20 text-primary transition hover:bg-primary/30 disabled:opacity-20"
+                      >
+                        <Send className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
+
+              {/* ── MEMBERS ── */}
+              {panelTab === 'members' && (
+                <div className="overflow-y-auto px-4 py-3 space-y-1.5 scrollbar-hide">
+                  {participants.map((p) => {
+                    // Check if this participant is speaking in LiveKit
+                    const liveKitP = liveKit.remoteParticipants.find(lp => lp.name === p.displayName)
+                    const isSpeaking = liveKitP?.isSpeaking || (
+                      p.id === myParticipantId && liveKit.localParticipant?.isSpeaking
+                    )
+                    const isInCall = liveKit.connectionState === 'connected' && (
+                      liveKitP || p.id === myParticipantId
+                    )
+                    return (
+                      <div key={p.id}
+                        className={`flex items-center gap-2.5 rounded-lg border px-3 py-2.5 transition hover:bg-white/[0.05] ${
+                          isSpeaking
+                            ? 'border-emerald-500/30 bg-emerald-500/[0.04] shadow-sm shadow-emerald-500/5'
+                            : 'border-white/[0.04] bg-white/[0.02]'
+                        }`}
+                      >
+                        <div className="relative">
+                          <div className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold transition-all ${
+                            isSpeaking ? 'bg-emerald-500/20 text-emerald-400 ring-2 ring-emerald-400/40 animate-pulse'
+                            : p.role === 'HOST' ? 'bg-gradient-to-br from-amber-500/20 to-amber-600/10 text-amber-400'
+                            : 'bg-primary/10 text-primary'
+                          }`}>
+                            {p.displayName.charAt(0).toUpperCase()}
+                          </div>
+                          <div className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-[#0B1120] ${p.isOnline ? 'bg-emerald-400' : 'bg-white/20'}`} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="truncate text-xs font-medium text-white/80">
+                              {p.id === myParticipantId ? 'Bạn' : p.displayName}
+                            </span>
+                            {p.role === 'HOST' && <Crown className="h-3 w-3 text-amber-400" />}
+                            {p.role === 'GUEST' && <span className="text-[9px] text-white/20">Khách</span>}
+                            {isSpeaking && <span className="text-[9px] text-emerald-400 font-medium">🔊</span>}
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] text-white/25">{p.isOnline ? 'Đang xem' : 'Offline'}</span>
+                            {isInCall && (
+                              <span className="inline-flex items-center gap-0.5 text-[9px] text-emerald-400/60">
+                                <Phone className="w-2.5 h-2.5" /> Trong cuộc gọi
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* ── CALL ── */}
+              {panelTab === 'call' && (
+                <div className="px-4 py-4 space-y-4">
+                  {liveKit.connectionState === 'disconnected' && (
+                    <div className="text-center space-y-3 py-6">
+                      <div className="w-14 h-14 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto">
+                        <Phone className="w-6 h-6 text-emerald-400" />
+                      </div>
+                      <p className="text-sm font-medium text-white">Cuộc gọi nhóm</p>
+                      <p className="text-xs text-white/40">Nói chuyện trực tiếp trong phòng</p>
+                      <button onClick={() => liveKit.connect(true, true)}
+                        className="w-full rounded-xl bg-emerald-500 py-2.5 text-sm font-bold text-white transition hover:bg-emerald-400 shadow-lg shadow-emerald-500/20"
+                      >
+                        Tham gia (Audio + Video)
+                      </button>
+                      <button onClick={() => liveKit.connect(true, false)}
+                        className="w-full rounded-xl bg-white/5 border border-white/[0.08] py-2.5 text-xs font-medium text-white/60 transition hover:bg-white/10"
+                      >
+                        Chỉ Audio
+                      </button>
+                      {liveKit.error && <p className="text-xs text-red-400/80">{liveKit.error}</p>}
+                    </div>
+                  )}
+
+                  {liveKit.connectionState === 'connecting' && (
+                    <div className="text-center py-8 space-y-3">
+                      <Loader2 className="w-8 h-8 text-primary animate-spin mx-auto" />
+                      <p className="text-xs text-white/40">Đang kết nối...</p>
+                    </div>
+                  )}
+
+                  {liveKit.connectionState === 'connected' && (
+                    <div className="space-y-3">
+                      <div className={`grid gap-2 ${liveKit.remoteParticipants.length === 0 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                        <VideoTile name={user.current.name} isMuted={liveKit.isMuted} isCameraOn={liveKit.isCameraOn}
+                          videoTrack={liveKit.localParticipant?.videoTrack} isSpeaking={liveKit.localParticipant?.isSpeaking ?? false} isLocal />
+                        {liveKit.remoteParticipants.map((p) => (
+                          <VideoTile key={p.identity} name={p.name} isMuted={p.isMuted} isCameraOn={p.isCameraOn}
+                            videoTrack={p.videoTrack} audioTrack={p.audioTrack} isSpeaking={p.isSpeaking} />
+                        ))}
+                      </div>
+
+                      <div className="flex items-center justify-center gap-2 pt-1">
+                        <button onClick={liveKit.toggleMic}
+                          className={`h-10 w-10 flex items-center justify-center rounded-full transition ${liveKit.isMuted ? 'bg-red-500/20 text-red-400' : 'bg-white/10 text-white/70 hover:bg-white/15'}`}>
+                          {liveKit.isMuted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                        </button>
+                        <button onClick={liveKit.toggleCamera}
+                          className={`h-10 w-10 flex items-center justify-center rounded-full transition ${!liveKit.isCameraOn ? 'bg-red-500/20 text-red-400' : 'bg-white/10 text-white/70 hover:bg-white/15'}`}>
+                          {liveKit.isCameraOn ? <Video className="h-4 w-4" /> : <VideoOff className="h-4 w-4" />}
+                        </button>
+                        <button onClick={liveKit.disconnect}
+                          className="h-10 w-10 flex items-center justify-center rounded-full bg-red-500 text-white hover:bg-red-600 transition shadow-lg shadow-red-500/30">
+                          <PhoneOff className="h-4 w-4" />
+                        </button>
+                      </div>
+                      <p className="text-center text-[10px] text-white/30">{liveKit.remoteParticipants.length + 1} người trong cuộc gọi</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Panel footer */}
+            <div className="border-t border-white/[0.06] px-4 py-2.5">
+              <button onClick={handleLeave}
+                className="w-full rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs font-medium text-red-400 transition hover:bg-red-500/20"
+              >
+                Rời phòng
+              </button>
+            </div>
           </div>
         )}
       </div>
     </main>
+  )
+}
+
+// ════════════════════════════════════════════
+// Video Tile Component
+// ════════════════════════════════════════════
+
+function VideoTile({ name, isMuted, isCameraOn, videoTrack, audioTrack, isSpeaking, isLocal }: {
+  name: string; isMuted: boolean; isCameraOn: boolean
+  videoTrack?: MediaStreamTrack; audioTrack?: MediaStreamTrack
+  isSpeaking: boolean; isLocal?: boolean
+}) {
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const audioRef = useRef<HTMLAudioElement>(null)
+
+  useEffect(() => {
+    if (videoRef.current && videoTrack) {
+      videoRef.current.srcObject = new MediaStream([videoTrack])
+    }
+  }, [videoTrack])
+
+  useEffect(() => {
+    if (audioRef.current && audioTrack && !isLocal) {
+      audioRef.current.srcObject = new MediaStream([audioTrack])
+    }
+  }, [audioTrack, isLocal])
+
+  return (
+    <div className={`relative aspect-video overflow-hidden rounded-lg bg-zinc-900 border transition ${
+      isSpeaking ? 'border-emerald-500/40 shadow-md shadow-emerald-500/10' : 'border-white/[0.08]'
+    }`}>
+      {videoTrack && isCameraOn ? (
+        <video ref={videoRef} autoPlay playsInline muted={isLocal} className="h-full w-full object-cover"
+          style={isLocal ? { transform: 'scaleX(-1)' } : undefined} />
+      ) : (
+        <div className="flex h-full items-center justify-center">
+          <div className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold ${
+            isSpeaking ? 'bg-emerald-500/20 text-emerald-400' : 'bg-primary/15 text-primary'
+          }`}>
+            {name.charAt(0).toUpperCase()}
+          </div>
+        </div>
+      )}
+      {audioTrack && !isLocal && <audio ref={audioRef} autoPlay />}
+      <div className="absolute bottom-1 left-1 right-1 flex items-center justify-between">
+        <span className="rounded bg-black/50 px-1.5 py-0.5 text-[9px] font-medium text-white/70 truncate max-w-[80%] backdrop-blur-sm">
+          {isLocal ? 'Bạn' : name}{isSpeaking && ' 🔊'}
+        </span>
+        {isMuted && <span className="rounded-full bg-red-500/80 p-0.5"><MicOff className="h-2.5 w-2.5 text-white" /></span>}
+      </div>
+    </div>
   )
 }

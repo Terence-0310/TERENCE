@@ -85,9 +85,11 @@ model User {
   updatedAt     DateTime  @updatedAt
   deletedAt     DateTime?
 
-  sessions       Session[]
-  adminLogs      AdminLog[]
-  watchHistories WatchHistory[]
+  sessions               Session[]
+  adminLogs              AdminLog[]
+  watchHistories         WatchHistory[]
+  hostedWatchParties     WatchPartyRoom[]
+  watchPartyParticipants WatchPartyParticipant[]
 }
 
 model Session {
@@ -161,6 +163,7 @@ model Movie {
   syncJobs       SyncJob[] // ← NEW: direct relation to sync jobs
   syncLogs       SyncLog[]
   watchHistories WatchHistory[]
+  watchPartyRooms WatchPartyRoom[]
 
   @@index([title])
   @@index([originalTitle])
@@ -210,6 +213,7 @@ model Episode {
   watchHistories WatchHistory[]
   videoSources   VideoSource[]
   subtitleTracks SubtitleTrack[]
+  watchPartyRooms WatchPartyRoom[]
 
   @@unique([movieId, episodeNumber]) // no duplicate ep number per movie
   @@unique([movieId, slug]) // no duplicate slug per movie
@@ -565,4 +569,97 @@ model PageView {
   ip        String?
   userAgent String?
   createdAt DateTime @default(now())
+}
+
+// ─── Watch Party ────────────────────────────────────────────────
+
+/// Room status for a watch party session
+enum WatchPartyStatus {
+  ACTIVE
+  ENDED
+}
+
+/// Role of a participant in a watch party
+enum WatchPartyRole {
+  HOST
+  MEMBER
+  GUEST
+}
+
+model WatchPartyRoom {
+  id           String   @id @default(cuid())
+  roomCode     String   @unique
+  title        String
+  hostUserId   String? // nullable: guest hosts allowed
+  movieId      String? // optional: link to Movie
+  episodeId    String? // optional: link to Episode
+  status       String   @default("ACTIVE") // → WatchPartyStatus: ACTIVE | ENDED
+  shareCode    String?  @unique // alternate invite code, nullable
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  lastSyncedAt DateTime?
+
+  host         User?                  @relation(fields: [hostUserId], references: [id], onDelete: SetNull)
+  movie        Movie?                 @relation(fields: [movieId], references: [id], onDelete: SetNull)
+  episode      Episode?               @relation(fields: [episodeId], references: [id], onDelete: SetNull)
+  participants WatchPartyParticipant[]
+  state        WatchPartyState?
+  messages     WatchPartyMessage[]
+
+  @@index([status])
+  @@index([hostUserId])
+  @@index([roomCode])
+  @@index([createdAt])
+}
+
+model WatchPartyMessage {
+  id            String   @id @default(cuid())
+  roomId        String
+  participantId String?  // null for system messages
+  senderName    String
+  type          String   @default("chat") // chat | system | reaction
+  content       String
+  createdAt     DateTime @default(now())
+
+  room WatchPartyRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@index([roomId])
+  @@index([roomId, createdAt])
+}
+
+model WatchPartyParticipant {
+  id          String    @id @default(cuid())
+  roomId      String
+  userId      String? // nullable: guest participants
+  displayName String
+  role        String    @default("MEMBER") // → WatchPartyRole: HOST | MEMBER | GUEST
+  joinedAt    DateTime  @default(now())
+  leftAt      DateTime?
+  isOnline    Boolean   @default(true)
+  lastSeenAt  DateTime?
+
+  room WatchPartyRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([roomId])
+  @@index([userId])
+  @@index([roomId, isOnline])
+}
+
+model WatchPartyState {
+  id            String   @id @default(cuid())
+  roomId        String   @unique
+  movieId       String?
+  episodeId     String?
+  playbackTime  Float    @default(0)
+  isPlaying     Boolean  @default(false)
+  playbackRate  Float    @default(1)
+  lastEventType String? // PLAY | PAUSE | SEEK | CHANGE_EPISODE
+  lastEventBy   String? // participant ID who triggered
+  version       Int      @default(1)
+  updatedAt     DateTime @updatedAt
+
+  room WatchPartyRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@index([roomId])
 }

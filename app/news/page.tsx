@@ -1,62 +1,209 @@
 'use client'
 
-import Image from 'next/image'
-import Link from 'next/link'
-import { Newspaper } from 'lucide-react'
-import { getNews, type NewsItem } from '@/lib/data/news'
+// ============================================
+// News Page — /news (complete rewrite)
+// ============================================
+// Full news page with hero, search, tabs, article grids,
+// and upcoming movies section.
+// Uses useNewsPage hook for all state management.
 
-function NewsCard({ item }: { item: NewsItem }) {
-  const Wrapper = item.href ? Link : ('div' as any)
-  const wrapperProps = item.href ? { href: item.href } : {}
-
-  return (
-    <Wrapper
-      {...wrapperProps}
-      className="group relative overflow-hidden rounded-2xl border border-white/10 bg-card/40 hover:bg-card/60 transition"
-    >
-      <div className="relative aspect-16/10">
-        <Image src={item.image} alt={item.title} fill className="object-cover group-hover:scale-[1.02] transition-transform duration-300" sizes="(max-width: 1024px) 100vw, 50vw" />
-        <div className="absolute inset-0 bg-linear-to-t from-black/85 via-black/35 to-transparent" />
-        {item.category && (
-          <span className="absolute top-3 left-3 rounded-full bg-primary/80 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white">
-            {item.category === 'box-office' ? 'Box Office' : item.category === 'review' ? 'Review' : item.category === 'industry' ? 'Tin tức' : 'Casting'}
-          </span>
-        )}
-      </div>
-
-      <div className="p-5">
-        <div className="text-xs text-white/60 mb-2">{item.date}</div>
-        <h3 className="text-white font-bold leading-snug line-clamp-2">{item.title}</h3>
-        <p className="mt-2 text-sm text-white/60 leading-relaxed line-clamp-3">{item.excerpt}</p>
-      </div>
-    </Wrapper>
-  )
-}
+import { useNewsPage } from '@/hooks/useNewsPage'
+import { NewsHero } from '@/components/news/NewsHero'
+import { NewsTabs } from '@/components/news/NewsTabs'
+import { NewsSearchBar } from '@/components/news/NewsSearchBar'
+import { NewsArticleCard, NewsArticleGrid } from '@/components/news/NewsArticleCard'
+import { UpcomingMovieGrid } from '@/components/news/UpcomingMovieCard'
+import { ArticleGridSkeleton, UpcomingGridSkeleton } from '@/components/news/NewsSkeletons'
+import { NewsEmptyState } from '@/components/news/NewsEmptyState'
+import { RefreshCw, Calendar, Flame, Play, Star, Search } from 'lucide-react'
 
 export default function NewsPage() {
-  const news = getNews()
+  const {
+    activeTab,
+    setActiveTab,
+    searchQuery,
+    setSearchQuery,
+    isSearching,
+    searchResults,
+    searchLoading,
+    clearSearch,
+    breakingNews,
+    breakingLoading,
+    trailerNews,
+    trailerLoading,
+    reviewNews,
+    reviewLoading,
+    upcomingMovies,
+    upcomingLoading,
+    refresh,
+  } = useNewsPage()
+
+  // Use first upcoming movie backdrop for hero
+  const featuredBackdrop = upcomingMovies[0]?.backdrop
 
   return (
-    <main className="min-h-screen bg-background px-4 md:px-6 lg:px-8 py-8">
-      <div className="mx-auto max-w-6xl">
-        <div className="mb-8">
-          <h1 className="text-white text-2xl md:text-3xl font-extrabold tracking-tight mb-2">Tin tức phim</h1>
-          <p className="text-muted-foreground text-sm">Cập nhật tin tức mới nhất từ thế giới điện ảnh</p>
+    <main className="min-h-screen bg-background">
+      {/* ─── Hero Banner ─── */}
+      <NewsHero featuredBackdrop={featuredBackdrop} />
+
+      {/* ─── Main Content ─── */}
+      <div className="mx-auto max-w-6xl px-4 md:px-6 lg:px-8 py-8">
+
+        {/* ─── Search + Tabs Bar ─── */}
+        <div className="space-y-5 mb-8">
+          <NewsSearchBar
+            value={searchQuery}
+            onChange={setSearchQuery}
+            onClear={clearSearch}
+            loading={searchLoading}
+          />
+
+          {!isSearching && (
+            <div className="flex items-center justify-between gap-4">
+              <NewsTabs activeTab={activeTab} onTabChange={setActiveTab} />
+              <button
+                onClick={refresh}
+                className="hidden md:inline-flex items-center gap-1.5 rounded-lg bg-white/5 border border-white/[0.06] px-3 py-2 text-[11px] text-white/40 hover:bg-white/10 hover:text-white/60 transition shrink-0"
+                title="Làm mới dữ liệu"
+              >
+                <RefreshCw className="h-3 w-3" />
+                Làm mới
+              </button>
+            </div>
+          )}
         </div>
 
-        {news.length > 0 ? (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            {news.map((n) => (
-              <NewsCard key={n.id} item={n} />
-            ))}
-          </div>
+        {/* ─── Search Results (takes priority over tabs) ─── */}
+        {isSearching ? (
+          <section>
+            <div className="flex items-center gap-2 mb-5">
+              <Search className="h-4.5 w-4.5 text-primary" />
+              <h2 className="text-lg font-bold text-white">
+                Kết quả cho &ldquo;{searchQuery.trim()}&rdquo;
+              </h2>
+              <button
+                onClick={clearSearch}
+                className="ml-auto text-xs text-white/30 hover:text-white/60 transition"
+              >
+                ✕ Xóa tìm kiếm
+              </button>
+            </div>
+
+            {searchLoading ? (
+              <ArticleGridSkeleton count={4} compact />
+            ) : searchResults.length > 0 ? (
+              <NewsArticleGrid articles={searchResults} compact />
+            ) : (
+              <NewsEmptyState type="search" query={searchQuery.trim()} />
+            )}
+          </section>
         ) : (
-          <div className="flex min-h-[40vh] flex-col items-center justify-center text-center">
-            <Newspaper className="h-12 w-12 text-white/10 mb-4" />
-            <p className="text-white/50 text-sm">Chưa có tin tức</p>
+          /* ─── Tab Content ─── */
+          <div className="space-y-12">
+            {/* === TAB: Tin nóng === */}
+            {activeTab === 'breaking' && (
+              <section>
+                <SectionHeader
+                  icon={<Flame className="h-5 w-5 text-orange-400" />}
+                  title="Tin nóng điện ảnh"
+                />
+                {breakingLoading ? (
+                  <ArticleGridSkeleton count={6} />
+                ) : breakingNews.length > 0 ? (
+                  <NewsArticleGrid articles={breakingNews} />
+                ) : (
+                  <NewsEmptyState type="empty" />
+                )}
+              </section>
+            )}
+
+            {/* === TAB: Sắp ra rạp === */}
+            {activeTab === 'upcoming' && (
+              <section>
+                <SectionHeader
+                  icon={<Calendar className="h-5 w-5 text-primary" />}
+                  title="Phim sắp ra rạp"
+                />
+                {upcomingLoading ? (
+                  <UpcomingGridSkeleton count={10} />
+                ) : upcomingMovies.length > 0 ? (
+                  <UpcomingMovieGrid movies={upcomingMovies.slice(0, 15)} />
+                ) : (
+                  <NewsEmptyState type="empty" message="Chưa có thông tin phim sắp chiếu." />
+                )}
+              </section>
+            )}
+
+            {/* === TAB: Trailer === */}
+            {activeTab === 'trailer' && (
+              <section>
+                <SectionHeader
+                  icon={<Play className="h-5 w-5 text-emerald-400" />}
+                  title="Trailer mới nhất"
+                />
+                {trailerLoading ? (
+                  <ArticleGridSkeleton count={6} compact />
+                ) : trailerNews.length > 0 ? (
+                  <NewsArticleGrid articles={trailerNews} compact />
+                ) : (
+                  <NewsEmptyState type="empty" message="Chưa có tin trailer mới. Thử quay lại sau." />
+                )}
+              </section>
+            )}
+
+            {/* === TAB: Review === */}
+            {activeTab === 'review' && (
+              <section>
+                <SectionHeader
+                  icon={<Star className="h-5 w-5 text-yellow-400" />}
+                  title="Review & Đánh giá"
+                />
+                {reviewLoading ? (
+                  <ArticleGridSkeleton count={6} compact />
+                ) : reviewNews.length > 0 ? (
+                  <NewsArticleGrid articles={reviewNews} compact />
+                ) : (
+                  <NewsEmptyState type="empty" message="Chưa có bài review mới. Thử quay lại sau." />
+                )}
+              </section>
+            )}
+
+            {/* ─── Featured Upcoming (always visible on non-upcoming tabs) ─── */}
+            {activeTab !== 'upcoming' && upcomingMovies.length > 0 && (
+              <section className="border-t border-white/[0.04] pt-10">
+                <div className="flex items-center justify-between mb-5">
+                  <SectionHeader
+                    icon={<Calendar className="h-5 w-5 text-primary" />}
+                    title="Sắp ra rạp"
+                  />
+                  <button
+                    onClick={() => setActiveTab('upcoming')}
+                    className="text-xs font-medium text-primary/60 hover:text-primary transition"
+                  >
+                    Xem tất cả →
+                  </button>
+                </div>
+                {upcomingLoading ? (
+                  <UpcomingGridSkeleton count={5} />
+                ) : (
+                  <UpcomingMovieGrid movies={upcomingMovies.slice(0, 5)} />
+                )}
+              </section>
+            )}
           </div>
         )}
       </div>
     </main>
+  )
+}
+
+// ── Shared Section Header ──
+
+function SectionHeader({ icon, title }: { icon: React.ReactNode; title: string }) {
+  return (
+    <h2 className="text-lg font-bold text-white mb-5 flex items-center gap-2">
+      {icon}
+      {title}
+    </h2>
   )
 }

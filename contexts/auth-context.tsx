@@ -7,7 +7,7 @@ import { createContext, useContext, useState, useEffect, useCallback, type React
 export interface User {
   email: string
   name: string
-  role: 'admin' | 'user'
+  role: 'super_admin' | 'admin' | 'staff' | 'editor' | 'user'
   avatar?: string | null
 }
 

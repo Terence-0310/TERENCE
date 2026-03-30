@@ -3,7 +3,7 @@ import { getTrending, getPopular, getTopRated, getNowPlaying, getUpcoming, getMo
 import { MovieCard } from '@/components/shared/MovieCard'
 import { SearchBar } from '@/components/shared/SearchBar'
 import Link from 'next/link'
-import { Film, Search as SearchIcon, SlidersHorizontal } from 'lucide-react'
+import { Film, Search as SearchIcon } from 'lucide-react'
 import type { Metadata } from 'next'
 import type { Genre } from '@/types/movie'
 

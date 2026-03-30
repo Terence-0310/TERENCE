@@ -27,21 +27,24 @@ export async function POST(req: NextRequest) {
   const { room, hostMember } = createRoom(
     {
       roomName: body.roomName,
-      roomType: body.roomType,
-      visibility: body.visibility,
-      roomMode: body.roomMode ?? 'cinema',
+      roomType: body.roomType ?? 'small_group',
+      visibility: body.visibility ?? 'public',
       movieId: body.movieId,
+      movieSlug: body.movieSlug,
+      movieTitle: body.movieTitle,
       episodeId: body.episodeId,
+      episodeName: body.episodeName,
+      serverIndex: body.serverIndex,
       maxMembers: body.maxMembers ?? 10,
       allowMemberControl: body.allowMemberControl ?? false,
       chatEnabled: body.chatEnabled ?? true,
       reactionsEnabled: body.reactionsEnabled ?? true,
       password: body.password,
       scheduledAt: body.scheduledAt,
+      posterUrl: body.posterUrl,
     },
     host,
   )
 
   return NextResponse.json({ room, hostMember })
 }
-

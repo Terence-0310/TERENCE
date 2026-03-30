@@ -11,7 +11,7 @@ export async function GET(_req: NextRequest, context: RouteContext) {
   }
 
   const members = getMembers(code)
-  const recentMessages = getMessages(code, 50)
+  const recentMessages = getMessages(code, 100)
 
   return NextResponse.json({ room, members, messages: recentMessages })
 }
@@ -23,6 +23,7 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
     time: body.time,
     state: body.state,
     episodeId: body.episodeId,
+    serverIndex: body.serverIndex,
   })
 
   if (!updated) {

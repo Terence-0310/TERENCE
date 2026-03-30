@@ -1,17 +1,25 @@
 // ============================================
-// TERENCE — PM2 Ecosystem Config
-// Đường dẫn: /var/www/TERENCE
+// TERENCE — PM2 Ecosystem Config (Production)
+// ============================================
+// Uses custom server.ts (compiled) for Socket.IO support.
+// Path: /var/www/TERENCE
+//
+// Usage:
+//   pm2 start ecosystem.config.js
+//   pm2 reload ecosystem.config.js
 // ============================================
 module.exports = {
   apps: [
     {
       name: 'terence',
       cwd: '/var/www/TERENCE',
-      script: 'node_modules/.bin/next',
-      args: 'start -p 3000 -H 0.0.0.0',
+      // Use custom server for Socket.IO support
+      script: 'node_modules/.bin/tsx',
+      args: 'server.ts',
       env: {
         NODE_ENV: 'production',
         PORT: 3000,
+        HOSTNAME: '0.0.0.0',
       },
       // Restart policy
       autorestart: true,
@@ -28,6 +36,9 @@ module.exports = {
       max_memory_restart: '512M',
       // Watch (disabled in production)
       watch: false,
+      // Graceful shutdown
+      kill_timeout: 5000,
+      listen_timeout: 10000,
     },
   ],
 }

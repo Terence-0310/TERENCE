@@ -1,6 +1,8 @@
+'use client'
+
 import useSWR from 'swr'
 import useSWRMutation from 'swr/mutation'
-import type { WatchRoom } from './types'
+import type { WatchRoom, CreateRoomInput } from './types'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -19,7 +21,7 @@ export function useWatchRooms() {
 export function useCreateRoom() {
   const { trigger, isMutating } = useSWRMutation(
     '/api/watch-rooms',
-    (url, { arg }: { arg: any }) =>
+    (url: string, { arg }: { arg: Partial<CreateRoomInput> & { hostId?: string; hostName?: string } }) =>
       fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -32,4 +34,3 @@ export function useCreateRoom() {
     isCreating: isMutating,
   }
 }
-

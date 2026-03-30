@@ -1,7 +1,16 @@
+// ============================================
+// Watch Party — Type Definitions
+// ============================================
+// Unified types for rooms, members, messages, sync events, and call state.
+// Used by both client and server code.
+
+// ── Room Types ──
+
 export type WatchRoomVisibility = 'public' | 'private'
-export type WatchRoomType = 'group' | 'couple'
+export type WatchRoomType = 'duo' | 'small_group' | 'group_chat'
 export type WatchRoomStatus = 'live' | 'upcoming' | 'waiting' | 'closed'
 export type PlaybackState = 'playing' | 'paused'
+export type MemberRole = 'host' | 'cohost' | 'member' | 'guest'
 
 export interface UserSummary {
   id: string
@@ -14,11 +23,14 @@ export interface WatchRoom {
   code: string
   host: UserSummary
   movieId: string
+  movieSlug?: string
+  movieTitle?: string
   episodeId?: string
+  episodeName?: string
+  serverIndex: number
   roomName: string
   roomType: WatchRoomType
   visibility: WatchRoomVisibility
-  roomMode: 'cinema' | 'couple' | 'party'
   passwordHash?: string
   maxMembers: number
   allowMemberControl: boolean
@@ -28,11 +40,12 @@ export interface WatchRoom {
   scheduledAt?: string
   currentPlaybackTime: number
   playbackState: PlaybackState
+  posterUrl?: string
   createdAt: string
   updatedAt: string
 }
 
-export type MemberRole = 'host' | 'cohost' | 'member' | 'guest'
+// ── Member Types ──
 
 export interface WatchRoomMember {
   id: string
@@ -45,7 +58,11 @@ export interface WatchRoomMember {
   isReady: boolean
   isOnline: boolean
   lastPingAt: string
+  isMuted?: boolean
+  isCameraOn?: boolean
 }
+
+// ── Message Types ──
 
 export type WatchRoomMessageType = 'chat' | 'system'
 
@@ -59,11 +76,30 @@ export interface WatchRoomMessage {
   createdAt: string
 }
 
+// ── Sync Events ──
+// These are the events that flow via the realtime channel.
+// Each event has a discriminated `type` field.
+
+export type WatchPartySyncEvent =
+  | { type: 'PLAY'; currentTime: number; senderId: string }
+  | { type: 'PAUSE'; currentTime: number; senderId: string }
+  | { type: 'SEEK'; currentTime: number; senderId: string }
+  | { type: 'CHANGE_EPISODE'; episodeSlug: string; episodeName?: string; senderId: string }
+  | { type: 'CHANGE_SERVER'; serverIndex: number; senderId: string }
+  | { type: 'STATE_SYNC'; currentTime: number; isPlaying: boolean; episodeSlug?: string; serverIndex: number; senderId: string }
+  | { type: 'MEMBER_JOIN'; member: WatchRoomMember }
+  | { type: 'MEMBER_LEAVE'; memberId: string; memberName: string }
+  | { type: 'CHAT_MESSAGE'; message: WatchRoomMessage }
+  | { type: 'ROOM_CLOSED'; reason: string }
+
+// ── Room Event Log (for API persistence) ──
+
 export type WatchRoomEventType =
   | 'play'
   | 'pause'
   | 'seek'
   | 'episode_change'
+  | 'server_change'
   | 'sync_state'
   | 'lock'
   | 'kick'
@@ -71,6 +107,8 @@ export type WatchRoomEventType =
 export interface WatchRoomEventPayload {
   time?: number
   episodeId?: string
+  episodeSlug?: string
+  serverIndex?: number
   targetMemberId?: string
 }
 
@@ -79,6 +117,53 @@ export interface WatchRoomEvent {
   roomCode: string
   type: WatchRoomEventType
   payload: WatchRoomEventPayload
+  senderId: string
   createdAt: string
 }
 
+// ── Call State ──
+
+export type CallParticipant = {
+  peerId: string
+  memberId: string
+  memberName: string
+  isMuted: boolean
+  isCameraOn: boolean
+  stream?: MediaStream
+}
+
+export interface RoomCallState {
+  isActive: boolean
+  participants: CallParticipant[]
+}
+
+// ── Create Room Input ──
+
+export interface CreateRoomInput {
+  roomName: string
+  roomType: WatchRoomType
+  visibility: WatchRoomVisibility
+  movieId: string
+  movieSlug?: string
+  movieTitle?: string
+  episodeId?: string
+  episodeName?: string
+  serverIndex?: number
+  maxMembers: number
+  allowMemberControl?: boolean
+  chatEnabled?: boolean
+  reactionsEnabled?: boolean
+  password?: string
+  scheduledAt?: string
+  posterUrl?: string
+}
+
+// ── Realtime Channel Names ──
+
+export function getRoomChannelName(code: string): string {
+  return `watch-party:${code}`
+}
+
+export function getRoomCallChannelName(code: string): string {
+  return `watch-party-call:${code}`
+}

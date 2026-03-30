@@ -1,54 +1,98 @@
 // ============================================
-// Environment Configuration — typed, validated, centralized
-// All env access should go through this module
+// Environment Variable Validation
 // ============================================
+// Server-side only. Validates required env vars at startup.
+// Never exposes secrets to client bundle.
 
-function requireEnv(key: string, fallback?: string): string {
-  const value = process.env[key] || fallback
-  if (!value && typeof window === 'undefined') {
-    console.warn(`[ENV] ⚠️  Missing required env: ${key}`)
-  }
-  return value || ''
-}
+// ── Required server-side vars ──
+const REQUIRED_SERVER_VARS = [
+  'DATABASE_URL',
+] as const
 
-function optionalEnv(key: string, fallback = ''): string {
-  return process.env[key] || fallback
-}
+// ── Optional but recommended ──
+const RECOMMENDED_VARS = [
+  'LIVEKIT_API_KEY',
+  'LIVEKIT_API_SECRET',
+  'NEXT_PUBLIC_LIVEKIT_URL',
+] as const
 
-// ── TMDB Configuration ──
-
-export const ENV = {
-  tmdb: {
-    apiKey: requireEnv('TMDB_API_KEY'),
-    readAccessToken: requireEnv('TMDB_READ_ACCESS_TOKEN'),
-    baseUrl: optionalEnv('TMDB_BASE_URL', 'https://api.themoviedb.org/3'),
-    imageBaseUrl: optionalEnv('NEXT_PUBLIC_TMDB_IMAGE_BASE_URL', 'https://image.tmdb.org/t/p'),
-    language: optionalEnv('NEXT_PUBLIC_TMDB_LANGUAGE', 'vi-VN'),
-    region: optionalEnv('NEXT_PUBLIC_REGION', 'VN'),
-  },
-
-  // ── App Configuration ──
-  app: {
-    url: optionalEnv('NEXT_PUBLIC_APP_URL', 'http://localhost:3000'),
-    env: optionalEnv('NODE_ENV', 'development'),
-    isDev: (process.env.NODE_ENV || 'development') === 'development',
-    isProd: process.env.NODE_ENV === 'production',
-  },
-} as const
-
-// ── Validation (runs once at server startup) ──
-
-if (typeof window === 'undefined') {
+/**
+ * Validate that all required environment variables are set.
+ * Call this from server startup (server.ts or instrumentation).
+ */
+export function validateEnv() {
   const missing: string[] = []
 
-  if (!ENV.tmdb.apiKey && !ENV.tmdb.readAccessToken) {
-    missing.push('TMDB_API_KEY or TMDB_READ_ACCESS_TOKEN')
+  for (const key of REQUIRED_SERVER_VARS) {
+    if (!process.env[key]) {
+      missing.push(key)
+    }
   }
 
   if (missing.length > 0) {
+    throw new Error(
+      `❌ Missing required environment variables:\n${missing.map(k => `   - ${k}`).join('\n')}\n\nCheck your .env file.`,
+    )
+  }
+
+  // Warn about optional but recommended vars
+  const warnings: string[] = []
+  for (const key of RECOMMENDED_VARS) {
+    if (!process.env[key]) {
+      warnings.push(key)
+    }
+  }
+
+  if (warnings.length > 0) {
     console.warn(
-      `\n[ENV] ⚠️  Missing environment variables:\n${missing.map(k => `  - ${k}`).join('\n')}\n` +
-      `Copy .env.example → .env.local and fill in your values.\n`
+      `⚠️  Optional env vars not set (features may be limited):\n${warnings.map(k => `   - ${k}`).join('\n')}`,
     )
   }
 }
+
+/**
+ * Get a required server-side env var. Throws if not set.
+ */
+export function getRequiredEnv(key: string): string {
+  const value = process.env[key]
+  if (!value) {
+    throw new Error(`Missing required env: ${key}`)
+  }
+  return value
+}
+
+/**
+ * LiveKit configuration (server-side only).
+ * Returns null if LiveKit is not configured.
+ */
+export function getLiveKitConfig() {
+  const apiKey = process.env.LIVEKIT_API_KEY
+  const apiSecret = process.env.LIVEKIT_API_SECRET
+  const wsUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL || process.env.LIVEKIT_URL
+
+  if (!apiKey || !apiSecret || !wsUrl) {
+    return null
+  }
+
+  return { apiKey, apiSecret, wsUrl }
+}
+
+// ── Legacy ENV accessor (backward compatibility) ──
+
+export const ENV = {
+  tmdb: {
+    apiKey: process.env.TMDB_API_KEY || '',
+    readAccessToken: process.env.TMDB_READ_ACCESS_TOKEN || '',
+    baseUrl: process.env.TMDB_BASE_URL || 'https://api.themoviedb.org/3',
+    imageBaseUrl: process.env.NEXT_PUBLIC_TMDB_IMAGE_BASE_URL || 'https://image.tmdb.org/t/p',
+    language: 'vi-VN',
+    region: process.env.NEXT_PUBLIC_REGION || 'VN',
+  },
+  site: {
+    url: process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000',
+  },
+  livekit: {
+    wsUrl: process.env.NEXT_PUBLIC_LIVEKIT_URL || '',
+    isConfigured: !!(process.env.LIVEKIT_API_KEY && process.env.LIVEKIT_API_SECRET),
+  },
+} as const

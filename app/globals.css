@@ -420,6 +420,34 @@
   animation: searchSlide 0.2s ease-out both;
 }
 
+/* Floating emoji reaction */
+@keyframes floatUp {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: translateY(-100px) scale(1.3);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-180px) scale(0.8);
+  }
+}
+.animate-float-up {
+  animation: floatUp 2.5s cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
+}
+
+/* Fade in (for toasts) */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out both;
+}
+
 /* GPU acceleration hints for animated elements */
 .animate-card-reveal,
 .animate-page-in,
@@ -428,7 +456,8 @@
 .animate-chip-in,
 .animate-slide-in-left,
 .animate-slide-in-right,
-.animate-scale-in {
+.animate-scale-in,
+.animate-float-up {
   will-change: transform, opacity;
 }
 

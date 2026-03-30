@@ -1,26 +1,74 @@
+'use client'
+
+// ============================================
+// Watch Party Hero — Updated for Prisma API
+// ============================================
+
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { useState } from 'react'
-import { useCreateRoom } from '@/lib/watch-party/client'
 import { useRouter } from 'next/navigation'
+import useSWR from 'swr'
+
+// Fetch a trending movie backdrop for the hero background
+const backdropFetcher = async (url: string) => {
+  const res = await fetch(url)
+  if (!res.ok) return null
+  const data = await res.json()
+  const movies = data.results || data.items || []
+  const withBackdrop = movies.find((m: any) => m.backdrop_path || m.backdrop)
+  if (!withBackdrop) return null
+  const path = withBackdrop.backdrop_path || withBackdrop.backdrop
+  return path ? `https://image.tmdb.org/t/p/w1280${path}` : null
+}
 
 export function WatchPartyHero() {
   const [joinCode, setJoinCode] = useState('')
-  const { createRoom, isCreating } = useCreateRoom()
+  const [isCreating, setIsCreating] = useState(false)
   const router = useRouter()
 
+  // Try to get a trending movie backdrop
+  const { data: heroBackdrop } = useSWR(
+    '/api/movies/upcoming?region=VN',
+    backdropFetcher,
+    { revalidateOnFocus: false, dedupingInterval: 600_000 },
+  )
+
+  // ── Tạo phòng qua API mới (Prisma-backed) ──
   async function handleQuickCreate() {
-    const res = await createRoom({
-      roomName: 'Phòng xem chung Terence',
-      roomType: 'group',
-      visibility: 'public',
-      roomMode: 'cinema',
-      movieId: 'demo-movie',
-      maxMembers: 12,
-    })
-    if (res?.room?.code) {
-      router.push(`/xem-chung/${res.room.code}`)
+    setIsCreating(true)
+    try {
+      // Generate a guest name
+      let displayName = 'Khách'
+      if (typeof window !== 'undefined') {
+        const stored = sessionStorage.getItem('terence:wp-name')
+        if (stored) displayName = stored
+        else {
+          const guestId = Math.random().toString(36).substring(2, 5)
+          displayName = `Khách ${guestId}`
+          sessionStorage.setItem('terence:wp-name', displayName)
+          sessionStorage.setItem('terence:wp-id', `g-${guestId}`)
+        }
+      }
+
+      const res = await fetch('/api/watch-party/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: 'Phòng xem chung Terence',
+          displayName,
+        }),
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        router.push(`/xem-chung/${data.room.roomCode}`)
+      }
+    } catch {
+      // Silent fail
+    } finally {
+      setIsCreating(false)
     }
   }
 
@@ -31,8 +79,16 @@ export function WatchPartyHero() {
 
   return (
     <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-[radial-gradient(circle_at_top,#0D3B35,#020617)] px-6 py-8 md:px-10 md:py-10 shadow-[0_30px_80px_rgba(0,0,0,0.9)]">
-      <div className="absolute inset-0 opacity-30 mix-blend-screen bg-[url('https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=1600&q=80')] bg-cover bg-center" />
-      <div className="absolute inset-0 bg-linear-to-r from-black/85 via-black/40 to-transparent" />
+      {/* Movie backdrop instead of generic Unsplash */}
+      {heroBackdrop ? (
+        <div
+          className="absolute inset-0 opacity-20 mix-blend-screen bg-cover bg-center"
+          style={{ backgroundImage: `url(${heroBackdrop})` }}
+        />
+      ) : (
+        <div className="absolute inset-0 opacity-[0.06] bg-gradient-to-br from-primary/20 via-transparent to-primary/10" />
+      )}
+      <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/40 to-transparent" />
 
       <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-8">
         <div className="max-w-xl space-y-4">
@@ -49,7 +105,7 @@ export function WatchPartyHero() {
 
           <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-2">
             <Button size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90" onClick={handleQuickCreate} disabled={isCreating}>
-              Tạo phòng nhanh
+              {isCreating ? 'Đang tạo...' : 'Tạo phòng nhanh'}
             </Button>
 
             <div className="flex-1 flex items-center gap-2">
@@ -57,6 +113,7 @@ export function WatchPartyHero() {
                 placeholder="Nhập mã phòng..."
                 value={joinCode}
                 onChange={(e) => setJoinCode(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleJoin()}
                 className="h-10 bg-black/40 border-white/20 text-sm"
               />
               <Button variant="outline" size="sm" className="h-10" onClick={handleJoin}>
@@ -91,4 +148,3 @@ export function WatchPartyHero() {
     </section>
   )
 }
-

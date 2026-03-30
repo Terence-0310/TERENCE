@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation'
 import { Star, Clock, Calendar, Play, ArrowLeft, ExternalLink, Film } from 'lucide-react'
 import { getMovieDetail } from '@/services/tmdb/movie-service'
 import { MovieRow } from '@/components/shared/MovieRow'
+import { RelatedNews } from '@/components/news/RelatedNews'
 import type { Metadata } from 'next'
 
 interface PageProps {
@@ -252,10 +253,20 @@ export default async function MovieDetailPage({ params }: PageProps) {
 
       {/* ═══════ RELATED ═══════ */}
       {movie.relatedMovies.length > 0 && (
-        <div className="mt-14 pb-14">
+        <div className="mt-14">
           <MovieRow title="Phim tương tự" movies={movie.relatedMovies} />
         </div>
       )}
+
+      {/* ═══════ RELATED NEWS ═══════ */}
+      <div className="mt-14 pb-14">
+        <RelatedNews
+          movieTitle={movie.title}
+          originalTitle={movie.originalTitle}
+          year={movie.year}
+          limit={6}
+        />
+      </div>
     </main>
   )
 }

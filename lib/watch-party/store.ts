@@ -1,5 +1,13 @@
-const randomUUID = () => globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).substring(2) + Date.now().toString(36)
+// ============================================
+// Watch Party — In-Memory Room Store
+// ============================================
+// Server-side in-memory store for rooms, members, messages.
+// Used by API routes. Ephemeral — resets on server restart.
+//
+// TODO Phase 2: Replace with Prisma models for persistence.
+
 import type {
+  CreateRoomInput,
   PlaybackState,
   UserSummary,
   WatchRoom,
@@ -12,21 +20,12 @@ import type {
   WatchRoomType,
   WatchRoomVisibility,
 } from './types'
+import { ROOM_TYPE_LIMITS } from './constants'
 
-type CreateRoomInput = {
-  roomName: string
-  roomType: WatchRoomType
-  visibility: WatchRoomVisibility
-  roomMode: WatchRoom['roomMode']
-  movieId: string
-  episodeId?: string
-  maxMembers: number
-  allowMemberControl: boolean
-  chatEnabled: boolean
-  reactionsEnabled: boolean
-  password?: string
-  scheduledAt?: string
-}
+/** Generate a unique ID, with crypto.randomUUID fallback for older runtimes */
+const randomUUID = (): string =>
+  globalThis.crypto?.randomUUID?.() ??
+  Math.random().toString(36).substring(2) + Date.now().toString(36)
 
 type ListRoomsFilters = {
   status?: WatchRoomStatus
@@ -57,7 +56,6 @@ function seedDemoRooms() {
     status: WatchRoomStatus
     host: { id: string; name: string }
     maxMembers: number
-    roomMode: WatchRoom['roomMode']
     roomType: WatchRoomType
     memberNames: string[]
     scheduledAt?: string
@@ -69,8 +67,7 @@ function seedDemoRooms() {
       status: 'live',
       host: { id: 'u1', name: 'Minh Anh' },
       maxMembers: 20,
-      roomMode: 'cinema',
-      roomType: 'group',
+      roomType: 'group_chat',
       memberNames: ['Hoàng', 'Linh', 'Tuấn'],
     },
     {
@@ -80,8 +77,7 @@ function seedDemoRooms() {
       status: 'live',
       host: { id: 'u2', name: 'Thu Hà' },
       maxMembers: 2,
-      roomMode: 'couple',
-      roomType: 'couple',
+      roomType: 'duo',
       memberNames: ['Đức'],
     },
     {
@@ -91,8 +87,7 @@ function seedDemoRooms() {
       status: 'upcoming',
       host: { id: 'u3', name: 'Admin Terence' },
       maxMembers: 50,
-      roomMode: 'cinema',
-      roomType: 'group',
+      roomType: 'group_chat',
       memberNames: ['Huy', 'Lan', 'Phương', 'Quang', 'Nhung'],
       scheduledAt: futureDate,
     },
@@ -102,9 +97,8 @@ function seedDemoRooms() {
       movieId: '634649',
       status: 'waiting',
       host: { id: 'u4', name: 'Khoa' },
-      maxMembers: 12,
-      roomMode: 'party',
-      roomType: 'group',
+      maxMembers: 4,
+      roomType: 'small_group',
       memberNames: ['Trâm', 'Bảo'],
     },
   ]
@@ -118,13 +112,13 @@ function seedDemoRooms() {
       roomName: d.roomName,
       roomType: d.roomType,
       visibility: 'public',
-      roomMode: d.roomMode,
       maxMembers: d.maxMembers,
       allowMemberControl: false,
       chatEnabled: true,
       reactionsEnabled: true,
       status: d.status,
       scheduledAt: d.scheduledAt,
+      serverIndex: 0,
       currentPlaybackTime: d.status === 'live' ? Math.floor(Math.random() * 3600) : 0,
       playbackState: d.status === 'live' ? 'playing' : 'paused',
       createdAt: now,
@@ -163,26 +157,33 @@ function seedDemoRooms() {
 
 seedDemoRooms()
 
+// ── CRUD Operations ──
+
 export function createRoom(input: CreateRoomInput, host: UserSummary): { room: WatchRoom; hostMember: WatchRoomMember } {
   const now = new Date().toISOString()
   const code = generateCode()
+  const maxForType = ROOM_TYPE_LIMITS[input.roomType] || 50
   const room: WatchRoom = {
     id: randomUUID(),
     code,
     host,
     movieId: input.movieId,
+    movieSlug: input.movieSlug,
+    movieTitle: input.movieTitle,
     episodeId: input.episodeId,
+    episodeName: input.episodeName,
+    serverIndex: input.serverIndex ?? 0,
     roomName: input.roomName,
     roomType: input.roomType,
     visibility: input.visibility,
-    roomMode: input.roomMode,
     passwordHash: input.password,
-    maxMembers: input.maxMembers,
-    allowMemberControl: input.allowMemberControl,
-    chatEnabled: input.chatEnabled,
-    reactionsEnabled: input.reactionsEnabled,
+    maxMembers: Math.min(input.maxMembers, maxForType),
+    allowMemberControl: input.allowMemberControl ?? false,
+    chatEnabled: input.chatEnabled ?? true,
+    reactionsEnabled: input.reactionsEnabled ?? true,
     status: input.scheduledAt ? 'upcoming' : 'waiting',
     scheduledAt: input.scheduledAt,
+    posterUrl: input.posterUrl,
     currentPlaybackTime: 0,
     playbackState: 'paused',
     createdAt: now,
@@ -251,6 +252,16 @@ export function joinRoom(
     throw new Error('ROOM_FULL')
   }
 
+  // Check if already a member
+  const existing = roomMembers.find((m) =>
+    (user.id && m.userId === user.id) || (!user.id && m.guestName === user.name && !m.leftAt),
+  )
+  if (existing) {
+    existing.isOnline = true
+    existing.lastPingAt = new Date().toISOString()
+    return { room, member: existing }
+  }
+
   const now = new Date().toISOString()
   const member: WatchRoomMember = {
     id: randomUUID(),
@@ -277,6 +288,12 @@ export function joinRoom(
   const roomMessages = messages.get(code) ?? []
   messages.set(code, [...roomMessages, joinMessage])
 
+  // Auto-set room status to live when first member joins
+  if (room.status === 'waiting') {
+    room.status = 'live'
+    room.updatedAt = now
+  }
+
   return { room, member }
 }
 
@@ -289,10 +306,10 @@ export function leaveRoom(code: string, memberId: string): void {
   if (!member) return
 
   const now = new Date().toISOString()
-  member.leftAt = now
-  member.isOnline = false
+  const memberName = member.guestName ?? member.userId ?? 'Thành viên'
 
-  const remaining = roomMembers.filter((m) => m.id !== memberId && !m.leftAt)
+  // Remove the leaving member from the active list
+  const remaining = roomMembers.filter((m) => m.id !== memberId)
   members.set(code, remaining)
 
   const leaveMessage: WatchRoomMessage = {
@@ -300,7 +317,7 @@ export function leaveRoom(code: string, memberId: string): void {
     roomCode: code,
     senderName: 'Hệ thống',
     type: 'system',
-    content: `${member.guestName ?? 'Thành viên'} đã rời phòng`,
+    content: `${memberName} đã rời phòng`,
     createdAt: now,
   }
   const roomMessages = messages.get(code) ?? []
@@ -331,7 +348,12 @@ export function addMessage(code: string, sender: UserSummary | { name: string },
 
 export function updatePlayback(
   code: string,
-  payload: { time?: number; state?: PlaybackState; episodeId?: string },
+  payload: {
+    time?: number
+    state?: PlaybackState
+    episodeId?: string
+    serverIndex?: number
+  },
 ): WatchRoom | undefined {
   const room = rooms.get(code)
   if (!room) return
@@ -342,16 +364,26 @@ export function updatePlayback(
     currentPlaybackTime: payload.time ?? room.currentPlaybackTime,
     playbackState: payload.state ?? room.playbackState,
     episodeId: payload.episodeId ?? room.episodeId,
+    serverIndex: payload.serverIndex ?? room.serverIndex,
     updatedAt: now,
   }
   rooms.set(code, updated)
   return updated
 }
 
+export function closeRoom(code: string): boolean {
+  const existed = rooms.has(code)
+  rooms.delete(code)
+  members.delete(code)
+  messages.delete(code)
+  return existed
+}
+
 export function addEvent(
   code: string,
   type: WatchRoomEventType,
   payload: WatchRoomEventPayload,
+  senderId: string,
 ): WatchRoomEvent | undefined {
   const room = rooms.get(code)
   if (!room) return
@@ -362,9 +394,8 @@ export function addEvent(
     roomCode: code,
     type,
     payload,
+    senderId,
     createdAt: now,
   }
-  // For MVP we don't persist events separately – could be added later.
   return event
 }
-

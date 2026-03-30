@@ -3,9 +3,9 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { ArrowLeft, Play, Film, Share2, Heart, Users, Star, Clock, Tv } from 'lucide-react'
 import { WatchPageClient } from '@/components/player/WatchPageClient'
-import { EpisodeListBar } from '@/components/watch/EpisodeListBar'
+
 import { getMovieDetail } from '@/services/tmdb/movie-service'
-import { getMoviePlaybackData, getMoviePlaybackByTmdbId, getMoviePlaybackByTitle } from '@/server/services/playback-service'
+import { getMoviePlaybackData, getMoviePlaybackByTmdbId, getMoviePlaybackByTitle, getMultiServerSources } from '@/server/services/playback-service'
 import { resolveMovieSource } from '@/services/video-source'
 import { MovieRow } from '@/components/shared/MovieRow'
 import { getSession } from '@/lib/auth/session'
@@ -32,8 +32,8 @@ export default async function WatchPage({ params, searchParams }: PageProps) {
   const { ep: episodeSlug } = await searchParams
 
   // Check auth for progress features
-  const session = await getSession()
-  const isLoggedIn = !!session
+  // Auth session available for future progress-tracking features
+  await getSession()
 
   // ── Step 1: Try DB-backed playback first ──
   let dbPlayback = await getMoviePlaybackData(id, episodeSlug || undefined)
@@ -149,6 +149,19 @@ export default async function WatchPage({ params, searchParams }: PageProps) {
 
   const hasAnySource = !!episodeData?.primarySource
 
+  // ── Step 5: Get multi-server sources for fallback ──
+  let multiServerSources: Awaited<ReturnType<typeof getMultiServerSources>> = []
+  if (dbPlayback?.movie?.id && episodeData?.episode) {
+    try {
+      multiServerSources = await getMultiServerSources(
+        dbPlayback.movie.id,
+        episodeData.episode.episodeNumber,
+      )
+    } catch {
+      // Non-critical — fallback to single server
+    }
+  }
+
   return (
     <main className="min-h-screen bg-[#030306]">
       {/* ═══════ PLAYER AREA ═══════ */}
@@ -171,8 +184,10 @@ export default async function WatchPage({ params, searchParams }: PageProps) {
               episodeData={episodeData}
               movieId={dbMovieId}
               movieSlug={movieSlug}
+              movieTitle={movieTitle}
               posterUrl={backdropUrl || undefined}
-              isLoggedIn={isLoggedIn}
+              thumbUrl={posterUrl || undefined}
+              additionalServers={multiServerSources}
             />
           ) : (
             /* No source available — placeholder */

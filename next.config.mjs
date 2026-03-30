@@ -30,6 +30,45 @@ const nextConfig = {
   reactStrictMode: true,
   // Power header off for security
   poweredByHeader: false,
+  // Allow access from both domains
+  // terence.com.vn (main) + rtc.terence.com.vn (watch party)
+  async headers() {
+    return [
+      {
+        source: '/api/:path*',
+        headers: [
+          {
+            key: 'Access-Control-Allow-Origin',
+            value: process.env.NODE_ENV === 'production'
+              ? 'https://terence.com.vn'
+              : '*',
+          },
+          {
+            key: 'Access-Control-Allow-Methods',
+            value: 'GET, POST, PATCH, DELETE, OPTIONS',
+          },
+          {
+            key: 'Access-Control-Allow-Headers',
+            value: 'Content-Type, Authorization',
+          },
+        ],
+      },
+    ]
+  },
+  // Rewrites for cleaner URLs (optional)
+  async rewrites() {
+    return [
+      // /watch-party/[code] → /xem-chung/[code] (english alias)
+      {
+        source: '/watch-party/:code',
+        destination: '/xem-chung/:code',
+      },
+      {
+        source: '/watch-party',
+        destination: '/xem-chung',
+      },
+    ]
+  },
 }
 
 export default nextConfig

@@ -1,21 +1,35 @@
 import { HeroBanner } from '@/components/home/HeroBanner'
+import { ContinueWatchingRow } from '@/components/home/ContinueWatchingRow'
 import { MovieRow } from '@/components/shared/MovieRow'
 import { GenreChips } from '@/components/shared/GenreChips'
+import { MovieNewsSection } from '@/components/news/MovieNewsSection'
+import { UpcomingMoviesSection } from '@/components/news/UpcomingMoviesSection'
 import { getTrending, getPopular, getTopRated, getNowPlaying, getUpcoming, getGenres } from '@/services/tmdb/movie-service'
 
 export default async function HomePage() {
-  let trending, popular, topRated, nowPlaying, upcoming, genres
+  // Use allSettled so ONE failed call doesn't crash the entire page
+  const [trendingR, popularR, topRatedR, nowPlayingR, upcomingR, genresR] = await Promise.allSettled([
+    getTrending(),
+    getPopular(),
+    getTopRated(),
+    getNowPlaying(),
+    getUpcoming(),
+    getGenres(),
+  ])
 
-  try {
-    ;[trending, popular, topRated, nowPlaying, upcoming, genres] = await Promise.all([
-      getTrending(),
-      getPopular(),
-      getTopRated(),
-      getNowPlaying(),
-      getUpcoming(),
-      getGenres(),
-    ])
-  } catch {
+  const emptyPage = { items: [], page: 1, totalPages: 0, totalResults: 0 }
+  const trending = trendingR.status === 'fulfilled' ? trendingR.value : emptyPage
+  const popular = popularR.status === 'fulfilled' ? popularR.value : emptyPage
+  const topRated = topRatedR.status === 'fulfilled' ? topRatedR.value : emptyPage
+  const nowPlaying = nowPlayingR.status === 'fulfilled' ? nowPlayingR.value : emptyPage
+  const upcoming = upcomingR.status === 'fulfilled' ? upcomingR.value : emptyPage
+  const genres = genresR.status === 'fulfilled' ? genresR.value : []
+
+  // Only show welcome screen if ALL calls failed (no data at all)
+  const hasAnyData = trending.items.length > 0 || popular.items.length > 0 ||
+    topRated.items.length > 0 || nowPlaying.items.length > 0 || upcoming.items.length > 0
+
+  if (!hasAnyData) {
     return (
       <main className="min-h-screen bg-background">
         <div className="flex min-h-[80vh] flex-col items-center justify-center px-6 text-center">
@@ -51,6 +65,9 @@ export default async function HomePage() {
 
       {/* Content Sections */}
       <div className="-mt-8 relative z-10 space-y-10 pb-16">
+        {/* Continue Watching — client component, auto-hides when empty */}
+        <ContinueWatchingRow />
+
         <div className="animate-row-in" style={{ '--row': 0 } as React.CSSProperties}>
           <MovieRow
             title="🔥 Xu hướng tuần này"
@@ -94,6 +111,16 @@ export default async function HomePage() {
             movies={upcoming.items}
             href="/browse?category=upcoming"
           />
+        </div>
+
+        {/* Movie News — client component, auto-hides when empty */}
+        <div className="animate-row-in" style={{ '--row': 6 } as React.CSSProperties}>
+          <MovieNewsSection />
+        </div>
+
+        {/* Upcoming Movies feed with rich UI — client component */}
+        <div className="animate-row-in" style={{ '--row': 7 } as React.CSSProperties}>
+          <UpcomingMoviesSection />
         </div>
       </div>
 
