@@ -1,10 +1,178 @@
 'use client'
 
+// ============================================
+// HeroBanner — RoPhim-style cinematic hero
+// ============================================
+// Full-bleed backdrop, layered overlays, left-aligned content,
+// bottom-right thumbnail slider. Navbar blends into the scene.
+
 import Image from 'next/image'
 import Link from 'next/link'
-import { Play, Info, Star, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Play, Heart, Info } from 'lucide-react'
 import { useState, useEffect, useCallback } from 'react'
 import type { Movie } from '@/types/movie'
+
+// ── Sub-components ──
+
+function HeroOverlay() {
+  return (
+    <>
+      {/* Base dark overlay — cinematic feel */}
+      <div className="absolute inset-0 bg-black/30" />
+      {/* Left side heavy gradient — text readability */}
+      <div
+        className="absolute inset-0"
+        style={{
+          background:
+            'linear-gradient(to right, rgba(2,6,23,0.92) 0%, rgba(2,6,23,0.78) 28%, rgba(2,6,23,0.45) 52%, rgba(2,6,23,0.08) 72%, transparent 100%)',
+        }}
+      />
+      {/* Top subtle darkening — navbar blend */}
+      <div
+        className="absolute inset-x-0 top-0 h-40"
+        style={{
+          background: 'linear-gradient(to bottom, rgba(2,6,23,0.5) 0%, transparent 100%)',
+        }}
+      />
+      {/* Bottom fade to background color — seamless transition */}
+      <div
+        className="absolute inset-x-0 bottom-0 h-48"
+        style={{
+          background:
+            'linear-gradient(to top, var(--background) 0%, rgba(2,6,23,0.7) 40%, transparent 100%)',
+        }}
+      />
+      {/* Vignette edges */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          boxShadow: 'inset 0 0 120px 30px rgba(2,6,23,0.35)',
+        }}
+      />
+    </>
+  )
+}
+
+function HeroMeta({ movie }: { movie: Movie }) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {/* IMDb rating */}
+      {movie.voteAverage > 0 && (
+        <span className="inline-flex items-center gap-1.5 rounded-md border border-white/25 bg-white/[0.06] px-3 py-1.5 text-xs font-bold text-white backdrop-blur-sm">
+          <span className="text-primary">IMDb</span> {movie.voteAverage}
+        </span>
+      )}
+      {/* Year */}
+      {movie.year > 0 && (
+        <span className="rounded-md border border-white/20 bg-white/[0.04] px-3 py-1.5 text-xs font-semibold text-white/80 backdrop-blur-sm">
+          {movie.year}
+        </span>
+      )}
+      {/* Runtime */}
+      {movie.runtimeFormatted && (
+        <span className="rounded-md border border-white/20 bg-white/[0.04] px-3 py-1.5 text-xs font-semibold text-white/80 backdrop-blur-sm">
+          {movie.runtimeFormatted}
+        </span>
+      )}
+    </div>
+  )
+}
+
+function HeroActions({ movieId }: { movieId: number }) {
+  return (
+    <div className="flex items-center gap-4 pt-2">
+      {/* Play button — largest, most prominent, mint/cyan */}
+      <Link
+        href={`/watch/${movieId}`}
+        className="group relative inline-flex h-[64px] w-[64px] items-center justify-center rounded-full
+          bg-primary text-white
+          shadow-[0_0_30px_rgba(45,212,191,0.3),0_0_60px_rgba(45,212,191,0.1)]
+          transition-all duration-300
+          hover:shadow-[0_0_40px_rgba(45,212,191,0.45),0_0_80px_rgba(45,212,191,0.15)]
+          hover:scale-110 hover:-translate-y-0.5
+          active:scale-95"
+        title="Xem ngay"
+      >
+        <Play className="h-7 w-7 fill-white text-white ml-1" />
+      </Link>
+
+      {/* Heart button — glass circle */}
+      <button
+        className="inline-flex h-[52px] w-[52px] items-center justify-center rounded-full
+          bg-white/[0.08] border border-white/[0.12] backdrop-blur-md
+          transition-all duration-300
+          hover:bg-white/[0.15] hover:border-white/25 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/20"
+        title="Yêu thích"
+      >
+        <Heart className="h-5 w-5 text-white/80" />
+      </button>
+
+      {/* Info button — glass circle */}
+      <Link
+        href={`/movie/${movieId}`}
+        className="inline-flex h-[52px] w-[52px] items-center justify-center rounded-full
+          bg-white/[0.08] border border-white/[0.12] backdrop-blur-md
+          transition-all duration-300
+          hover:bg-white/[0.15] hover:border-white/25 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/20"
+        title="Chi tiết phim"
+      >
+        <Info className="h-5 w-5 text-white/80" />
+      </Link>
+    </div>
+  )
+}
+
+function HeroThumbnails({
+  items,
+  current,
+  onSelect,
+}: {
+  items: Movie[]
+  current: number
+  onSelect: (i: number) => void
+}) {
+  if (items.length <= 1) return null
+
+  return (
+    <div className="absolute bottom-14 right-6 z-10 hidden items-end gap-2.5 lg:flex xl:right-10 2xl:right-14">
+      {/* Frosted backdrop behind thumbnails */}
+      <div
+        className="absolute -inset-2.5 -z-10 rounded-xl"
+        style={{
+          background: 'rgba(2,6,23,0.2)',
+          backdropFilter: 'blur(8px)',
+          WebkitBackdropFilter: 'blur(8px)',
+        }}
+      />
+      {items.map((m, i) => {
+        const isActive = i === current
+        return (
+          <button
+            key={m.id}
+            onClick={() => onSelect(i)}
+            className={`relative flex-shrink-0 overflow-hidden rounded-md transition-all duration-300 ${
+              isActive
+                ? 'h-[64px] w-[114px] border-[2.5px] border-white shadow-[0_0_15px_rgba(255,255,255,0.4)] scale-105 z-10'
+                : 'h-[58px] w-[100px] border border-white/[0.1] opacity-60 hover:opacity-100 hover:border-white/40'
+            }`}
+          >
+            {m.backdropUrl && m.backdropUrl !== '/placeholder.jpg' && (
+              <Image
+                src={m.backdropUrl}
+                alt={m.title}
+                fill
+                className="object-cover"
+                sizes="(max-width: 768px) 100px, 114px"
+              />
+            )}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+// ── Main Component ──
 
 interface HeroBannerProps {
   movies: Movie[]
@@ -26,7 +194,6 @@ export function HeroBanner({ movies }: HeroBannerProps) {
   )
 
   const next = useCallback(() => goTo((current + 1) % items.length), [current, items.length, goTo])
-  const prev = useCallback(() => goTo((current - 1 + items.length) % items.length), [current, items.length, goTo])
 
   useEffect(() => {
     if (items.length <= 1) return
@@ -38,12 +205,15 @@ export function HeroBanner({ movies }: HeroBannerProps) {
   const movie = items[current]
 
   return (
-    <section className="relative h-[75vh] min-h-[550px] max-h-[850px] w-full overflow-hidden">
-      {/* Backdrop Images — crossfade */}
+    <section
+      className="relative w-full overflow-hidden"
+      style={{ height: 'clamp(600px, 82vh, 820px)' }}
+    >
+      {/* ── Full-bleed backdrop images — crossfade ── */}
       {items.map((m, i) => (
         <div
           key={m.id}
-          className="absolute inset-0 transition-opacity duration-700 ease-in-out"
+          className="absolute inset-0 transition-opacity duration-[800ms] ease-in-out"
           style={{ opacity: i === current ? 1 : 0 }}
         >
           {m.backdropUrl && m.backdropUrl !== '/placeholder.jpg' && (
@@ -51,108 +221,69 @@ export function HeroBanner({ movies }: HeroBannerProps) {
               src={m.backdropUrl}
               alt={m.title}
               fill
-              className="object-cover object-top"
+              className="object-cover object-center"
               priority={i < 2}
               sizes="100vw"
+              quality={85}
             />
           )}
         </div>
       ))}
 
-      {/* Cinematic Gradients */}
-      <div className="absolute inset-0 bg-gradient-to-r from-background via-background/85 to-transparent" />
-      <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-background/40" />
-      <div className="absolute bottom-0 h-32 w-full bg-gradient-to-t from-background to-transparent" />
+      {/* ── Cinematic overlays ── */}
+      <HeroOverlay />
 
-      {/* Content */}
-      <div className="absolute inset-0 flex items-end pb-24 md:items-center md:pb-0">
-        <div className="mx-auto w-full max-w-7xl px-5 md:px-8 lg:px-10">
-          <div className="max-w-xl space-y-5 animate-hero-in" key={movie.id}>
-            {/* Tags */}
-            <div className="flex flex-wrap items-center gap-2.5">
-              <span className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-white shadow-lg shadow-primary/25">
-                <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
-                Trending
-              </span>
-              {movie.voteAverage > 0 && (
-                <span className="inline-flex items-center gap-1 rounded-md bg-yellow-500/15 px-2.5 py-1 text-xs font-bold text-yellow-400 border border-yellow-500/20">
-                  <Star className="h-3 w-3 fill-yellow-400" />
-                  {movie.voteAverage}
-                </span>
-              )}
-              {movie.year > 0 && (
-                <span className="rounded-md bg-white/8 px-2.5 py-1 text-xs font-medium text-white/70 border border-white/5">
-                  {movie.year}
-                </span>
-              )}
-            </div>
-
-            {/* Title */}
-            <h1 className="text-3xl font-black leading-[1.1] tracking-tight text-white drop-shadow-2xl md:text-5xl lg:text-6xl">
+      {/* ── Left content panel ── */}
+      <div className="absolute inset-0 flex items-end pb-32 md:items-center md:pb-0">
+        <div className="mx-auto w-full px-6 md:px-10 lg:px-14" style={{ maxWidth: '1440px' }}>
+          <div
+            className="max-w-[560px] space-y-5 animate-hero-in"
+            key={movie.id}
+          >
+            {/* Title — very large, bold, cinematic */}
+            <h1 className="text-[2.2rem] font-black leading-[1.05] tracking-tight text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.6)] md:text-[3.2rem] lg:text-[3.8rem]">
               {movie.title}
             </h1>
 
-            {/* Overview */}
-            <p className="line-clamp-2 text-sm leading-relaxed text-white/60 md:text-base md:line-clamp-3">
+            {/* Original title — subtle italic */}
+            {movie.originalTitle && movie.originalTitle !== movie.title && (
+              <p className="text-sm italic text-primary/60 drop-shadow-md">
+                {movie.originalTitle}
+              </p>
+            )}
+
+            {/* Metadata badges row */}
+            <HeroMeta movie={movie} />
+
+            {/* Genre pills */}
+            {movie.genres && movie.genres.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {movie.genres.slice(0, 5).map((g) => (
+                  <span
+                    key={g.id}
+                    className="rounded-full bg-white/[0.06] border border-white/[0.1] px-3.5 py-1.5
+                      text-[11px] font-semibold text-white/65 tracking-wide backdrop-blur-sm
+                      transition-colors hover:bg-white/[0.1] hover:text-white/80"
+                  >
+                    {g.name}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Description — max 3 lines with fade */}
+            <p className="line-clamp-3 text-[13px] leading-[1.7] text-white/50 md:text-[14px] md:line-clamp-3 max-w-[520px]">
               {movie.overview || 'Khám phá bộ phim hấp dẫn này trên Terence.'}
             </p>
 
-            {/* Buttons */}
-            <div className="flex items-center gap-3 pt-1">
-              <Link
-                href={`/watch/${movie.id}`}
-                className="group inline-flex items-center gap-2.5 rounded-xl bg-primary px-7 py-3.5 text-sm font-bold text-white shadow-xl shadow-primary/25 transition-all hover:bg-primary/90 hover:shadow-primary/40 hover:scale-[1.03] active:scale-[0.98]"
-              >
-                <Play className="h-4 w-4 fill-white transition-transform group-hover:scale-110" />
-                Xem ngay
-              </Link>
-              <Link
-                href={`/movie/${movie.id}`}
-                className="inline-flex items-center gap-2 rounded-xl bg-white/8 px-6 py-3.5 text-sm font-semibold text-white/90 backdrop-blur-md border border-white/10 transition-all hover:bg-white/15 hover:border-white/20"
-              >
-                <Info className="h-4 w-4" />
-                Chi tiết
-              </Link>
-            </div>
+            {/* Action buttons */}
+            <HeroActions movieId={movie.id} />
           </div>
         </div>
       </div>
 
-      {/* Navigation Arrows */}
-      {items.length > 1 && (
-        <>
-          <button
-            onClick={prev}
-            className="absolute left-3 top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/30 p-2.5 text-white/60 backdrop-blur-md border border-white/5 transition-all hover:bg-black/50 hover:text-white hover:scale-110 md:left-5 md:p-3"
-            aria-label="Previous"
-          >
-            <ChevronLeft className="h-5 w-5" />
-          </button>
-          <button
-            onClick={next}
-            className="absolute right-3 top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/30 p-2.5 text-white/60 backdrop-blur-md border border-white/5 transition-all hover:bg-black/50 hover:text-white hover:scale-110 md:right-5 md:p-3"
-            aria-label="Next"
-          >
-            <ChevronRight className="h-5 w-5" />
-          </button>
-
-          {/* Progress dots */}
-          <div className="absolute bottom-6 left-1/2 z-10 flex -translate-x-1/2 gap-2">
-            {items.map((_, i) => (
-              <button
-                key={i}
-                onClick={() => goTo(i)}
-                className={`rounded-full transition-all duration-500 ${
-                  i === current
-                    ? 'h-2 w-10 bg-primary shadow-lg shadow-primary/40'
-                    : 'h-2 w-2 bg-white/20 hover:bg-white/40'
-                }`}
-                aria-label={`Slide ${i + 1}`}
-              />
-            ))}
-          </div>
-        </>
-      )}
+      {/* ── Thumbnail slider — bottom right ── */}
+      <HeroThumbnails items={items} current={current} onSelect={goTo} />
     </section>
   )
 }

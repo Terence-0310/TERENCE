@@ -38,3 +38,8 @@ logs/
 
 # Temp
 tmp/
+*.log
+
+# Script output files
+scripts/*.txt
+scripts/*.json

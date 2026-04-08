@@ -168,11 +168,11 @@ async function searchPrismaFallback(
     deletedAt: null,
     status: 'published',
     OR: [
-      { title: { contains: query } },
-      { originalTitle: { contains: query } },
-      { actorText: { contains: query } },
-      { directorText: { contains: query } },
-      { description: { contains: query } },
+      { title: { contains: query, mode: 'insensitive' } as any },
+      { originalTitle: { contains: query, mode: 'insensitive' } as any },
+      { actorText: { contains: query, mode: 'insensitive' } as any },
+      { directorText: { contains: query, mode: 'insensitive' } as any },
+      { description: { contains: query, mode: 'insensitive' } as any },
     ],
   }
 
@@ -233,8 +233,8 @@ async function suggestPrismaFallback(query: string, limit: number): Promise<Sugg
       deletedAt: null,
       status: 'published',
       OR: [
-        { title: { contains: query } },
-        { originalTitle: { contains: query } },
+        { title: { contains: query, mode: 'insensitive' } as any },
+        { originalTitle: { contains: query, mode: 'insensitive' } as any },
       ],
     },
     select: { id: true, slug: true, title: true, originalTitle: true, year: true, contentType: true, thumbUrl: true },

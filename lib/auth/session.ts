@@ -1,4 +1,4 @@
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import { prisma } from './db'
 
 const SESSION_COOKIE = 'terence_session'
@@ -29,11 +29,8 @@ export async function createSession(userId: string): Promise<string> {
   return session.id
 }
 
-export async function getSession() {
-  const cookieStore = await cookies()
-  const sessionId = cookieStore.get(SESSION_COOKIE)?.value
-  if (!sessionId) return null
-
+// ── Internal: validate a session ID against DB ──
+async function findValidSession(sessionId: string) {
   const session = await prisma.session.findUnique({
     where: { id: sessionId },
     include: { user: true },
@@ -46,6 +43,40 @@ export async function getSession() {
   }
 
   return session
+}
+
+/**
+ * Get current session — supports TWO authentication methods:
+ *
+ * 1. Cookie: `terence_session=<sessionId>` (used by Frontend/Browser)
+ * 2. Bearer Token: `Authorization: Bearer <sessionId>` (used by Postman/API clients)
+ *
+ * Cookie is checked first. If no cookie, falls back to Bearer header.
+ * The "token" IS the session ID returned from login response.
+ */
+export async function getSession() {
+  // 1. Try cookie first (Frontend / Browser)
+  const cookieStore = await cookies()
+  const cookieSessionId = cookieStore.get(SESSION_COOKIE)?.value
+  if (cookieSessionId) {
+    return findValidSession(cookieSessionId)
+  }
+
+  // 2. Fallback: Authorization Bearer header (Postman / API clients)
+  try {
+    const headerStore = await headers()
+    const authHeader = headerStore.get('authorization')
+    if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.slice(7).trim()
+      if (token) {
+        return findValidSession(token)
+      }
+    }
+  } catch {
+    // headers() may fail in some contexts — ignore
+  }
+
+  return null
 }
 
 export async function deleteSession() {

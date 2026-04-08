@@ -31,6 +31,7 @@ export interface PlayerMovieMeta {
   movieTitle: string
   posterUrl?: string
   thumbUrl?: string
+  trailerUrl?: string
 }
 
 export interface UsePlayerOptions {
@@ -270,12 +271,15 @@ export function usePlayer(options: UsePlayerOptions): UsePlayerReturn {
     setRetryCount(0)
   }, [])
 
-  // ── Progress management (uses new watch-history service) ──
+  // ── Progress management (localStorage + server API) ──
+  const serverSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   const saveProgress = useCallback((currentTime: number, duration: number) => {
     if (duration <= 0 || currentTime < 0) return
     const episode = currentEpisode
     if (!episode) return
 
+    // 1. Save to localStorage immediately (instant, offline-capable)
     saveHistoryProgress({
       movieId,
       movieSlug: movieMeta?.movieSlug || movieId,
@@ -292,6 +296,22 @@ export function usePlayer(options: UsePlayerOptions): UsePlayerReturn {
       duration,
       sourceUrl: episode.url,
     })
+
+    // 2. Debounced save to server API (authenticated users)
+    if (serverSaveTimerRef.current) clearTimeout(serverSaveTimerRef.current)
+    serverSaveTimerRef.current = setTimeout(() => {
+      fetch('/api/v1/watch-history/progress', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          movieId,
+          episodeId: episode.slug || null,
+          currentTime: Math.round(currentTime),
+          duration: Math.round(duration),
+          deviceType: /Mobi|Android/i.test(navigator.userAgent) ? 'mobile' : 'desktop',
+        }),
+      }).catch(() => {}) // Non-critical — localStorage is primary
+    }, 5000)
   }, [movieId, movieMeta, currentEpisode, currentEpisodeIndex, currentServerName, currentServerIndex])
 
   const getSavedProgress = useCallback((): number | null => {

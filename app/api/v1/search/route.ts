@@ -7,11 +7,22 @@
 import { NextRequest } from 'next/server'
 import { searchMovies } from '@/src/server/search/movie-search-service'
 import { parseIntParam, parseStringParam, jsonError } from '@/src/server/movies/api-helpers'
+import { rateLimit, getClientIdentifier } from '@/lib/api/rate-limit'
 
 const ALLOWED_TYPES = ['movie', 'series', 'anime']
 
+// Rate limit: 20 search requests per minute per IP
+const searchLimiter = rateLimit({ windowMs: 60_000, maxRequests: 20 })
+
 export async function GET(req: NextRequest) {
   try {
+    // Rate limit check
+    const clientId = getClientIdentifier(req)
+    const limitResult = searchLimiter.check(clientId)
+    if (!limitResult.allowed) {
+      return jsonError('Quá nhiều yêu cầu tìm kiếm, vui lòng thử lại sau', 429)
+    }
+
     const sp = req.nextUrl.searchParams
 
     const query = sp.get('q')?.trim()

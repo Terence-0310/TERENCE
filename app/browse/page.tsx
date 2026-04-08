@@ -75,7 +75,7 @@ export default async function BrowsePage({ searchParams }: PageProps) {
   }
 
   return (
-    <main className="min-h-screen bg-background">
+    <main className="min-h-screen bg-background pb-24 md:pb-12">
       {/* Header area */}
       <div className="border-b border-white/[0.04] bg-card/30">
         <div className="mx-auto max-w-7xl px-5 py-8 md:px-8 lg:px-10">

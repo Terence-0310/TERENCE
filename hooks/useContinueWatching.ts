@@ -55,6 +55,40 @@ export function useContinueWatching(
   useEffect(() => {
     refresh()
 
+    // Also attempt to merge server-side data (for cross-device sync)
+    fetch('/api/v1/watch-history/continue?limit=' + limit)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data?.items?.length) return
+        setItems((prev) => {
+          const localIds = new Set(prev.map((p) => p.movieId))
+          const serverExtra: ContinueWatchingItem[] = data.items
+            .filter((s: any) => !localIds.has(s.movie?.id))
+            .map((s: any) => ({
+              movieId: s.movie.id,
+              movieSlug: s.movie.slug,
+              movieTitle: s.movie.title,
+              posterUrl: s.movie.posterUrl,
+              thumbUrl: s.movie.thumbUrl,
+              episodeId: s.episode?.id || '',
+              episodeName: s.episode?.episodeName || 'Tập Full',
+              episodeSlug: s.episode?.episodeSlug,
+              currentTime: s.currentTime,
+              duration: s.duration || 0,
+              progressPercent: s.progress,
+              lastWatchedAt: s.lastWatchedAt,
+              completed: s.isCompleted,
+              serverName: '',
+              serverIndex: 0,
+              episodeIndex: 0,
+              sourceUrl: '',
+            }))
+          if (serverExtra.length === 0) return prev
+          return [...prev, ...serverExtra].slice(0, limit)
+        })
+      })
+      .catch(() => {}) // Non-critical
+
     // Listen for custom event dispatched by storage layer on writes
     const handleChange = () => refresh()
     window.addEventListener(WATCH_HISTORY_CHANGE_EVENT, handleChange)
@@ -71,7 +105,7 @@ export function useContinueWatching(
       window.removeEventListener(WATCH_HISTORY_CHANGE_EVENT, handleChange)
       window.removeEventListener('storage', handleStorage)
     }
-  }, [refresh])
+  }, [refresh, limit])
 
   const removeEpisode = useCallback(
     (movieId: string, episodeId: string) => {

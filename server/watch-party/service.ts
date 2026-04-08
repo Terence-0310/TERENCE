@@ -5,6 +5,7 @@
 // Includes: Room CRUD, Chat, Host Transfer, Sync.
 
 import * as repo from './repository'
+import { prisma } from '@/lib/db'
 
 // ── Helpers ──
 
@@ -26,6 +27,7 @@ export interface CreateRoomInput {
   episodeId?: string | null
   displayName: string
   userId?: string | null
+  maxMembers?: number
 }
 
 export async function createRoom(input: CreateRoomInput) {
@@ -38,17 +40,37 @@ export async function createRoom(input: CreateRoomInput) {
     attempts++
   }
 
+  // Validate Foreign Keys to prevent Prisma errors
+  let validMovieId = null
+  if (input.movieId) {
+    const movieExists = await prisma.movie.findUnique({ where: { id: String(input.movieId) } })
+    if (movieExists) validMovieId = String(input.movieId)
+  }
+
+  let validEpisodeId = null
+  if (input.episodeId) {
+    const epExists = await prisma.episode.findUnique({ where: { id: String(input.episodeId) } })
+    if (epExists) validEpisodeId = String(input.episodeId)
+  }
+
+  let validUserId = null
+  if (input.userId && !input.userId.startsWith('g-')) {
+    const userExists = await prisma.user.findUnique({ where: { id: String(input.userId) } })
+    if (userExists) validUserId = String(input.userId)
+  }
+
   const room = await repo.createRoomRecord({
     roomCode,
     title: input.title,
-    hostUserId: input.userId,
-    movieId: input.movieId,
-    episodeId: input.episodeId,
+    hostUserId: validUserId,
+    movieId: validMovieId,
+    episodeId: validEpisodeId,
+    maxMembers: input.maxMembers,
   })
 
   const hostParticipant = await repo.createParticipant({
     roomId: room.id,
-    userId: input.userId,
+    userId: validUserId,
     displayName: input.displayName,
     role: 'HOST',
   })
@@ -87,9 +109,15 @@ export async function joinRoom(input: JoinRoomInput) {
     throw new WatchPartyError('ROOM_ENDED', 'Phòng đã kết thúc')
   }
 
+  let validUserId = null
+  if (input.userId && !input.userId.startsWith('g-')) {
+    const userExists = await prisma.user.findUnique({ where: { id: String(input.userId) } })
+    if (userExists) validUserId = String(input.userId)
+  }
+
   // Check if participant already exists (rejoin)
   const existing = await repo.findParticipant(room.id, {
-    userId: input.userId ?? undefined,
+    userId: validUserId ?? undefined,
     displayName: input.displayName,
   })
 
@@ -106,9 +134,9 @@ export async function joinRoom(input: JoinRoomInput) {
 
   const participant = await repo.createParticipant({
     roomId: room.id,
-    userId: input.userId,
+    userId: validUserId,
     displayName: input.displayName,
-    role: input.userId ? 'MEMBER' : 'GUEST',
+    role: validUserId ? 'MEMBER' : 'GUEST',
   })
 
   // System join message

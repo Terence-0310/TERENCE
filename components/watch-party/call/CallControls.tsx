@@ -41,8 +41,8 @@ export function CallControls({
         onClick={onToggleMic}
         className={`${btnSize} flex items-center justify-center rounded-full transition-all ${
           isMuted
-            ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
-            : 'bg-white/10 text-white/80 hover:bg-white/20'
+            ? 'bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.5)] hover:bg-red-600'
+            : 'bg-white/15 text-white shadow-[inset_0_0_10px_rgba(255,255,255,0.1)] hover:bg-white/25 hover:scale-105'
         }`}
         title={isMuted ? 'Bật mic' : 'Tắt mic'}
       >
@@ -54,8 +54,8 @@ export function CallControls({
         onClick={onToggleCamera}
         className={`${btnSize} flex items-center justify-center rounded-full transition-all ${
           !isCameraOn
-            ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
-            : 'bg-white/10 text-white/80 hover:bg-white/20'
+            ? 'bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.5)] hover:bg-red-600'
+            : 'bg-white/15 text-white shadow-[inset_0_0_10px_rgba(255,255,255,0.1)] hover:bg-white/25 hover:scale-105'
         }`}
         title={isCameraOn ? 'Tắt camera' : 'Bật camera'}
       >

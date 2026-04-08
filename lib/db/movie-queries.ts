@@ -124,13 +124,14 @@ export const movieScopes = {
    * scopeSearchable — basic text search on title/originalTitle
    */
   searchable(query: string): Prisma.MovieWhereInput {
+    const q = query.replace(/\\/g, '')
     return {
       OR: [
-        { title: { contains: query } },
-        { originalTitle: { contains: query } },
-        { slug: { contains: query } },
-        { actorText: { contains: query } },
-        { directorText: { contains: query } },
+        { title: { contains: q, mode: 'insensitive' } as any },
+        { originalTitle: { contains: q, mode: 'insensitive' } as any },
+        { slug: { contains: q, mode: 'insensitive' } as any },
+        { actorText: { contains: q, mode: 'insensitive' } as any },
+        { directorText: { contains: q, mode: 'insensitive' } as any },
       ],
       deletedAt: null,
     }
@@ -138,6 +139,8 @@ export const movieScopes = {
 }
 
 // ─── Common Include Patterns ─────────────────────────────────────
+// NOTE: Genre (MovieGenre) is the canonical taxonomy direction.
+//       Legacy categories kept for backward compatibility until fully migrated.
 
 export const movieIncludes = {
   /**
@@ -145,6 +148,7 @@ export const movieIncludes = {
    */
   card(): Prisma.MovieInclude {
     return {
+      genres: { include: { genre: true } },
       categories: { include: { category: true } },
       countries: { include: { country: true } },
     }
@@ -159,6 +163,7 @@ export const movieIncludes = {
         where: { isActive: true },
         orderBy: { episodeOrder: 'asc' },
       },
+      genres: { include: { genre: true } },
       categories: { include: { category: true } },
       countries: { include: { country: true } },
       people: {

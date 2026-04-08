@@ -7,10 +7,12 @@ import type { MovieDetail, MovieSourceResult } from '@/types/movie'
 import { DbVideoProvider } from './db-video-provider'
 import { DemoVideoProvider } from './demo-video-provider'
 import { TmdbTrailerProvider } from './tmdb-trailer-provider'
+import { OPhimVideoProvider } from './ophim-video-provider'
 
 // ── Provider registry (sorted by priority at init) ──
 const providers: VideoSourceProvider[] = [
   new DbVideoProvider(),      // priority 1 — DB sources (admin-managed)
+  new OPhimVideoProvider(),   // priority 5 — Dynamic API search
   new DemoVideoProvider(),     // priority 10
   new TmdbTrailerProvider(),   // priority 99
 ].sort((a, b) => a.priority - b.priority)

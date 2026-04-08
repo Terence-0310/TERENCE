@@ -262,6 +262,14 @@ export function registerWatchPartyHandlers(io: Server, socket: Socket) {
   })
 
   // ───────────────────────────────────
+  // CALL SIGNALING (WebRTC)
+  // ───────────────────────────────────
+  socket.on('wp:call-signal', (data: { roomCode: string; type: string; fromId: string; fromName: string; targetId?: string; payload?: any }) => {
+    // Broadcast WebRTC signals to everyone else in the room
+    socket.to(data.roomCode).emit('wp:call-signal', data)
+  })
+
+  // ───────────────────────────────────
   // HOST TRANSFER
   // ───────────────────────────────────
   socket.on('wp:transfer-host', (data: { roomCode: string; userId: string; newHostId: string }) => {

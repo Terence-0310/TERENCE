@@ -1,3 +1,9 @@
+// ============================================
+// Prisma Client Singleton — LEGACY ENTRY POINT
+// ============================================
+// ⚠️ DEPRECATED: Import from '@/src/server/shared/db/prisma' instead.
+// This file re-exports for backward compatibility.
+
 import { PrismaClient } from '@prisma/client'
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient }

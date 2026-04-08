@@ -3,9 +3,23 @@ import { prisma } from '@/lib/auth/db'
 import { verifyPassword } from '@/lib/auth/password'
 import { createSession } from '@/lib/auth/session'
 import { logAdminAction, getClientIp } from '@/lib/admin/audit'
+import { rateLimit, getClientIdentifier } from '@/lib/api/rate-limit'
+
+// Rate limit: 5 login attempts per minute per IP
+const loginLimiter = rateLimit({ windowMs: 60_000, maxRequests: 5 })
 
 export async function POST(req: NextRequest) {
   try {
+    // Rate limit check
+    const clientId = getClientIdentifier(req)
+    const limitResult = loginLimiter.check(clientId)
+    if (!limitResult.allowed) {
+      return NextResponse.json(
+        { error: 'Quá nhiều lần đăng nhập, vui lòng thử lại sau' },
+        { status: 429 },
+      )
+    }
+
     const body = await req.json()
     const { email, password } = body as { email?: string; password?: string }
 
@@ -27,7 +41,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Email hoặc mật khẩu không đúng' }, { status: 401 })
     }
 
-    await createSession(user.id)
+    const sessionId = await createSession(user.id)
 
     // Log admin login
     const isAdmin = ['super_admin', 'admin', 'staff', 'editor'].includes(user.role)
@@ -42,6 +56,7 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({
+      token: sessionId,
       user: {
         email: user.email,
         name: user.name,

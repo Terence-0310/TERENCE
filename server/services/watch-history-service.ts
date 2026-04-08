@@ -1,12 +1,29 @@
 // ============================================
-// Watch History Service — server-side progress persistence
+// Watch History Service — Backward-Compatibility Wrapper
 // ============================================
+// @deprecated This file is a backward-compatibility wrapper.
+// The canonical server-side watch history service is at:
+//   src/server/watch/watch-history-service.ts
+//
+// Write operations (saveProgress) delegate to the canonical service
+// to ensure a single write path for data consistency.
+//
+// Read operations (getProgress, getContinueWatching) maintain their
+// own response shape because existing API consumers depend on the
+// current return types (WatchProgressData, ContinueWatchingItem).
+//
+// Sprint 2: Unified write path through canonical service.
+// Future: Migrate API routes to import canonical service directly.
 
 import { prisma } from '@/lib/db'
+import { upsertWatchProgress } from '@/src/server/watch/watch-history-service'
 import type { WatchProgressData, ContinueWatchingItem } from '@/lib/player/types'
 
 /**
  * Save or update watch progress for a user.
+ * Delegates to the canonical upsertWatchProgress service for data consistency.
+ *
+ * @deprecated Import upsertWatchProgress from '@/src/server/watch/watch-history-service' directly.
  */
 export async function saveProgress(params: {
   userId: string
@@ -17,59 +34,31 @@ export async function saveProgress(params: {
 }): Promise<WatchProgressData> {
   const { userId, movieId, episodeId, progressSeconds, durationSeconds } = params
 
-  // Validate
-  if (durationSeconds <= 0 || progressSeconds < 0) {
-    throw new Error('Invalid progress data')
-  }
-
-  const percent = Math.round((progressSeconds / durationSeconds) * 100)
-  const completed = percent >= 90
-
-  // Upsert based on unique constraint (userId, movieId, episodeId)
-  const existing = await prisma.watchHistory.findFirst({
-    where: { userId, movieId, episodeId: episodeId || null },
+  // Delegate write to canonical service (single write path)
+  const result = await upsertWatchProgress({
+    userId,
+    movieId,
+    episodeId,
+    currentTime: progressSeconds,
+    duration: durationSeconds,
   })
 
-  let wh
-  if (existing) {
-    wh = await prisma.watchHistory.update({
-      where: { id: existing.id },
-      data: {
-        currentTime: Math.floor(progressSeconds),
-        duration: Math.floor(durationSeconds),
-        progress: percent,
-        isCompleted: completed,
-        lastWatchedAt: new Date(),
-      },
-    })
-  } else {
-    wh = await prisma.watchHistory.create({
-      data: {
-        userId,
-        movieId,
-        episodeId: episodeId || null,
-        currentTime: Math.floor(progressSeconds),
-        duration: Math.floor(durationSeconds),
-        progress: percent,
-        isCompleted: completed,
-        lastWatchedAt: new Date(),
-      },
-    })
-  }
-
+  // Map canonical response to legacy WatchProgressData shape
   return {
-    movieId: wh.movieId,
-    episodeId: wh.episodeId,
-    progressSeconds: wh.currentTime ?? 0,
-    durationSeconds: wh.duration ?? 0,
-    percent: wh.progress,
-    completed: wh.isCompleted,
-    lastWatchedAt: wh.lastWatchedAt.toISOString(),
+    movieId: result.movieId,
+    episodeId: result.episodeId,
+    progressSeconds: result.currentTime ?? 0,
+    durationSeconds: result.duration ?? 0,
+    percent: result.progress,
+    completed: result.isCompleted,
+    lastWatchedAt: result.lastWatchedAt,
   }
 }
 
 /**
  * Get watch progress for a specific movie/episode.
+ * Kept as a direct query — the canonical module doesn't expose
+ * an equivalent function with this return shape.
  */
 export async function getProgress(params: {
   userId: string
@@ -101,6 +90,9 @@ export async function getProgress(params: {
 
 /**
  * Get continue watching list for a user.
+ * Kept with its own query + response mapping because the return shape
+ * (ContinueWatchingItem with full movie/episode objects) differs from
+ * the canonical service's WatchHistoryItem type.
  */
 export async function getContinueWatching(
   userId: string,

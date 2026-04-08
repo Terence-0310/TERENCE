@@ -1,79 +1,63 @@
 // ============================================
-// TMDB HTTP Client
+// TMDB HTTP Client — Typed API Layer
 // ============================================
-// Server-side only. Wraps TMDB v3 API with proper auth, timeout, and rate-limit handling.
+// Server-side only. Provides typed wrapper functions for TMDB v3 API.
+//
+// Sprint 2: Base HTTP layer consolidated. All HTTP requests now delegate
+// to the canonical tmdbFetch from lib/tmdb/client.ts, eliminating the
+// duplicate fetch-with-retry implementation that previously existed here.
+//
+// This file provides typed domain methods (searchMovies, searchTv, etc.)
+// that compose on top of the canonical base client. It also adds
+// rate-limit (429) retry handling specific to sync/enrichment operations.
+//
+// Canonical base client: lib/tmdb/client.ts
 
+import { tmdbFetch as canonicalFetch, TmdbApiError } from '@/lib/tmdb/client'
 import type {
   TmdbSearchResponse, TmdbSearchMovieResult, TmdbSearchTvResult,
   TmdbExternalIds, TmdbVideosResponse, TmdbCreditsResponse,
   TmdbMovieDetail, TmdbTvDetail,
 } from './types'
 
-const DEFAULT_BASE_URL = 'https://api.themoviedb.org/3'
 const DEFAULT_IMAGE_BASE = 'https://image.tmdb.org/t/p'
-const TIMEOUT_MS = 10_000
-const MAX_RETRIES = 2
-const RETRY_DELAY_MS = 1_500
+const MAX_RATE_LIMIT_RETRIES = 3
 
-function getConfig() {
-  const apiKey = process.env.TMDB_API_KEY
-  if (!apiKey) throw new Error('[TMDB] TMDB_API_KEY environment variable is not set')
-  return {
-    apiKey,
-    baseUrl: (process.env.TMDB_BASE_URL || DEFAULT_BASE_URL).replace(/\/$/, ''),
-    imageBase: (process.env.NEXT_PUBLIC_TMDB_IMAGE_BASE_URL || DEFAULT_IMAGE_BASE).replace(/\/$/, ''),
-  }
-}
-
-async function fetchWithTimeout(url: string): Promise<Response> {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
-  try {
-    return await fetch(url, {
-      signal: controller.signal,
-      headers: { 'Accept': 'application/json' },
-      cache: 'no-store',
-    })
-  } finally {
-    clearTimeout(timer)
-  }
-}
+// ─── Internal: HTTP layer delegating to canonical client ────────
+// Uses revalidate: 0 (no caching) since this module is used for
+// sync/enrichment operations that need fresh data.
+// Adds 429 rate-limit retry handling on top of canonical's retry logic.
 
 async function tmdbFetch<T>(path: string, params: Record<string, string> = {}): Promise<T> {
-  const { apiKey, baseUrl } = getConfig()
-  const url = new URL(`${baseUrl}${path}`)
-  url.searchParams.set('api_key', apiKey)
-  for (const [k, v] of Object.entries(params)) {
-    if (v) url.searchParams.set(k, v)
-  }
-
-  let lastError: Error | null = null
-  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+  for (let attempt = 0; attempt < MAX_RATE_LIMIT_RETRIES; attempt++) {
     try {
-      const res = await fetchWithTimeout(url.toString())
-
-      // TMDB rate limit: 429
-      if (res.status === 429) {
-        const retryAfter = parseInt(res.headers.get('retry-after') || '2', 10)
-        console.warn(`[TMDB] Rate limited. Waiting ${retryAfter}s...`)
-        await new Promise(r => setTimeout(r, retryAfter * 1000))
+      return await canonicalFetch<T>(path, {
+        params: params as Record<string, string | number | undefined>,
+        revalidate: 0,
+      })
+    } catch (error) {
+      // Handle TMDB rate limiting (429) with backoff retry
+      if (
+        error instanceof TmdbApiError &&
+        error.status === 429 &&
+        attempt < MAX_RATE_LIMIT_RETRIES - 1
+      ) {
+        const waitMs = 2000 * (attempt + 1)
+        console.warn(`[TMDB] Rate limited on ${path}. Retrying in ${waitMs / 1000}s... (attempt ${attempt + 1})`)
+        await new Promise(r => setTimeout(r, waitMs))
         continue
       }
-
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}: ${res.statusText} for ${path}`)
-      }
-
-      return (await res.json()) as T
-    } catch (error) {
-      lastError = error instanceof Error ? error : new Error(String(error))
-      if (lastError.message.includes('HTTP 4') && !lastError.message.includes('429')) throw lastError
-      if (attempt < MAX_RETRIES) {
-        await new Promise(r => setTimeout(r, RETRY_DELAY_MS * attempt))
-      }
+      throw error
     }
   }
-  throw lastError || new Error(`Failed to fetch TMDB ${path}`)
+
+  throw new Error(`[TMDB] Rate limit exceeded after ${MAX_RATE_LIMIT_RETRIES} retries for ${path}`)
+}
+
+// ─── Image URL Helpers ──────────────────────────────────────────
+
+function getImageBase(): string {
+  return (process.env.NEXT_PUBLIC_TMDB_IMAGE_BASE_URL || DEFAULT_IMAGE_BASE).replace(/\/$/, '')
 }
 
 // ─── Public API ─────────────────────────────────────────────────
@@ -120,8 +104,8 @@ export async function getCredits(tmdbId: number, mediaType: 'movie' | 'tv'): Pro
 /** Build full TMDB image URL */
 export function buildImageUrl(path: string | null, size: string = 'original'): string | null {
   if (!path) return null
-  const { imageBase } = getConfig()
-  return `${imageBase}/${size}/${path.replace(/^\//, '')}`
+  const base = getImageBase()
+  return `${base}/${size}/${path.replace(/^\//, '')}`
 }
 
 /** Build full TMDB profile image URL */

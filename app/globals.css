@@ -41,6 +41,11 @@
   --gold: #fbbf24;
   --surface: #020617;
   --glass: rgba(11, 17, 32, 0.75);
+  /* RoPhim-style layout tokens — teal stays primary */
+  --surface-elevated: #111827;
+  --neon-glow: rgba(45, 212, 191, 0.2);
+  --badge-bg: rgba(255, 255, 255, 0.08);
+  --badge-border: rgba(255, 255, 255, 0.12);
 }
 
 .dark {
@@ -446,6 +451,37 @@
 }
 .animate-fade-in {
   animation: fadeIn 0.2s ease-out both;
+}
+
+/* =========================================
+   RoPhim-style Additions
+   ========================================= */
+
+/* Neon glow on hover for landscape cards */
+.card-neon-hover {
+  transition: box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.card-neon-hover:hover {
+  box-shadow: 0 0 20px var(--neon-glow), 0 0 40px rgba(45, 212, 191, 0.08);
+  transform: translateY(-3px);
+}
+
+/* Carousel arrow hover */
+.carousel-arrow {
+  transition: background-color 0.2s, transform 0.2s;
+}
+.carousel-arrow:hover {
+  transform: scale(1.1);
+}
+
+/* Ranking list item pulse on hover */
+.rank-item {
+  transition: background-color 0.2s, transform 0.15s;
+}
+.rank-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+  transform: translateX(4px);
 }
 
 /* GPU acceleration hints for animated elements */

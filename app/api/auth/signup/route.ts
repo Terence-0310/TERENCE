@@ -2,9 +2,23 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/auth/db'
 import { hashPassword } from '@/lib/auth/password'
 import { createSession } from '@/lib/auth/session'
+import { rateLimit, getClientIdentifier } from '@/lib/api/rate-limit'
+
+// Rate limit: 5 signup attempts per minute per IP
+const signupLimiter = rateLimit({ windowMs: 60_000, maxRequests: 5 })
 
 export async function POST(req: NextRequest) {
   try {
+    // Rate limit check
+    const clientId = getClientIdentifier(req)
+    const limitResult = signupLimiter.check(clientId)
+    if (!limitResult.allowed) {
+      return NextResponse.json(
+        { error: 'Quá nhiều lần đăng ký, vui lòng thử lại sau' },
+        { status: 429 },
+      )
+    }
+
     const body = await req.json()
     const { name, email, password } = body as { name?: string; email?: string; password?: string }
 
@@ -33,9 +47,10 @@ export async function POST(req: NextRequest) {
       },
     })
 
-    await createSession(user.id)
+    const sessionId = await createSession(user.id)
 
     return NextResponse.json({
+      token: sessionId,
       user: {
         email: user.email,
         name: user.name,

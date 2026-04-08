@@ -21,7 +21,12 @@
     "enrich:tmdb": "npx tsx scripts/enrich-tmdb.ts",
     "pipeline:movie": "npx tsx scripts/pipeline-movie.ts",
     "elastic:reindex": "npx tsx scripts/elastic-reindex.ts",
-    "elastic:sync": "npx tsx scripts/elastic-reindex.ts"
+    "elastic:sync": "npx tsx scripts/elastic-reindex.ts",
+    "docs:check": "node scripts/docs-check.mjs",
+    "docs:update-hint": "echo '⚠️  Nhớ cập nhật README.md nếu có thay đổi chức năng/API/schema/env/route. Xem Mục 11.'",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "prisma": {
     "seed": "npx tsx prisma/seed.ts"
@@ -87,6 +92,7 @@
     "swr": "^2.3.3",
     "tailwind-merge": "^3.3.1",
     "vaul": "^1.1.2",
+    "xlsx": "^0.18.5",
     "zod": "^3.24.1"
   },
   "devDependencies": {
@@ -95,10 +101,13 @@
     "@types/node": "^22",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
+    "@vitest/coverage-v8": "^4.1.3",
+    "docx": "^9.6.1",
     "postcss": "^8.5",
     "tailwindcss": "^4.2.0",
     "tsx": "^4.21.0",
     "tw-animate-css": "1.3.3",
-    "typescript": "5.7.3"
+    "typescript": "5.7.3",
+    "vitest": "^4.1.3"
   }
 }

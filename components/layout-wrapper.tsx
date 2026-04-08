@@ -5,6 +5,8 @@ import { Suspense } from 'react'
 import { Header } from '@/components/header'
 import { Footer } from '@/components/footer'
 import { RouteProgress } from '@/components/route-progress'
+import { ScrollToTop } from '@/components/shared/ScrollToTop'
+import { AuthModal } from '@/components/auth/AuthModal'
 
 const HIDE_LAYOUT_PREFIXES = ['/dashboard']
 const HIDE_FOOTER_PREFIXES = ['/watch/']
@@ -21,14 +23,22 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
 
   if (hideAll) return <>{children}</>
 
+  // Homepage hero extends behind fixed header;
+  // other pages need padding-top to avoid content under fixed header
+  const isHome = pathname === '/'
+
   return (
     <>
       <Suspense>
         <RouteProgress />
       </Suspense>
       <Header />
-      {children}
+      <div className={isHome ? '' : 'pt-16'}>
+        {children}
+      </div>
       {!hideFooter && <Footer />}
+      <ScrollToTop />
+      <AuthModal />
     </>
   )
 }

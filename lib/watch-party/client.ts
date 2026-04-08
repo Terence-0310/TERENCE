@@ -7,7 +7,7 @@ import type { WatchRoom, CreateRoomInput } from './types'
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 export function useWatchRooms() {
-  const { data, error, isLoading } = useSWR<{ rooms: WatchRoom[] }>('/api/watch-rooms', fetcher, {
+  const { data, error, isLoading } = useSWR<{ rooms: WatchRoom[] }>('/api/watch-party', fetcher, {
     refreshInterval: 5000,
   })
 
@@ -20,7 +20,7 @@ export function useWatchRooms() {
 
 export function useCreateRoom() {
   const { trigger, isMutating } = useSWRMutation(
-    '/api/watch-rooms',
+    '/api/watch-party/create',
     (url: string, { arg }: { arg: Partial<CreateRoomInput> & { hostId?: string; hostName?: string } }) =>
       fetch(url, {
         method: 'POST',

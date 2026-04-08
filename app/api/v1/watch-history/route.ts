@@ -10,6 +10,7 @@ import {
   getContinueWatching,
   upsertWatchProgress,
 } from '@/src/server/watch/watch-history-service'
+import { apiSuccess, apiError } from '@/lib/api/response'
 
 // ─── Auth Helper ────────────────────────────────────────────────
 
@@ -25,7 +26,7 @@ export async function GET(req: NextRequest) {
   try {
     const user = await requireUser()
     if (!user) {
-      return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 })
+      return apiError('Not authenticated', 401)
     }
 
     const sp = req.nextUrl.searchParams
@@ -37,6 +38,7 @@ export async function GET(req: NextRequest) {
 
       return NextResponse.json({
         success: true,
+        message: 'OK',
         data: items,
         meta: { mode: 'continue', count: items.length },
       })
@@ -52,6 +54,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      message: 'OK',
       data: result.items,
       pagination: {
         page: result.page,
@@ -63,7 +66,7 @@ export async function GET(req: NextRequest) {
     })
   } catch (error) {
     console.error('[API] /v1/watch-history GET error:', error)
-    return NextResponse.json({ success: false, error: 'Internal Server Error' }, { status: 500 })
+    return apiError('Internal Server Error', 500)
   }
 }
 
@@ -73,22 +76,22 @@ export async function POST(req: NextRequest) {
   try {
     const user = await requireUser()
     if (!user) {
-      return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 })
+      return apiError('Not authenticated', 401)
     }
 
     const body = await req.json()
 
     // Validate required fields
     if (!body.movieId || typeof body.movieId !== 'string') {
-      return NextResponse.json({ success: false, error: 'movieId is required' }, { status: 400 })
+      return apiError('movieId is required', 400)
     }
 
     if (body.currentTime !== undefined && (typeof body.currentTime !== 'number' || body.currentTime < 0)) {
-      return NextResponse.json({ success: false, error: 'currentTime must be a non-negative number' }, { status: 400 })
+      return apiError('currentTime must be a non-negative number', 400)
     }
 
     if (body.duration !== undefined && (typeof body.duration !== 'number' || body.duration < 0)) {
-      return NextResponse.json({ success: false, error: 'duration must be a non-negative number' }, { status: 400 })
+      return apiError('duration must be a non-negative number', 400)
     }
 
     // Get client info
@@ -108,17 +111,14 @@ export async function POST(req: NextRequest) {
       ipAddress,
     })
 
-    return NextResponse.json({
-      success: true,
-      data: item,
-    })
+    return apiSuccess(item)
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Internal Server Error'
     const status = ['Movie not found', 'Episode not found', 'Episode does not belong'].some(m => message.includes(m)) ? 400 : 500
 
     if (status === 500) console.error('[API] /v1/watch-history POST error:', error)
 
-    return NextResponse.json({ success: false, error: message }, { status })
+    return apiError(message, status)
   }
 }
 

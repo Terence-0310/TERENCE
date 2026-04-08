@@ -3,13 +3,15 @@
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Save, Upload, X, Image as ImageIcon } from 'lucide-react'
+import { ArrowLeft, Save, Upload, X, Image as ImageIcon, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 const generateSlug = (t: string) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
   .replace(/đ/g, 'd').replace(/Đ/g, 'd').replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 200)
+
+type TabMode = 'manual' | 'ophim'
 
 const EMPTY_FORM = {
   title: '', originalTitle: '', slug: '', description: '', shortDescription: '',
@@ -22,9 +24,12 @@ const EMPTY_FORM = {
 
 export default function NewMoviePage() {
   const router = useRouter()
+  const [tab, setTab] = useState<TabMode>('manual')
   const [form, setForm] = useState(EMPTY_FORM)
+  const [ophimSlug, setOphimSlug] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [successMsg, setSuccessMsg] = useState('')
 
   const up = (k: string, v: string | boolean) => setForm(f => ({ ...f, [k]: v }))
 
@@ -52,6 +57,24 @@ export default function NewMoviePage() {
     setSaving(false)
   }
 
+  const handleOphimSync = async (e: React.FormEvent) => {
+    e.preventDefault(); setError(''); setSuccessMsg(''); setSaving(true)
+    try {
+      const res = await fetch(`/api/admin/sync/ophim/movie/${ophimSlug.trim()}`, { method: 'POST' })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setError(d.error || 'Lỗi khi đồng bộ OPhim')
+      } else {
+        const d = await res.json()
+        setSuccessMsg(`Đồng bộ thành công! Đã thêm phim "${d.data?.movie?.title || ophimSlug}". Đang chuyển hướng...`)
+        setTimeout(() => router.push(`/dashboard/movies/${d.data?.movie?.id || ''}`), 2000)
+      }
+    } catch {
+      setError('Lỗi kết nối khi đồng bộ OPhim')
+    }
+    setSaving(false)
+  }
+
   // Shared field classes
   const inputCls = 'mt-1 bg-muted border-border'
   const selectCls = 'w-full mt-1 px-3 py-2 bg-muted border border-border rounded-lg text-sm'
@@ -61,11 +84,52 @@ export default function NewMoviePage() {
     <div className="space-y-6">
       <div className="flex items-center gap-4">
         <Link href="/dashboard/movies"><Button variant="ghost" size="icon"><ArrowLeft className="w-5 h-5" /></Button></Link>
-        <div><h1 className="text-2xl font-bold">Thêm phim mới</h1><p className="text-muted-foreground">Điền thông tin chi tiết cho phim</p></div>
+        <div><h1 className="text-2xl font-bold">Thêm phim mới</h1><p className="text-muted-foreground">Điền thông tin chi tiết hoặc đồng bộ từ hệ thống khác</p></div>
+      </div>
+
+      <div className="flex border-b border-border mb-6">
+        <button
+          className={`py-3 px-6 font-medium text-sm transition-colors ${tab === 'manual' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-white'}`}
+          onClick={() => setTab('manual')}
+        >
+          Nhập thủ công
+        </button>
+        <button
+          className={`py-3 px-6 font-medium text-sm transition-colors ${tab === 'ophim' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-white'}`}
+          onClick={() => setTab('ophim')}
+        >
+          Đồng bộ từ OPhim
+        </button>
       </div>
 
       {error && <div className="p-4 bg-destructive/10 border border-destructive/30 rounded-lg text-destructive text-sm">{error}</div>}
+      {successMsg && <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-lg text-green-500 text-sm">{successMsg}</div>}
 
+      {tab === 'ophim' && (
+        <Card className="bg-card border-border max-w-xl">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2"><Upload className="w-5 h-5"/>Đồng bộ tự động từ OPhim</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleOphimSync} className="space-y-4">
+              <div>
+                <label className={labelCls}>OPhim Slug</label>
+                <Input className={inputCls} placeholder="vd: dao-hai-tac" required
+                  value={ophimSlug} onChange={(e) => setOphimSlug(e.target.value)} />
+                <p className="text-xs text-muted-foreground mt-2">Nhập slug của phim từ trang OPhim. Ví dụ: URL là ophim.cc/phim/dao-hai-tac thì slug là <b>dao-hai-tac</b>.</p>
+              </div>
+              <div className="pt-2">
+                <Button type="submit" disabled={!ophimSlug.trim() || saving} className="w-full gap-2">
+                  <RefreshCw className={`w-4 h-4 ${saving ? 'animate-spin' : ''}`} />
+                  {saving ? 'Đang lấy dữ liệu...' : 'Bắt đầu đồng bộ'}
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+
+      {tab === 'manual' && (
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Basic Info */}
         <Card className="bg-card border-border">
@@ -200,6 +264,7 @@ export default function NewMoviePage() {
           </Button>
         </div>
       </form>
+      )}
     </div>
   )
 }

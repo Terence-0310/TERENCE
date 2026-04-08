@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation'
 import { Star, Clock, Calendar, Play, ArrowLeft, ExternalLink, Film } from 'lucide-react'
 import { getMovieDetail } from '@/services/tmdb/movie-service'
 import { MovieRow } from '@/components/shared/MovieRow'
+import { MovieComments } from '@/components/shared/MovieComments'
 import { RelatedNews } from '@/components/news/RelatedNews'
 import type { Metadata } from 'next'
 
@@ -250,6 +251,9 @@ export default async function MovieDetailPage({ params }: PageProps) {
           </div>
         </section>
       )}
+
+      {/* ═══════ COMMENTS ═══════ */}
+      <MovieComments movieId={movie.id} />
 
       {/* ═══════ RELATED ═══════ */}
       {movie.relatedMovies.length > 0 && (

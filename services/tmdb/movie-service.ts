@@ -7,10 +7,56 @@ import { mapMovie, mapMovieDetail, mapGenre } from '@/lib/tmdb/mapper'
 import type { TmdbPaginatedResponse, TmdbMovie, TmdbMovieDetail, TmdbCreditsResponse, TmdbVideosResponse, TmdbGenreListResponse } from '@/types/tmdb'
 import type { Movie, MovieDetail, Genre, PaginatedResult } from '@/types/movie'
 
+// Helper: filter playable movies
+async function filterValidPlayable(movies: Movie[]): Promise<Movie[]> {
+  const validMovies: Movie[] = []
+  
+  // 1. Pre-filter by poster
+  const posterMovies = movies.filter(m => m.posterUrl && m.posterUrl !== '/placeholder.jpg')
+
+  // Process in small batches to respect rate limits
+  for (let i = 0; i < posterMovies.length; i += 4) {
+    const batch = posterMovies.slice(i, i + 4)
+    
+    const results = await Promise.all(batch.map(async (m) => {
+      // 2. Check trailer via TMDB
+      const videos = await tmdbFetchSafe<TmdbVideosResponse>(`/movie/${m.id}/videos`, { language: 'en-US' })
+      const hasTrailer = videos?.results?.some(v => v.type === 'Trailer' && v.site === 'YouTube')
+      if (!hasTrailer) return null
+
+      // 3. Check OPhim stream availability
+      try {
+        const query = m.originalTitle || m.title
+        const res = await fetch(`https://ophim1.com/v1/api/tim-kiem?keyword=${encodeURIComponent(query)}`)
+        const json = await res.json()
+        if (json.status === 'success' && json.data?.items?.length > 0) {
+          return m
+        }
+        
+        // Try fallback mapping using Vietnamese title
+        if (m.originalTitle && m.title !== m.originalTitle) {
+          const res2 = await fetch(`https://ophim1.com/v1/api/tim-kiem?keyword=${encodeURIComponent(m.title)}`)
+          const json2 = await res2.json()
+          if (json2.status === 'success' && json2.data?.items?.length > 0) {
+            return m
+          }
+        }
+      } catch (err) { }
+      return null
+    }))
+
+    validMovies.push(...results.filter((m): m is Movie => m !== null))
+  }
+  return validMovies
+}
+
 // ── Helper: map TMDB paginated → app paginated ──
-function mapPaginated(data: TmdbPaginatedResponse<TmdbMovie>): PaginatedResult<Movie> {
+async function mapPaginated(data: TmdbPaginatedResponse<TmdbMovie>): Promise<PaginatedResult<Movie>> {
+  const rawItems = data.results.map(mapMovie)
+  const filteredItems = await filterValidPlayable(rawItems)
+  
   return {
-    items: data.results.map(mapMovie),
+    items: filteredItems,
     page: data.page,
     totalPages: data.total_pages,
     totalResults: data.total_results,
@@ -24,7 +70,7 @@ export async function getTrending(page = 1): Promise<PaginatedResult<Movie>> {
     params: { page },
     revalidate: 1800,
   })
-  return mapPaginated(data)
+  return await mapPaginated(data)
 }
 
 export async function getPopular(page = 1): Promise<PaginatedResult<Movie>> {
@@ -32,7 +78,7 @@ export async function getPopular(page = 1): Promise<PaginatedResult<Movie>> {
     params: { page },
     revalidate: 3600,
   })
-  return mapPaginated(data)
+  return await mapPaginated(data)
 }
 
 export async function getTopRated(page = 1): Promise<PaginatedResult<Movie>> {
@@ -40,7 +86,7 @@ export async function getTopRated(page = 1): Promise<PaginatedResult<Movie>> {
     params: { page },
     revalidate: 3600,
   })
-  return mapPaginated(data)
+  return await mapPaginated(data)
 }
 
 export async function getNowPlaying(page = 1): Promise<PaginatedResult<Movie>> {
@@ -48,7 +94,7 @@ export async function getNowPlaying(page = 1): Promise<PaginatedResult<Movie>> {
     params: { page },
     revalidate: 1800,
   })
-  return mapPaginated(data)
+  return await mapPaginated(data)
 }
 
 export async function getUpcoming(page = 1): Promise<PaginatedResult<Movie>> {
@@ -56,7 +102,7 @@ export async function getUpcoming(page = 1): Promise<PaginatedResult<Movie>> {
     params: { page },
     revalidate: 3600,
   })
-  return mapPaginated(data)
+  return await mapPaginated(data)
 }
 
 // ── Detail endpoint ──
@@ -94,7 +140,7 @@ export async function getMoviesByGenre(genreId: number, page = 1): Promise<Pagin
     },
     revalidate: 3600,
   })
-  return mapPaginated(data)
+  return await mapPaginated(data)
 }
 
 // ── Genres list ──
@@ -117,6 +163,6 @@ export async function getMoviesByCountry(countryCode: string, page = 1): Promise
     },
     revalidate: 3600,
   })
-  return mapPaginated(data)
+  return await mapPaginated(data)
 }
 

@@ -64,13 +64,15 @@ export function CallContainer({ call, userName, roomType }: CallContainerProps) 
   // ── Idle: show join button ──
   if (stage === 'idle') {
     return (
-      <div className="px-4 py-2.5 border-b border-white/[0.06]">
+      <div className="px-5 py-3 border-b border-white/[0.04]">
         <button
           onClick={handleShowPreJoin}
-          className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 px-3 py-2.5 text-xs font-medium text-emerald-400 transition hover:bg-emerald-500/20"
+          className="group relative flex w-full items-center justify-center gap-2 overflow-hidden rounded-[14px] bg-gradient-to-r from-[#2DD4BF] to-[#20b2aa] px-4 py-3 text-[13px] font-bold text-[#0A0F1E] shadow-[0_0_20px_rgba(45,212,191,0.3)] transition-all duration-300 hover:scale-[1.02] hover:shadow-[0_0_25px_rgba(45,212,191,0.5)]"
         >
-          <Phone className="h-4 w-4" />
-          Tham gia cuộc gọi
+          {/* Shine effect */}
+          <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/40 to-transparent skew-x-12 animate-[shimmer_2s_infinite] group-hover:block" />
+          <Phone className="h-4 w-4 drop-shadow-md" />
+          <span className="tracking-wide">Tham gia cuộc gọi</span>
         </button>
       </div>
     )

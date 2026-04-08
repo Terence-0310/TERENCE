@@ -62,30 +62,37 @@ export function usePartyCall(options: UsePartyCallOptions): UsePartyCallReturn {
   const [participants, setParticipants] = useState<CallParticipant[]>([])
 
   const peerConnections = useRef<Map<string, RTCPeerConnection>>(new Map())
-  const broadcastChannel = useRef<BroadcastChannel | null>(null)
+  const socketRef = useRef<any>(null)
 
   // Call is only supported for duo and small_group
   const isCallSupported = enabled && (roomType === 'duo' || roomType === 'small_group')
 
-  // ── Signaling via BroadcastChannel ──
-  // For same-browser testing. In production, use WebSocket signaling.
+  // ── Signaling via Socket.IO ──
+  // Replaces BroadcastChannel to allow cross-network P2P connections
 
   useEffect(() => {
-    if (!roomCode || !isInCall) return
+    if (!roomCode) return
 
-    try {
-      const bc = new BroadcastChannel(`terence:call-signal:${roomCode}`)
-      broadcastChannel.current = bc
+    import('socket.io-client').then(({ io }) => {
+      const socket = io({
+        path: '/api/socketio',
+        transports: ['websocket', 'polling'],
+      })
+      socketRef.current = socket
 
-      bc.onmessage = async (event) => {
-        const data = event.data as {
-          type: 'offer' | 'answer' | 'ice-candidate' | 'join-call' | 'leave-call'
-          fromId: string
-          fromName: string
-          payload?: unknown
-        }
+      socket.on('connect', () => {
+        // Join the socket.io room for the watch party to receive signals
+        socket.emit('wp:join', {
+          roomCode,
+          userId: memberId,
+          displayName: memberName,
+          isHost: false,
+        })
+      })
 
+      socket.on('wp:call-signal', async (data: any) => {
         if (data.fromId === memberId) return
+        if (data.targetId && data.targetId !== memberId) return
 
         switch (data.type) {
           case 'join-call':
@@ -104,14 +111,14 @@ export function usePartyCall(options: UsePartyCallOptions): UsePartyCallReturn {
             handlePeerLeave(data.fromId)
             break
         }
-      }
+      })
+    })
 
-      return () => {
-        bc.close()
-        broadcastChannel.current = null
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect()
+        socketRef.current = null
       }
-    } catch {
-      // BroadcastChannel not available
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomCode, isInCall, memberId])
@@ -208,19 +215,17 @@ export function usePartyCall(options: UsePartyCallOptions): UsePartyCallReturn {
     setParticipants((prev) => prev.filter((p) => p.peerId !== peerId))
   }
 
-  function sendSignal(type: string, _targetId: string, payload?: unknown) {
-    // Broadcast signal to all (in production, target specific peer)
-    if (broadcastChannel.current) {
-      try {
-        broadcastChannel.current.postMessage({
-          type,
-          fromId: memberId,
-          fromName: memberName,
-          payload,
-        })
-      } catch {
-        // Serialization error
-      }
+  function sendSignal(type: string, targetId: string, payload?: unknown) {
+    // Broadcast signal to all via socket.io, but specify targetId so others ignore it
+    if (socketRef.current) {
+      socketRef.current.emit('wp:call-signal', {
+        roomCode,
+        type,
+        fromId: memberId,
+        fromName: memberName,
+        targetId,
+        payload,
+      })
     }
   }
 
@@ -241,8 +246,9 @@ export function usePartyCall(options: UsePartyCallOptions): UsePartyCallReturn {
       setIsInCall(true)
 
       // Notify others
-      if (broadcastChannel.current) {
-        broadcastChannel.current.postMessage({
+      if (socketRef.current) {
+        socketRef.current.emit('wp:call-signal', {
+          roomCode,
           type: 'join-call',
           fromId: memberId,
           fromName: memberName,
@@ -265,8 +271,9 @@ export function usePartyCall(options: UsePartyCallOptions): UsePartyCallReturn {
 
   const leaveCall = useCallback(() => {
     // Notify peers
-    if (broadcastChannel.current) {
-      broadcastChannel.current.postMessage({
+    if (socketRef.current) {
+      socketRef.current.emit('wp:call-signal', {
+        roomCode,
         type: 'leave-call',
         fromId: memberId,
         fromName: memberName,

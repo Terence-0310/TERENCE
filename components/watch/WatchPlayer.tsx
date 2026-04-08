@@ -396,6 +396,16 @@ export const WatchPlayer = forwardRef<WatchPlayerRef, WatchPlayerProps>(function
           if (!isHost) { showViewerBlocked(); break }
           video.currentTime = Math.min(video.duration || 0, video.currentTime + 10)
           break
+        case 'ArrowUp':
+          e.preventDefault()
+          video.volume = Math.min(1, video.volume + 0.1)
+          setVolume(video.volume)
+          break
+        case 'ArrowDown':
+          e.preventDefault()
+          video.volume = Math.max(0, video.volume - 0.1)
+          setVolume(video.volume)
+          break
       }
     }
     window.addEventListener('keydown', onKeyDown)

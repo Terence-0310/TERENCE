@@ -35,9 +35,9 @@ export async function GET(req: NextRequest) {
   // Search across title, originalTitle, slug
   if (search) {
     where.OR = [
-      { title: { contains: search } },
-      { originalTitle: { contains: search } },
-      { slug: { contains: search } },
+      { title: { contains: search, mode: 'insensitive' } },
+      { originalTitle: { contains: search, mode: 'insensitive' } },
+      { slug: { contains: search, mode: 'insensitive' } },
     ]
   }
 

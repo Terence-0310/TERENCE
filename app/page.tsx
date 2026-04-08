@@ -1,20 +1,22 @@
 import { HeroBanner } from '@/components/home/HeroBanner'
 import { ContinueWatchingRow } from '@/components/home/ContinueWatchingRow'
+import { InterestsSection } from '@/components/home/InterestsSection'
 import { MovieRow } from '@/components/shared/MovieRow'
-import { GenreChips } from '@/components/shared/GenreChips'
+import { PhimHayRow } from '@/components/home/PhimHayRow'
+import { TopCommentsCarousel } from '@/components/home/TopCommentsCarousel'
+import { TrendingRankings } from '@/components/home/TrendingRankings'
 import { MovieNewsSection } from '@/components/news/MovieNewsSection'
 import { UpcomingMoviesSection } from '@/components/news/UpcomingMoviesSection'
-import { getTrending, getPopular, getTopRated, getNowPlaying, getUpcoming, getGenres } from '@/services/tmdb/movie-service'
+import { getTrending, getPopular, getTopRated, getNowPlaying, getUpcoming } from '@/services/tmdb/movie-service'
 
 export default async function HomePage() {
   // Use allSettled so ONE failed call doesn't crash the entire page
-  const [trendingR, popularR, topRatedR, nowPlayingR, upcomingR, genresR] = await Promise.allSettled([
+  const [trendingR, popularR, topRatedR, nowPlayingR, upcomingR] = await Promise.allSettled([
     getTrending(),
     getPopular(),
     getTopRated(),
     getNowPlaying(),
     getUpcoming(),
-    getGenres(),
   ])
 
   const emptyPage = { items: [], page: 1, totalPages: 0, totalResults: 0 }
@@ -23,7 +25,6 @@ export default async function HomePage() {
   const topRated = topRatedR.status === 'fulfilled' ? topRatedR.value : emptyPage
   const nowPlaying = nowPlayingR.status === 'fulfilled' ? nowPlayingR.value : emptyPage
   const upcoming = upcomingR.status === 'fulfilled' ? upcomingR.value : emptyPage
-  const genres = genresR.status === 'fulfilled' ? genresR.value : []
 
   // Only show welcome screen if ALL calls failed (no data at all)
   const hasAnyData = trending.items.length > 0 || popular.items.length > 0 ||
@@ -60,46 +61,47 @@ export default async function HomePage() {
 
   return (
     <main className="min-h-screen bg-background">
-      {/* Hero */}
+      {/* 1. Hero Banner — RoPhim style with metadata badges + thumbnail strip */}
       <HeroBanner movies={trending.items.slice(0, 6)} />
 
       {/* Content Sections */}
-      <div className="-mt-8 relative z-10 space-y-10 pb-16">
-        {/* Continue Watching — client component, auto-hides when empty */}
+      <div className="-mt-8 relative z-10 space-y-2 pb-16">
+        {/* 2. Continue Watching — client component, auto-hides when empty */}
         <ContinueWatchingRow />
 
+        {/* 3. "Bạn đang quan tâm gì?" — RoPhim-style interest category cards */}
         <div className="animate-row-in" style={{ '--row': 0 } as React.CSSProperties}>
-          <MovieRow
-            title="🔥 Xu hướng tuần này"
-            movies={trending.items}
-            href="/browse?category=trending"
-            showRank
-          />
+          <InterestsSection />
         </div>
 
+        {/* 4. Movie Rows — RoPhim-style landscape grid with title on left */}
         <div className="animate-row-in" style={{ '--row': 1 } as React.CSSProperties}>
           <MovieRow
-            title="🎬 Phim phổ biến"
+            title="Phim phổ biến"
+            accent="phổ biến"
             movies={popular.items}
             href="/browse?category=popular"
           />
         </div>
 
         <div className="animate-row-in" style={{ '--row': 2 } as React.CSSProperties}>
-          <GenreChips genres={genres} />
+          <MovieRow
+            title="Xu hướng tuần này"
+            accent="tuần này"
+            movies={trending.items}
+            href="/browse?category=trending"
+            showRank
+          />
         </div>
 
         <div className="animate-row-in" style={{ '--row': 3 } as React.CSSProperties}>
-          <MovieRow
-            title="⭐ Đánh giá cao nhất"
-            movies={topRated.items}
-            href="/browse?category=top-rated"
-          />
+          <PhimHayRow movies={topRated.items} />
         </div>
 
         <div className="animate-row-in" style={{ '--row': 4 } as React.CSSProperties}>
           <MovieRow
-            title="🍿 Đang chiếu rạp"
+            title="Đang chiếu rạp"
+            accent="chiếu rạp"
             movies={nowPlaying.items}
             href="/browse?category=now-playing"
           />
@@ -107,19 +109,27 @@ export default async function HomePage() {
 
         <div className="animate-row-in" style={{ '--row': 5 } as React.CSSProperties}>
           <MovieRow
-            title="📅 Sắp ra mắt"
+            title="Sắp ra mắt"
+            accent="ra mắt"
             movies={upcoming.items}
             href="/browse?category=upcoming"
           />
         </div>
 
-        {/* Movie News — client component, auto-hides when empty */}
+        {/* 5. Top Bình Luận Carousel — community section */}
         <div className="animate-row-in" style={{ '--row': 6 } as React.CSSProperties}>
-          <MovieNewsSection />
+          <TopCommentsCarousel />
         </div>
 
-        {/* Upcoming Movies feed with rich UI — client component */}
+        {/* 6. Trending Rankings — Sôi nổi / Yêu thích / Bình luận mới */}
         <div className="animate-row-in" style={{ '--row': 7 } as React.CSSProperties}>
+          <TrendingRankings />
+        </div>
+
+
+
+        {/* 8. Upcoming Movies feed */}
+        <div className="animate-row-in" style={{ '--row': 9 } as React.CSSProperties}>
           <UpcomingMoviesSection />
         </div>
       </div>

@@ -43,13 +43,7 @@ export interface RealtimeChannel {
  * 
  * Current strategy:
  * 1. BroadcastChannel for instant same-browser sync
- * 2. Polling API for cross-network sync
- * 
- * TODO: Replace polling with WebSocket/Socket.IO for true realtime:
- *   - Install socket.io + socket.io-client
- *   - Create custom Next.js server with Socket.IO
- *   - Replace PollRealtimeChannel with SocketRealtimeChannel
- *   - The rest of the codebase needs zero changes
+ * 2. Polling API for cross-network sync (via /api/watch-party/[roomCode])
  */
 export function createRealtimeChannel(
   roomCode: string,
@@ -75,17 +69,18 @@ export function createRealtimeChannel(
 
   // ── Polling (cross-network sync) ──
   let lastKnownState: {
-    playbackState?: string
-    currentPlaybackTime?: number
-    episodeId?: string
-    serverIndex?: number
-    memberCount?: number
-    messageCount?: number
+    playbackTime?: number
+    isPlaying?: boolean
+    episodeId?: string | null
+    version?: number
+    participantCount?: number
   } = {}
+
+  let seenMessageIds = new Set<string>()
 
   async function poll() {
     try {
-      const res = await fetch(`/api/watch-rooms/${roomCode}`)
+      const res = await fetch(`/api/watch-party/${roomCode}`)
       if (!res.ok) {
         if (res.status === 404) {
           handlers.forEach((h) =>
@@ -97,85 +92,83 @@ export function createRealtimeChannel(
       }
 
       const data = await res.json() as {
-        room: WatchRoom
-        members: WatchRoomMember[]
+        room: any
+        participants: any[]
+        state: any
         messages: WatchRoomMessage[]
       }
 
-      const room = data.room
+      const state = data.state
 
       // Detect state changes and emit events
-      if (lastKnownState.playbackState !== undefined) {
-        // Playback state changed
-        if (lastKnownState.playbackState !== room.playbackState) {
-          if (room.playbackState === 'playing') {
+      if (state && lastKnownState.version !== undefined) {
+        if (lastKnownState.version !== state.version) {
+          // State version changed — emit appropriate event
+          if (state.lastEventType === 'PLAY') {
             handlers.forEach((h) =>
-              h({ type: 'PLAY', currentTime: room.currentPlaybackTime, senderId: 'server' }),
+              h({ type: 'PLAY', currentTime: state.playbackTime, senderId: 'server' }),
+            )
+          } else if (state.lastEventType === 'PAUSE') {
+            handlers.forEach((h) =>
+              h({ type: 'PAUSE', currentTime: state.playbackTime, senderId: 'server' }),
+            )
+          } else if (state.lastEventType === 'SEEK') {
+            handlers.forEach((h) =>
+              h({ type: 'SEEK', currentTime: state.playbackTime, senderId: 'server' }),
+            )
+          } else if (state.lastEventType === 'CHANGE_EPISODE') {
+            handlers.forEach((h) =>
+              h({ type: 'CHANGE_EPISODE', episodeSlug: state.episodeId!, senderId: 'server' }),
             )
           } else {
+            // Generic state sync
             handlers.forEach((h) =>
-              h({ type: 'PAUSE', currentTime: room.currentPlaybackTime, senderId: 'server' }),
+              h({
+                type: 'STATE_SYNC',
+                currentTime: state.playbackTime,
+                isPlaying: state.isPlaying,
+                episodeSlug: state.episodeId,
+                serverIndex: 0,
+                senderId: 'server',
+              }),
             )
           }
-        }
-
-        // Time drift detected
-        if (
-          lastKnownState.currentPlaybackTime !== undefined &&
-          Math.abs(room.currentPlaybackTime - lastKnownState.currentPlaybackTime) > 5
-        ) {
-          handlers.forEach((h) =>
-            h({ type: 'SEEK', currentTime: room.currentPlaybackTime, senderId: 'server' }),
-          )
-        }
-
-        // Episode changed
-        if (lastKnownState.episodeId !== room.episodeId && room.episodeId) {
-          handlers.forEach((h) =>
-            h({ type: 'CHANGE_EPISODE', episodeSlug: room.episodeId!, senderId: 'server' }),
-          )
-        }
-
-        // Server changed
-        if (lastKnownState.serverIndex !== room.serverIndex) {
-          handlers.forEach((h) =>
-            h({ type: 'CHANGE_SERVER', serverIndex: room.serverIndex, senderId: 'server' }),
-          )
-        }
-
-        // New messages
-        if (lastKnownState.messageCount !== undefined && data.messages.length > lastKnownState.messageCount) {
-          const newMessages = data.messages.slice(lastKnownState.messageCount)
-          for (const msg of newMessages) {
-            handlers.forEach((h) =>
-              h({ type: 'CHAT_MESSAGE', message: msg }),
-            )
-          }
-        }
-
-        // Member changes
-        if (lastKnownState.memberCount !== undefined && data.members.length !== lastKnownState.memberCount) {
-          // Re-emit full state sync for member changes
-          handlers.forEach((h) =>
-            h({
-              type: 'STATE_SYNC',
-              currentTime: room.currentPlaybackTime,
-              isPlaying: room.playbackState === 'playing',
-              episodeSlug: room.episodeId,
-              serverIndex: room.serverIndex,
-              senderId: 'server',
-            }),
-          )
         }
       }
 
+      // Member changes
+      if (lastKnownState.participantCount !== undefined && data.participants.length !== lastKnownState.participantCount) {
+        handlers.forEach((h) =>
+          h({
+            type: 'STATE_SYNC',
+            currentTime: state?.playbackTime ?? 0,
+            isPlaying: state?.isPlaying ?? false,
+            episodeSlug: state?.episodeId,
+            serverIndex: 0,
+            senderId: 'server',
+          }),
+        )
+      }
+
+      // New Messages
+      if (data.messages && data.messages.length > 0) {
+        data.messages.forEach(msg => {
+          if (!seenMessageIds.has(msg.id)) {
+            seenMessageIds.add(msg.id)
+            // Don't process our own events via polling because BroadcastChannel handles our own optimistically
+            if (msg.senderId !== memberId) {
+              handlers.forEach((h) => h({ type: 'CHAT_MESSAGE', message: msg }))
+            }
+          }
+        })
+      }
+
       lastKnownState = {
-        playbackState: room.playbackState,
-        currentPlaybackTime: room.currentPlaybackTime,
-        episodeId: room.episodeId,
-        serverIndex: room.serverIndex,
-        memberCount: data.members.length,
-        messageCount: data.messages.length,
+        playbackTime: state?.playbackTime,
+        isPlaying: state?.isPlaying,
+        episodeId: state?.episodeId,
+        version: state?.version,
+        participantCount: data.participants.length,
       }
     } catch {
       // Network error — silent, will retry on next poll
@@ -239,48 +232,48 @@ export function createRealtimeChannel(
 async function sendToServer(roomCode: string, event: WatchPartySyncEvent): Promise<void> {
   switch (event.type) {
     case 'PLAY':
-      await fetch(`/api/watch-rooms/${roomCode}`, {
-        method: 'PATCH',
+      await fetch(`/api/watch-party/${roomCode}/sync`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ state: 'playing', time: event.currentTime }),
+        body: JSON.stringify({ isPlaying: true, playbackTime: event.currentTime, eventType: 'PLAY' }),
       })
       break
     case 'PAUSE':
-      await fetch(`/api/watch-rooms/${roomCode}`, {
-        method: 'PATCH',
+      await fetch(`/api/watch-party/${roomCode}/sync`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ state: 'paused', time: event.currentTime }),
+        body: JSON.stringify({ isPlaying: false, playbackTime: event.currentTime, eventType: 'PAUSE' }),
       })
       break
     case 'SEEK':
-      await fetch(`/api/watch-rooms/${roomCode}`, {
-        method: 'PATCH',
+      await fetch(`/api/watch-party/${roomCode}/sync`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ time: event.currentTime }),
+        body: JSON.stringify({ playbackTime: event.currentTime, eventType: 'SEEK' }),
       })
       break
     case 'CHANGE_EPISODE':
-      await fetch(`/api/watch-rooms/${roomCode}`, {
-        method: 'PATCH',
+      await fetch(`/api/watch-party/${roomCode}/sync`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ episodeId: event.episodeSlug }),
+        body: JSON.stringify({ episodeId: event.episodeSlug, eventType: 'CHANGE_EPISODE' }),
       })
       break
     case 'CHANGE_SERVER':
-      await fetch(`/api/watch-rooms/${roomCode}`, {
-        method: 'PATCH',
+      await fetch(`/api/watch-party/${roomCode}/sync`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ serverIndex: event.serverIndex }),
+        body: JSON.stringify({ eventType: 'CHANGE_SERVER' }),
       })
       break
     case 'CHAT_MESSAGE':
-      await fetch(`/api/watch-rooms/${roomCode}/messages`, {
+      await fetch(`/api/watch-party/${roomCode}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           senderName: event.message.senderName,
           content: event.message.content,
-          userId: event.message.senderId,
+          participantId: event.message.senderId,
         }),
       })
       break

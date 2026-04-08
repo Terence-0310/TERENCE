@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   Plus, Search, Edit, Trash2, Eye, RefreshCw, Star, TrendingUp, Award,
-  Globe, EyeOff, Archive, RotateCcw, ArrowUpDown, AlertTriangle, ImageOff,
+  Globe, EyeOff, Archive, RotateCcw, ArrowUpDown, AlertTriangle, ImageOff, Film,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -237,7 +237,21 @@ export default function MoviesPage() {
                     </td>
                   </tr>
                 ))}
-                {movies.length === 0 && <tr><td colSpan={7} className="py-12 text-center text-muted-foreground">Không có phim nào</td></tr>}
+                {movies.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="py-16 text-center">
+                      <div className="flex flex-col items-center gap-3">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+                          <Film className="h-5 w-5 text-muted-foreground" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-muted-foreground">Không có phim nào</p>
+                          <p className="text-xs text-muted-foreground/60 mt-0.5">Thử thay đổi bộ lọc hoặc thêm phim mới</p>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>

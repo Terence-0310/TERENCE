@@ -90,11 +90,11 @@ export function useWatchParty(options: UseWatchPartyOptions): UseWatchPartyRetur
 
       try {
         // Join room via API
-        const joinRes = await fetch('/api/watch-rooms/join', {
+        const joinRes = await fetch('/api/watch-party/join', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            code,
+            roomCode: code,
             userId: user.id,
             displayName: user.name,
           }),
@@ -110,26 +110,26 @@ export function useWatchParty(options: UseWatchPartyOptions): UseWatchPartyRetur
         if (cancelled) return
 
         setRoom(joinData.room)
-        setMemberId(joinData.member.id)
+        setMemberId(joinData.participant.id)
 
         // Fetch full room state
-        const stateRes = await fetch(`/api/watch-rooms/${code}`)
+        const stateRes = await fetch(`/api/watch-party/${code}`)
         if (stateRes.ok) {
           const stateData = await stateRes.json()
           if (cancelled) return
           setRoom(stateData.room)
-          setMembers(stateData.members)
-          setMessages(stateData.messages)
+          setMembers(stateData.participants ?? [])
+          setMessages(stateData.messages ?? [])
         }
 
         // Create realtime channel
-        const channel = createRealtimeChannel(code, joinData.member.id)
+        const channel = createRealtimeChannel(code, joinData.participant.id)
         channelRef.current = channel
 
         // Create sync service
         const sync = new PlayerSyncService({
           channel,
-          memberId: joinData.member.id,
+          memberId: joinData.participant.id,
           isHost,
           allowMemberControl,
           onRemotePlay,
@@ -197,12 +197,12 @@ export function useWatchParty(options: UseWatchPartyOptions): UseWatchPartyRetur
   // ── Actions ──
 
   const sendChat = useCallback((text: string) => {
-    if (!roomCode || !text.trim()) return
+    if (!roomCode || !text.trim() || !memberId) return
 
     const message: WatchRoomMessage = {
       id: `local-${Date.now()}`,
       roomCode,
-      senderId: user.id,
+      senderId: memberId,
       senderName: user.name,
       type: 'chat',
       content: text.trim(),
@@ -217,7 +217,7 @@ export function useWatchParty(options: UseWatchPartyOptions): UseWatchPartyRetur
       type: 'CHAT_MESSAGE',
       message,
     })
-  }, [roomCode, user.id, user.name])
+  }, [roomCode, user.id, user.name, memberId])
 
   const localPlay = useCallback((time: number) => {
     syncRef.current?.localPlay(time)
@@ -242,10 +242,10 @@ export function useWatchParty(options: UseWatchPartyOptions): UseWatchPartyRetur
   const leaveRoom = useCallback(async () => {
     if (!roomCode || !memberId) return
     try {
-      await fetch('/api/watch-rooms/leave', {
+      await fetch('/api/watch-party/leave', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: roomCode, memberId }),
+        body: JSON.stringify({ roomCode, participantId: memberId }),
       })
     } catch {
       // Non-critical
@@ -260,12 +260,12 @@ export function useWatchParty(options: UseWatchPartyOptions): UseWatchPartyRetur
   const refresh = useCallback(async () => {
     if (!roomCode) return
     try {
-      const res = await fetch(`/api/watch-rooms/${roomCode}`)
+      const res = await fetch(`/api/watch-party/${roomCode}`)
       if (res.ok) {
         const data = await res.json()
         setRoom(data.room)
-        setMembers(data.members)
-        setMessages(data.messages)
+        setMembers(data.participants ?? [])
+        setMessages(data.messages ?? [])
       }
     } catch {
       // Silent

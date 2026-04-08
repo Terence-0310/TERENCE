@@ -3,149 +3,49 @@
 // ============================================
 // Orchestrates: fetch from OPhim18 v1/api → map → upsert → log.
 // All operations are wrapped in SyncJob/SyncLog for audit.
+//
+// Sprint 3: Common sync helpers extracted to sync-helpers.ts.
+// This file retains source-specific logic: OPhim18 client/mapper,
+// movie source upsert, playable source detection, and sync orchestration.
 
-import { PrismaClient } from '@prisma/client'
+import {
+  syncPrisma as prisma,
+  createSyncJob as _createSyncJob,
+  completeSyncJob,
+  failSyncJob,
+  addSyncLog as _addSyncLog,
+  upsertCategories,
+  upsertCountries,
+  upsertEpisodes,
+  disconnect,
+} from './sync-helpers'
 import { fetchCatalogPage, fetchMovieDetail } from './ophim18-client'
 import { mapMovie, mapEpisodes, mapCategories, mapCountries } from './ophim18-mapper'
 import type { SyncResult } from './ophim18-types'
 
-const prisma = new PrismaClient()
+// ─── Source Constants ───────────────────────────────────────────
 
-// ─── SyncJob Helpers ────────────────────────────────────────────
+const SOURCE = 'ophim18'
+const LOG_PREFIX = '[OPhim18 Sync]'
 
-async function createSyncJob(jobType: string, metadata?: Record<string, unknown>) {
-  return prisma.syncJob.create({
-    data: {
-      source: 'ophim18',
-      jobType,
-      status: 'running',
-      startedAt: new Date(),
-      metadata: metadata ? JSON.stringify(metadata) : null,
-    },
-  })
+// ─── Source-bound helpers ───────────────────────────────────────
+
+function createSyncJob(jobType: string, metadata?: Record<string, unknown>) {
+  return _createSyncJob(SOURCE, jobType, metadata)
 }
 
-async function completeSyncJob(jobId: string, stats: { total: number; processed: number; failed: number; skipped: number }) {
-  const status = stats.failed > 0 && stats.processed === 0
-    ? 'failed'
-    : stats.failed > 0
-      ? 'partial'
-      : 'completed'
-
-  await prisma.syncJob.update({
-    where: { id: jobId },
-    data: {
-      status,
-      totalItems: stats.total,
-      processedItems: stats.processed,
-      failedItems: stats.failed,
-      skippedItems: stats.skipped,
-      completedAt: new Date(),
-    },
-  })
-}
-
-async function failSyncJob(jobId: string, error: string) {
-  await prisma.syncJob.update({
-    where: { id: jobId },
-    data: { status: 'failed', errorMessage: error, completedAt: new Date() },
-  })
-}
-
-async function addSyncLog(
+function addSyncLog(
   syncJobId: string,
   movieId: string | null,
   action: string,
   status: string,
   message: string,
-  metadata?: Record<string, unknown>
+  metadata?: Record<string, unknown>,
 ) {
-  await prisma.syncLog.create({
-    data: {
-      syncJobId,
-      movieId,
-      source: 'ophim18',
-      action,
-      status,
-      message,
-      metadata: metadata ? JSON.stringify(metadata) : null,
-    },
-  })
+  return _addSyncLog(SOURCE, syncJobId, movieId, action, status, message, metadata)
 }
 
-// ─── Category & Country Upsert ──────────────────────────────────
-
-async function upsertCategories(movieId: string, categories: Array<{ name: string; slug: string }>) {
-  for (const cat of categories) {
-    const category = await prisma.category.upsert({
-      where: { slug: cat.slug },
-      create: { name: cat.name, slug: cat.slug, isActive: true },
-      update: { name: cat.name },
-    })
-
-    await prisma.movieCategory.upsert({
-      where: { movieId_categoryId: { movieId, categoryId: category.id } },
-      create: { movieId, categoryId: category.id },
-      update: {},
-    })
-  }
-}
-
-async function upsertCountries(movieId: string, countries: Array<{ name: string; slug: string }>) {
-  for (const ctr of countries) {
-    const country = await prisma.country.upsert({
-      where: { slug: ctr.slug },
-      create: { name: ctr.name, slug: ctr.slug, isActive: true },
-      update: { name: ctr.name },
-    })
-
-    await prisma.movieCountry.upsert({
-      where: { movieId_countryId: { movieId, countryId: country.id } },
-      create: { movieId, countryId: country.id },
-      update: {},
-    })
-  }
-}
-
-// ─── Episode Upsert ─────────────────────────────────────────────
-
-async function upsertEpisodes(movieId: string, episodes: ReturnType<typeof mapEpisodes>) {
-  let count = 0
-  for (const ep of episodes) {
-    const existing = await prisma.episode.findFirst({
-      where: {
-        movieId,
-        episodeSlug: ep.episodeSlug,
-        serverName: ep.serverName,
-      },
-    })
-
-    if (existing) {
-      await prisma.episode.update({
-        where: { id: existing.id },
-        data: {
-          sourceName: ep.sourceName,
-          episodeName: ep.episodeName,
-          episodeNumber: ep.episodeNumber,
-          episodeOrder: ep.episodeOrder,
-          streamType: ep.streamType,
-          streamUrl: ep.streamUrl,
-          sourceUrl: ep.sourceUrl,
-          status: ep.status,
-          isActive: ep.isActive,
-        },
-      })
-    } else {
-      await prisma.episode.create({
-        data: { movieId, ...ep },
-      })
-    }
-    count++
-  }
-  return count
-}
-
-// ─── MovieSource Upsert ─────────────────────────────────────────
+// ─── MovieSource Upsert (source-specific) ───────────────────────
 
 async function upsertMovieSource(movieId: string, ophimId: string, slug: string) {
   const existing = await prisma.movieSource.findFirst({
@@ -341,7 +241,7 @@ export async function syncCatalog(
     const maxPage = endPage || startPage
     const actualEnd = Math.min(maxPage, pagination?.totalPages || 1)
 
-    console.log(`[OPhim18 Sync] Syncing pages ${startPage} to ${actualEnd} (total: ${pagination?.totalItems || 0} movies in catalog)`)
+    console.log(`${LOG_PREFIX} Syncing pages ${startPage} to ${actualEnd} (total: ${pagination?.totalItems || 0} movies in catalog)`)
 
     // 2. Process pages
     for (let page = startPage; page <= actualEnd; page++) {
@@ -366,13 +266,13 @@ export async function syncCatalog(
           }
 
           if (stats.total % 10 === 0) {
-            console.log(`[OPhim18 Sync] Progress: ${stats.total} total, ${stats.processed} synced, ${stats.failed} failed`)
+            console.log(`${LOG_PREFIX} Progress: ${stats.total} total, ${stats.processed} synced, ${stats.failed} failed`)
           }
 
         } catch (error) {
           stats.failed++
           const errorMsg = error instanceof Error ? error.message : String(error)
-          console.error(`[OPhim18 Sync] Error syncing ${item.slug}: ${errorMsg}`)
+          console.error(`${LOG_PREFIX} Error syncing ${item.slug}: ${errorMsg}`)
 
           results.push({
             action: 'fail',
@@ -388,7 +288,7 @@ export async function syncCatalog(
 
     await completeSyncJob(job.id, stats)
 
-    console.log(`\n[OPhim18 Sync] ✅ Completed!`)
+    console.log(`\n${LOG_PREFIX} ✅ Completed!`)
     console.log(`  Total: ${stats.total}`)
     console.log(`  Synced: ${stats.processed}`)
     console.log(`  Failed: ${stats.failed}`)
@@ -397,15 +297,11 @@ export async function syncCatalog(
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error)
     await failSyncJob(job.id, errorMsg)
-    console.error(`[OPhim18 Sync] ❌ Job failed: ${errorMsg}`)
+    console.error(`${LOG_PREFIX} ❌ Job failed: ${errorMsg}`)
   }
 
   return { jobId: job.id, results }
 }
 
-/**
- * Disconnect Prisma when script is done.
- */
-export async function disconnect() {
-  await prisma.$disconnect()
-}
+// Re-export disconnect from shared helpers
+export { disconnect }

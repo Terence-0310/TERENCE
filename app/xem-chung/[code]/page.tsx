@@ -110,7 +110,7 @@ export default function WatchRoomPage() {
   const [error, setError] = useState<string | null>(null)
 
   // ── UI state ──
-  const [panelTab, setPanelTab] = useState<'chat' | 'members' | 'call'>('chat')
+  const [panelTab, setPanelTab] = useState<'chat' | 'members'>('chat')
   const [showPanel, setShowPanel] = useState(true)
   const [chatInput, setChatInput] = useState('')
   const [copied, setCopied] = useState(false)
@@ -679,15 +679,69 @@ export default function WatchRoomPage() {
         {/* ── Side Panel ── */}
         {showPanel && (
           <div className="w-80 lg:w-96 flex flex-col border-l border-white/[0.06] bg-[#0B1120] shrink-0">
-            {/* Tabs */}
-            <div className="flex border-b border-white/[0.06]">
-              {(['chat', 'members', 'call'] as const).map((tab) => (
+            
+            {/* ── CALL AREA (ALWAYS ON TOP) ── */}
+            <div className="border-b border-white/[0.06]">
+              {liveKit.connectionState === 'disconnected' && (
+                <div className="px-4 py-3 flex gap-2">
+                  <button onClick={() => liveKit.connect(true, true)}
+                    className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-[#0B2520] border border-[#145C4B] py-2.5 text-xs font-bold text-[#2DD4BF] transition hover:bg-[#145C4B]/50"
+                  >
+                    <Video className="w-4 h-4" /> Bật Video
+                  </button>
+                  <button onClick={() => liveKit.connect(true, false)}
+                    className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-white/5 border border-white/[0.08] py-2.5 text-xs font-medium text-white/60 transition hover:bg-white/10"
+                  >
+                    <Mic className="w-4 h-4" /> Chỉ Loa thoại
+                  </button>
+                </div>
+              )}
+
+              {liveKit.connectionState === 'connecting' && (
+                <div className="text-center py-4 space-y-2">
+                  <Loader2 className="w-5 h-5 text-primary animate-spin mx-auto" />
+                  <p className="text-[10px] text-white/40">Đang kết nối...</p>
+                </div>
+              )}
+
+              {liveKit.connectionState === 'connected' && (
+                <div className="p-3 space-y-2 bg-[#060A14]">
+                  <div className={`grid gap-2 ${liveKit.remoteParticipants.length === 0 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                    <VideoTile name={user.current.name} isMuted={liveKit.isMuted} isCameraOn={liveKit.isCameraOn}
+                      videoTrack={liveKit.localParticipant?.videoTrack} isSpeaking={liveKit.localParticipant?.isSpeaking ?? false} isLocal />
+                    {liveKit.remoteParticipants.map((p) => (
+                      <VideoTile key={p.identity} name={p.name} isMuted={p.isMuted} isCameraOn={p.isCameraOn}
+                        videoTrack={p.videoTrack} audioTrack={p.audioTrack} isSpeaking={p.isSpeaking} />
+                    ))}
+                  </div>
+
+                  <div className="flex items-center justify-center gap-2">
+                    <button onClick={liveKit.toggleMic}
+                      className={`h-9 w-9 flex items-center justify-center rounded-full transition ${liveKit.isMuted ? 'bg-red-500/20 text-red-400' : 'bg-white/10 text-white/70 hover:bg-white/15'}`}>
+                      {liveKit.isMuted ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
+                    </button>
+                    <button onClick={liveKit.toggleCamera}
+                      className={`h-9 w-9 flex items-center justify-center rounded-full transition ${!liveKit.isCameraOn ? 'bg-red-500/20 text-red-400' : 'bg-white/10 text-white/70 hover:bg-white/15'}`}>
+                      {liveKit.isCameraOn ? <Video className="h-3.5 w-3.5" /> : <VideoOff className="h-3.5 w-3.5" />}
+                    </button>
+                    <button onClick={liveKit.disconnect}
+                      className="h-9 w-9 flex items-center justify-center rounded-full bg-red-500 text-white hover:bg-red-600 transition shadow-lg shadow-red-500/30">
+                      <PhoneOff className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+              )}
+              {liveKit.error && <p className="px-4 pb-2 text-[10px] text-center text-red-400/80">{liveKit.error}</p>}
+            </div>
+
+            {/* Tabs (Only Chat & Members now) */}
+            <div className="flex border-b border-white/[0.06] shrink-0">
+              {(['chat', 'members'] as const).map((tab) => (
                 <button key={tab} onClick={() => setPanelTab(tab)}
-                  className={`flex-1 px-3 py-2.5 text-xs font-medium transition ${panelTab === tab ? 'border-b-2 border-primary text-primary' : 'text-white/40 hover:text-white/60'}`}
+                  className={`flex-1 px-3 py-2 text-xs font-medium transition ${panelTab === tab ? 'border-b-2 border-primary text-primary' : 'text-white/40 hover:text-white/60'}`}
                 >
                   {tab === 'chat' && <><MessageCircle className="inline w-3.5 h-3.5 mr-1" />Chat</>}
-                  {tab === 'members' && <><Users className="inline w-3.5 h-3.5 mr-1" />({onlineCount})</>}
-                  {tab === 'call' && <><Phone className="inline w-3.5 h-3.5 mr-1" />Call</>}
+                  {tab === 'members' && <><Users className="inline w-3.5 h-3.5 mr-1" />Thành viên ({onlineCount})</>}
                 </button>
               ))}
             </div>
@@ -795,67 +849,6 @@ export default function WatchRoomPage() {
                 </div>
               )}
 
-              {/* ── CALL ── */}
-              {panelTab === 'call' && (
-                <div className="px-4 py-4 space-y-4">
-                  {liveKit.connectionState === 'disconnected' && (
-                    <div className="text-center space-y-3 py-6">
-                      <div className="w-14 h-14 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto">
-                        <Phone className="w-6 h-6 text-emerald-400" />
-                      </div>
-                      <p className="text-sm font-medium text-white">Cuộc gọi nhóm</p>
-                      <p className="text-xs text-white/40">Nói chuyện trực tiếp trong phòng</p>
-                      <button onClick={() => liveKit.connect(true, true)}
-                        className="w-full rounded-xl bg-emerald-500 py-2.5 text-sm font-bold text-white transition hover:bg-emerald-400 shadow-lg shadow-emerald-500/20"
-                      >
-                        Tham gia (Audio + Video)
-                      </button>
-                      <button onClick={() => liveKit.connect(true, false)}
-                        className="w-full rounded-xl bg-white/5 border border-white/[0.08] py-2.5 text-xs font-medium text-white/60 transition hover:bg-white/10"
-                      >
-                        Chỉ Audio
-                      </button>
-                      {liveKit.error && <p className="text-xs text-red-400/80">{liveKit.error}</p>}
-                    </div>
-                  )}
-
-                  {liveKit.connectionState === 'connecting' && (
-                    <div className="text-center py-8 space-y-3">
-                      <Loader2 className="w-8 h-8 text-primary animate-spin mx-auto" />
-                      <p className="text-xs text-white/40">Đang kết nối...</p>
-                    </div>
-                  )}
-
-                  {liveKit.connectionState === 'connected' && (
-                    <div className="space-y-3">
-                      <div className={`grid gap-2 ${liveKit.remoteParticipants.length === 0 ? 'grid-cols-1' : 'grid-cols-2'}`}>
-                        <VideoTile name={user.current.name} isMuted={liveKit.isMuted} isCameraOn={liveKit.isCameraOn}
-                          videoTrack={liveKit.localParticipant?.videoTrack} isSpeaking={liveKit.localParticipant?.isSpeaking ?? false} isLocal />
-                        {liveKit.remoteParticipants.map((p) => (
-                          <VideoTile key={p.identity} name={p.name} isMuted={p.isMuted} isCameraOn={p.isCameraOn}
-                            videoTrack={p.videoTrack} audioTrack={p.audioTrack} isSpeaking={p.isSpeaking} />
-                        ))}
-                      </div>
-
-                      <div className="flex items-center justify-center gap-2 pt-1">
-                        <button onClick={liveKit.toggleMic}
-                          className={`h-10 w-10 flex items-center justify-center rounded-full transition ${liveKit.isMuted ? 'bg-red-500/20 text-red-400' : 'bg-white/10 text-white/70 hover:bg-white/15'}`}>
-                          {liveKit.isMuted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-                        </button>
-                        <button onClick={liveKit.toggleCamera}
-                          className={`h-10 w-10 flex items-center justify-center rounded-full transition ${!liveKit.isCameraOn ? 'bg-red-500/20 text-red-400' : 'bg-white/10 text-white/70 hover:bg-white/15'}`}>
-                          {liveKit.isCameraOn ? <Video className="h-4 w-4" /> : <VideoOff className="h-4 w-4" />}
-                        </button>
-                        <button onClick={liveKit.disconnect}
-                          className="h-10 w-10 flex items-center justify-center rounded-full bg-red-500 text-white hover:bg-red-600 transition shadow-lg shadow-red-500/30">
-                          <PhoneOff className="h-4 w-4" />
-                        </button>
-                      </div>
-                      <p className="text-center text-[10px] text-white/30">{liveKit.remoteParticipants.length + 1} người trong cuộc gọi</p>
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
 
             {/* Panel footer */}

@@ -20,6 +20,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     }
 
     const room = await service.getRoom(roomCode.toUpperCase())
+    const messages = await service.getMessages(roomCode.toUpperCase(), 50)
 
     return NextResponse.json({
       room: {
@@ -31,6 +32,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
         episodeId: room.episodeId,
         hostUserId: room.hostUserId,
         host: room.host,
+        maxMembers: room.maxMembers,
+        roomType: room.maxMembers <= 2 ? 'duo' : room.maxMembers <= 4 ? 'small_group' : 'group_chat',
         createdAt: room.createdAt,
         lastSyncedAt: room.lastSyncedAt,
       },
@@ -51,6 +54,15 @@ export async function GET(request: NextRequest, context: RouteContext) {
         version: room.state.version,
         updatedAt: room.state.updatedAt,
       } : null,
+      messages: messages.map((m) => ({
+        id: m.id,
+        roomId: m.roomId,
+        senderId: m.participantId,
+        senderName: m.senderName,
+        type: m.type,
+        content: m.content,
+        createdAt: m.createdAt,
+      })),
     })
   } catch (err: unknown) {
     if (err instanceof WatchPartyError) {

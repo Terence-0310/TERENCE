@@ -97,8 +97,12 @@ export default function DashboardPage() {
                   </div>
                 </div>
                 <div className="mt-4">
-                  <p className="text-2xl font-bold">{loading ? '...' : stat.value}</p>
-                  <p className="text-sm text-muted-foreground">{stat.title}</p>
+                  {loading ? (
+                    <div className="h-8 w-20 rounded bg-muted animate-pulse" />
+                  ) : (
+                    <p className="text-2xl font-bold">{stat.value}</p>
+                  )}
+                  <p className="text-sm text-muted-foreground mt-1">{stat.title}</p>
                 </div>
               </CardContent>
             </Card>
@@ -113,7 +117,7 @@ export default function DashboardPage() {
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-lg font-semibold">Phim mới cập nhật</CardTitle>
             <Link href="/dashboard/movies" className="text-sm text-primary hover:underline">
-              Xem tat ca
+              Xem tất cả
             </Link>
           </CardHeader>
           <CardContent>
@@ -150,7 +154,7 @@ export default function DashboardPage() {
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-lg font-semibold">Người dùng tích cực</CardTitle>
             <Link href="/dashboard/users" className="text-sm text-primary hover:underline">
-              Xem tat ca
+              Xem tất cả
             </Link>
           </CardHeader>
           <CardContent>
@@ -169,7 +173,7 @@ export default function DashboardPage() {
                       <p className="text-xs text-muted-foreground">{u.email}</p>
                     </div>
                   </div>
-                    <div className="text-right">
+                  <div className="text-right">
                     <p className="font-semibold">{u.watched}</p>
                     <p className="text-xs text-muted-foreground">phim đã xem</p>
                   </div>

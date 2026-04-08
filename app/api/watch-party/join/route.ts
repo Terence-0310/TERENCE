@@ -32,6 +32,8 @@ export async function POST(request: NextRequest) {
         status: result.room.status,
         movieId: result.room.movieId,
         episodeId: result.room.episodeId,
+        maxMembers: result.room.maxMembers,
+        roomType: result.room.maxMembers <= 2 ? 'duo' : result.room.maxMembers <= 4 ? 'small_group' : 'group_chat',
       },
       participant: {
         id: result.participant.id,

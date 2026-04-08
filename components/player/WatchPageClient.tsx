@@ -7,7 +7,7 @@
 // then passes it to HLSPlayer for playback.
 // Wraps player with WatchPartyOverlay for watch party features.
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { HLSPlayer } from '@/components/player/HLSPlayer'
 import { WatchPartyOverlay } from '@/components/watch-party/WatchPartyOverlay'
 import type { EpisodePlaybackData } from '@/lib/player/types'
@@ -21,6 +21,7 @@ interface WatchPageClientProps {
   movieTitle: string
   posterUrl?: string
   thumbUrl?: string
+  trailerUrl?: string
   onEpisodeChange?: (episodeSlug: string) => void
   /** Additional servers from multi-server data */
   additionalServers?: PlayerServer[]
@@ -33,9 +34,11 @@ export function WatchPageClient({
   movieTitle,
   posterUrl,
   thumbUrl,
+  trailerUrl,
   additionalServers,
 }: WatchPageClientProps) {
   const [loaded, setLoaded] = useState(false)
+  const videoRef = useRef<HTMLVideoElement>(null)
 
   // Use the source adapter to normalize DB playback data
   const { servers } = mapDbPlaybackToPlayerSources(episodeData, additionalServers)
@@ -52,9 +55,8 @@ export function WatchPageClient({
     setLoaded(true)
   }, [])
 
-  // Handle next episode navigation
   const handleNextEpisode = useCallback(() => {
-    if (episodeData.nextEpisode) {
+    if (episodeData.nextEpisode && (episodeData.nextEpisode.episodeSlug || episodeData.nextEpisode.episodeNumber)) {
       const slug = episodeData.nextEpisode.episodeSlug || `tap-${episodeData.nextEpisode.episodeNumber}`
       window.location.href = `/watch/${movieSlug}?ep=${slug}`
     }
@@ -76,11 +78,14 @@ export function WatchPageClient({
       movieId={movieId}
       movieSlug={movieSlug}
       movieTitle={movieTitle}
+      episodeId={(episodeData.episode.id && !episodeData.episode.id.startsWith('legacy-')) ? episodeData.episode.id : undefined}
       episodeSlug={currentEpSlug}
       episodeName={currentEpName}
       posterUrl={posterUrl}
+      videoRef={videoRef}
     >
       <HLSPlayer
+        videoRef={videoRef}
         servers={servers}
         movieId={movieId}
         episodeSlug={currentEpSlug}
@@ -93,6 +98,7 @@ export function WatchPageClient({
           movieTitle,
           posterUrl,
           thumbUrl,
+          trailerUrl,
         }}
       />
     </WatchPartyOverlay>

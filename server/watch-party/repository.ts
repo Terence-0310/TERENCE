@@ -15,6 +15,7 @@ export async function createRoomRecord(data: {
   movieId?: string | null
   episodeId?: string | null
   shareCode?: string | null
+  maxMembers?: number
 }) {
   return prisma.watchPartyRoom.create({
     data: {
@@ -24,6 +25,7 @@ export async function createRoomRecord(data: {
       movieId: data.movieId ?? null,
       episodeId: data.episodeId ?? null,
       shareCode: data.shareCode ?? null,
+      maxMembers: data.maxMembers ?? 10,
       status: 'ACTIVE',
     },
   })

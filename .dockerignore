@@ -1,10 +1,49 @@
+# ── Build artifacts ──
 node_modules
 .next
+.turbo
+
+# ── Version control ──
 .git
 .gitignore
-*.md
-.env*.local
+
+# ── IDE / Editor ──
 .vscode
 .idea
+*.swp
+*.swo
+
+# ── Local env (secrets stay on host) ──
+.env*.local
+
+# ── Documentation ──
+*.md
+docs/
+.ai/
+
+# ── Legacy SQLite ──
 *.db
 *.db-journal
+
+# ── Tests / Coverage ──
+tests/
+coverage/
+vitest.config.ts
+.vitest/
+
+# ── OS files ──
+.DS_Store
+Thumbs.db
+
+# ── Deploy scripts (not needed in image) ──
+deploy/
+deploy.sh
+ecosystem.config.js
+
+# ── Docker files (prevent recursive copy) ──
+Dockerfile
+docker-compose.yml
+docker-entrypoint.sh
+
+# ── Misc ──
+tsconfig.tsbuildinfo

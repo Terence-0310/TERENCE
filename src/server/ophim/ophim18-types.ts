@@ -155,65 +155,13 @@ export interface OPhim18SearchResponse {
   }
 }
 
-// ─── Mapped types for Prisma upsert ─────────────────────────────
+// ─── Shared Mapped Types (re-exported from sync-types.ts) ───────
+// Sprint 4B: Single source of truth for mapped types shared with OPhim.
+export type {
+  MappedMovie,
+  MappedEpisode,
+  MappedCategory,
+  MappedCountry,
+  SyncResult,
+} from './sync-types'
 
-export interface MappedMovie {
-  ophimId: string
-  slug: string
-  title: string
-  originalTitle: string | null
-  description: string | null
-  contentType: string
-  status: string
-  quality: string | null
-  language: string | null
-  year: number | null
-  episodeCurrent: string | null
-  episodeTotal: number | null
-  trailerUrl: string | null
-  thumbUrl: string | null
-  posterUrl: string | null
-  isCopyright: boolean
-  actorText: string | null
-  directorText: string | null
-  categoryText: string | null
-  countryText: string | null
-  tmdbId: number | null
-  imdbId: string | null
-  metadataSource: string
-  sourceStatus: string
-}
-
-export interface MappedEpisode {
-  sourceName: string
-  serverName: string
-  episodeName: string
-  episodeSlug: string
-  episodeNumber: number
-  episodeOrder: number
-  streamType: string
-  streamUrl: string | null
-  sourceUrl: string | null
-  status: string
-  isActive: boolean
-}
-
-export interface MappedCategory {
-  name: string
-  slug: string
-}
-
-export interface MappedCountry {
-  name: string
-  slug: string
-}
-
-export interface SyncResult {
-  action: 'create' | 'update' | 'skip' | 'fail'
-  movieSlug: string
-  movieTitle: string
-  movieId?: string
-  episodeCount?: number
-  message?: string
-  error?: string
-}

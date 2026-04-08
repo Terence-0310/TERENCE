@@ -17,20 +17,37 @@ import {
   ChevronDown,
   Video,
   FileText,
+  Coins,
+  Tag,
+  MessageSquare,
+  Newspaper,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/contexts/auth-context'
 import { TerenceLogo } from '@/components/terence-logo'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 const SIDEBAR_ITEMS = [
   { icon: LayoutDashboard, label: 'Tổng quan', href: '/dashboard' },
   { icon: Film, label: 'Quản lý phim', href: '/dashboard/movies' },
   { icon: Video, label: 'Short Video', href: '/dashboard/shorts' },
+  { icon: Tag, label: 'Nội dung', href: '/dashboard/content' },
+  { icon: MessageSquare, label: 'Đánh giá', href: '/dashboard/reviews' },
+  { icon: Newspaper, label: 'Tin tức', href: '/dashboard/news' },
   { icon: Users, label: 'Người dùng', href: '/dashboard/users' },
+  { icon: Coins, label: 'TCoin & Payments', href: '/dashboard/tcoin' },
   { icon: BarChart3, label: 'Thống kê', href: '/dashboard/analytics' },
   { icon: FileText, label: 'Nhật ký', href: '/dashboard/logs' },
   { icon: Settings, label: 'Cài đặt', href: '/dashboard/settings' },
 ]
+
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -72,7 +89,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 p-4 space-y-1">
+        <nav className="flex-1 p-4 space-y-1 overflow-y-auto custom-scrollbar">
           {SIDEBAR_ITEMS.map((item) => {
             const isActive = pathname === item.href
             return (
@@ -196,13 +213,30 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <span className="absolute top-1 right-1 w-2 h-2 bg-primary rounded-full"></span>
             </button>
             
-            <div className="hidden sm:flex items-center gap-2 ml-2 pl-2 border-l border-border">
-              <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
-                <span className="text-primary font-semibold text-sm">{user.name.charAt(0)}</span>
-              </div>
-              <span className="text-sm font-medium">{user.name}</span>
-              <ChevronDown className="w-4 h-4 text-muted-foreground" />
-            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger className="hidden sm:flex items-center gap-2 ml-2 pl-2 border-l border-border hover:bg-muted/50 p-1.5 rounded-lg transition outline-none cursor-pointer">
+                <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+                  <span className="text-primary font-semibold text-sm">{user.name.charAt(0)}</span>
+                </div>
+                <span className="text-sm font-medium">{user.name}</span>
+                <ChevronDown className="w-4 h-4 text-muted-foreground" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56 bg-card border-border">
+                <DropdownMenuLabel>Tài khoản</DropdownMenuLabel>
+                <DropdownMenuSeparator className="bg-border" />
+                <DropdownMenuItem onClick={() => router.push('/')} className="cursor-pointer">
+                  Trang chủ xem phim
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => router.push('/dashboard/settings')} className="cursor-pointer">
+                  Cài đặt
+                </DropdownMenuItem>
+                <DropdownMenuSeparator className="bg-border" />
+                <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer">
+                  <LogOut className="w-4 h-4 mr-2" />
+                  Đăng xuất
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </header>
 

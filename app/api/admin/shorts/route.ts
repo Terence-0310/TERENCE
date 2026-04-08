@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
     where.deletedAt = null
   }
 
-  if (search) where.OR = [{ title: { contains: search } }, { slug: { contains: search } }, { hashtags: { contains: search } }]
+  if (search) where.OR = [{ title: { contains: search, mode: 'insensitive' } }, { slug: { contains: search, mode: 'insensitive' } }, { hashtags: { contains: search, mode: 'insensitive' } }]
   if (status) where.status = status
 
   // Sort

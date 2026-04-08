@@ -294,7 +294,6 @@ export async function getMoviePlaybackByTitle(
   if (bySlug) return getMoviePlaybackData(bySlug.id, episodeSlug)
 
   // 2. Case-insensitive title match
-  // SQLite doesn't have native ilike, but LIKE is case-insensitive for ASCII
   const byTitle = await prisma.movie.findFirst({
     where: {
       title: { equals: title },
@@ -326,9 +325,10 @@ export async function getMoviePlaybackByTitle(
   }
 
   // 4. Title contains search — find DB movies whose title appears in search title
+  const searchTitle = title.split(':')[0].split('(')[0].trim()
   const byContains = await prisma.movie.findFirst({
     where: {
-      title: { contains: title.split(':')[0].split('(')[0].trim() },
+      title: { contains: searchTitle, mode: 'insensitive' } as any,
       isActive: true,
       episodes: { some: { streamUrl: { not: null } } },
     },

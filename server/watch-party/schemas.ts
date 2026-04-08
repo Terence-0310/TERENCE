@@ -36,6 +36,7 @@ export const createRoomSchema = z.object({
     .max(50)
     .transform((v) => v.trim()),
   userId: z.string().nullable().optional(),
+  maxMembers: z.number().int().min(2).max(36).optional().default(10),
 })
 
 export type CreateRoomBody = z.infer<typeof createRoomSchema>

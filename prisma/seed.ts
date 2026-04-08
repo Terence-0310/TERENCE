@@ -4,7 +4,7 @@ import bcrypt from 'bcryptjs'
 const prisma = new PrismaClient()
 
 async function main() {
-  console.log('🌱 Seeding database...')
+  console.log('🌱 Seeding database (Schema v2)...')
 
   // ── Users ──
   const adminHash = await bcrypt.hash('Admin@12345', 12)
@@ -29,9 +29,9 @@ async function main() {
     create: { email: 'staff@terence.vn', name: 'Staff Demo', passwordHash: staffHash, role: 'staff', isActive: true },
   })
 
-  // ── Categories (Genres) ──
-  console.log('   📂 Seeding categories...')
-  const categoryData = [
+  // ── Genres (new — replaces legacy Category) ──
+  console.log('   🎭 Seeding genres...')
+  const genreData = [
     { name: 'Hành Động', slug: 'hanh-dong', tmdbId: 28 },
     { name: 'Phiêu Lưu', slug: 'phieu-luu', tmdbId: 12 },
     { name: 'Hoạt Hình', slug: 'hoat-hinh', tmdbId: 16 },
@@ -55,8 +55,20 @@ async function main() {
     { name: 'Tình Cảm', slug: 'tinh-cam', tmdbId: null },
   ]
 
+  const genreMap: Record<string, string> = {}
+  for (const g of genreData) {
+    const created = await prisma.genre.upsert({
+      where: { slug: g.slug },
+      update: { name: g.name, tmdbId: g.tmdbId },
+      create: { name: g.name, slug: g.slug, tmdbId: g.tmdbId },
+    })
+    genreMap[g.slug] = created.id
+  }
+
+  // ── Categories (legacy — mirror of genres for backward compat) ──
+  console.log('   📂 Seeding categories (legacy)...')
   const categories: Record<string, string> = {}
-  for (const cat of categoryData) {
+  for (const cat of genreData) {
     const created = await prisma.category.upsert({
       where: { slug: cat.slug },
       update: { name: cat.name, tmdbId: cat.tmdbId },
@@ -121,7 +133,7 @@ async function main() {
     peopleMap[p.slug] = created.id
   }
 
-  // ── Movies (expanded schema) ──
+  // ── Movies ──
   console.log('   🎬 Seeding movies...')
   const movieData = [
     {
@@ -131,7 +143,7 @@ async function main() {
       directorText: 'Nguyễn Quang Dũng', actorText: 'Trấn Thành, Thu Trang',
       countryText: 'Việt Nam', language: 'vi', ageRating: 'C16',
       shortDescription: 'Cuộc chiến trên bầu trời',
-      categorySlugs: ['hanh-dong', 'phieu-luu'],
+      genreSlugs: ['hanh-dong', 'phieu-luu'],
       countrySlugs: ['viet-nam'],
       peopleSlugs: [
         { slug: 'nguyen-quang-dung', role: 'director' },
@@ -144,7 +156,7 @@ async function main() {
       categoryText: 'Hành Động, Tâm Lý', year: 2026, quality: 'HD', viewCount: 9876,
       isPublished: true, isActive: true, sourceStatus: 'active',
       directorText: 'Victor Vũ', countryText: 'Việt Nam', language: 'vi', ageRating: 'C18',
-      categorySlugs: ['hanh-dong', 'tam-ly'],
+      genreSlugs: ['hanh-dong', 'tam-ly'],
       countrySlugs: ['viet-nam'],
       peopleSlugs: [{ slug: 'victor-vu', role: 'director' }],
     },
@@ -153,44 +165,17 @@ async function main() {
       categoryText: 'Tâm Lý, Chính Kịch', year: 2025, quality: 'FHD', viewCount: 8765,
       isPublished: true, isActive: true, sourceStatus: 'active',
       countryText: 'Hàn Quốc', language: 'ko',
-      categorySlugs: ['tam-ly', 'chinh-kich'],
+      genreSlugs: ['tam-ly', 'chinh-kich'],
       countrySlugs: ['han-quoc'],
       peopleSlugs: [],
     },
     {
-      title: 'Bàn Tay Diệt Quỷ', slug: 'ban-tay-diet-quy', contentType: 'movie', status: 'draft',
-      categoryText: 'Kinh Dị, Hành Động', year: 2026, quality: 'HD', viewCount: 7654,
-      isActive: true, sourceStatus: 'pending',
-      countryText: 'Việt Nam', language: 'vi', ageRating: 'C18',
-      categorySlugs: ['kinh-di', 'hanh-dong'],
-      countrySlugs: ['viet-nam'],
-      peopleSlugs: [],
-    },
-    {
-      title: 'Chòm Sao Thiên Hậu', slug: 'chom-sao-thien-hau', contentType: 'series', status: 'published',
-      categoryText: 'Tâm Lý, Tình Cảm', year: 2026, quality: 'FHD', viewCount: 6543,
-      isTrending: true, isPublished: true, isActive: true, sourceStatus: 'active',
-      countryText: 'Trung Quốc', language: 'zh',
-      categorySlugs: ['tam-ly', 'tinh-cam'],
-      countrySlugs: ['trung-quoc'],
-      peopleSlugs: [],
-    },
-    {
-      title: 'Đừng Quên Anh Yêu Em', slug: 'dung-quen-anh-yeu-em', contentType: 'movie', status: 'published',
-      categoryText: 'Lãng Mạn, Tâm Lý', year: 2025, quality: 'HD', viewCount: 5432,
-      isPublished: true, isActive: true, sourceStatus: 'active',
-      countryText: 'Việt Nam', language: 'vi',
-      categorySlugs: ['lang-man', 'tam-ly'],
-      countrySlugs: ['viet-nam'],
-      peopleSlugs: [],
-    },
-    {
-      title: 'Bước Vào Tim Em', slug: 'buoc-vao-tim-em', contentType: 'series', status: 'hidden',
-      categoryText: 'Tâm Lý, Chính Kịch', year: 2025, quality: 'FHD', viewCount: 4321,
-      isActive: true, sourceStatus: 'active',
-      countryText: 'Hàn Quốc', language: 'ko',
-      categorySlugs: ['tam-ly', 'chinh-kich'],
-      countrySlugs: ['han-quoc'],
+      title: 'Demon Slayer S5', slug: 'demon-slayer-s5', contentType: 'anime', status: 'published',
+      categoryText: 'Hoạt Hình, Hành Động', year: 2026, quality: 'FHD', viewCount: 25000,
+      isTrending: true, isFeatured: true, isPublished: true, isActive: true, sourceStatus: 'active',
+      countryText: 'Nhật Bản', language: 'ja', ageRating: 'C13',
+      genreSlugs: ['hoat-hinh', 'hanh-dong'],
+      countrySlugs: ['nhat-ban'],
       peopleSlugs: [],
     },
     {
@@ -198,32 +183,14 @@ async function main() {
       categoryText: 'Hành Động, Hài', year: 2026, quality: '4K', viewCount: 3210,
       isRecommended: true, isPublished: true, isActive: true, sourceStatus: 'active',
       directorText: 'Lý Hải', countryText: 'Việt Nam', language: 'vi',
-      categorySlugs: ['hanh-dong', 'hai'],
+      genreSlugs: ['hanh-dong', 'hai'],
       countrySlugs: ['viet-nam'],
       peopleSlugs: [{ slug: 'ly-hai', role: 'director' }],
-    },
-    {
-      title: 'Demon Slayer S5', slug: 'demon-slayer-s5', contentType: 'anime', status: 'published',
-      categoryText: 'Hoạt Hình, Hành Động', year: 2026, quality: 'FHD', viewCount: 25000,
-      isTrending: true, isFeatured: true, isPublished: true, isActive: true, sourceStatus: 'active',
-      countryText: 'Nhật Bản', language: 'ja', ageRating: 'C13',
-      categorySlugs: ['hoat-hinh', 'hanh-dong'],
-      countrySlugs: ['nhat-ban'],
-      peopleSlugs: [],
-    },
-    {
-      title: 'Solo Leveling S2', slug: 'solo-leveling-s2', contentType: 'anime', status: 'draft',
-      categoryText: 'Hoạt Hình, Giả Tưởng', year: 2026, quality: 'FHD', viewCount: 18000,
-      isActive: true, sourceStatus: 'missing',
-      countryText: 'Nhật Bản', language: 'ja',
-      categorySlugs: ['hoat-hinh', 'gia-tuong'],
-      countrySlugs: ['nhat-ban'],
-      peopleSlugs: [],
     },
   ]
 
   for (const m of movieData) {
-    const { categorySlugs, countrySlugs, peopleSlugs, ...movieFields } = m
+    const { genreSlugs, countrySlugs, peopleSlugs, ...movieFields } = m
     const movie = await prisma.movie.upsert({
       where: { slug: m.slug },
       update: { viewCount: m.viewCount, status: m.status },
@@ -234,13 +201,22 @@ async function main() {
       },
     })
 
-    // Link categories
-    for (const catSlug of categorySlugs) {
+    // Link genres (new)
+    for (const gSlug of genreSlugs) {
+      if (genreMap[gSlug]) {
+        await prisma.movieGenre.upsert({
+          where: { movieId_genreId: { movieId: movie.id, genreId: genreMap[gSlug] } },
+          update: {},
+          create: { movieId: movie.id, genreId: genreMap[gSlug] },
+        })
+      }
+    }
+
+    // Link categories (legacy compat)
+    for (const catSlug of genreSlugs) {
       if (categories[catSlug]) {
         await prisma.movieCategory.upsert({
-          where: {
-            movieId_categoryId: { movieId: movie.id, categoryId: categories[catSlug] },
-          },
+          where: { movieId_categoryId: { movieId: movie.id, categoryId: categories[catSlug] } },
           update: {},
           create: { movieId: movie.id, categoryId: categories[catSlug] },
         })
@@ -251,9 +227,7 @@ async function main() {
     for (const cSlug of countrySlugs) {
       if (countryMap[cSlug]) {
         await prisma.movieCountry.upsert({
-          where: {
-            movieId_countryId: { movieId: movie.id, countryId: countryMap[cSlug] },
-          },
+          where: { movieId_countryId: { movieId: movie.id, countryId: countryMap[cSlug] } },
           update: {},
           create: { movieId: movie.id, countryId: countryMap[cSlug] },
         })
@@ -283,14 +257,13 @@ async function main() {
     }
   }
 
-  // ── Episodes for series/anime (only seed if movie has NO episodes yet) ──
+  // ── Episodes for series/anime ──
   console.log('   📺 Seeding episodes...')
   const seriesMovies = await prisma.movie.findMany({
     where: { contentType: { in: ['series', 'anime'] } },
     include: { _count: { select: { episodes: true } } },
   })
   for (const s of seriesMovies) {
-    // Skip movies that already have episodes (e.g. from OPhim sync)
     if (s._count.episodes > 0) {
       console.log(`     ⏭  Skipping "${s.title}" — already has ${s._count.episodes} episodes`)
       continue
@@ -303,14 +276,10 @@ async function main() {
         data: {
           id: epId,
           movieId: s.id,
-          episodeNumber: ep,
-          episodeOrder: ep,
-          episodeName: `Tập ${ep}`,
-          episodeSlug: `tap-${ep}`,
-          title: `Tập ${ep}`,
-          slug: epSlug,
-          sourceName: 'Manual',
-          serverName: 'Server #1',
+          episodeNumber: ep, episodeOrder: ep,
+          episodeName: `Tập ${ep}`, episodeSlug: `tap-${ep}`,
+          title: `Tập ${ep}`, slug: epSlug,
+          sourceName: 'Manual', serverName: 'Server #1',
           streamType: 'hls',
           streamUrl: process.env.DEMO_HLS_URL || 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
           sourceUrl: process.env.DEMO_HLS_URL || 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
@@ -324,22 +293,15 @@ async function main() {
     }
     await prisma.movie.update({
       where: { id: s.id },
-      data: {
-        episodeCurrent: `${epCount}/${epCount}`,
-        episodeTotal: epCount,
-      },
+      data: { episodeCurrent: `${epCount}/${epCount}`, episodeTotal: epCount },
     })
   }
 
-  // ── HLS Demo: standalone movie episodes + video sources + subtitles ──
-  console.log('   🎬 Seeding HLS demo data...')
-
-  // Public HLS test streams (legal, free for testing)
+  // ── Video sources for demo ──
+  console.log('   🎬 Seeding video sources...')
   const DEMO_HLS_MAIN = process.env.DEMO_HLS_URL || 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8'
   const DEMO_HLS_BACKUP = 'https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_fmp4/master.m3u8'
-  const DEMO_SUBTITLE_EN = 'https://raw.githubusercontent.com/nicmart/x36xhzz-captions/main/x36xhzz.en.vtt'
 
-  // 1. Seed playable episodes for standalone movies (only if no episode exists yet)
   const demoStandaloneMovies = await prisma.movie.findMany({
     where: { contentType: 'movie', isPublished: true, isActive: true },
     include: { _count: { select: { episodes: true } } },
@@ -347,169 +309,66 @@ async function main() {
   })
 
   for (const demoMovie of demoStandaloneMovies) {
-    // Skip if movie already has episodes
-    if (demoMovie._count.episodes > 0) {
-      console.log(`     ⏭  Skipping "${demoMovie.title}" — already has episodes`)
-      continue
-    }
-
+    if (demoMovie._count.episodes > 0) continue
     const demoEpId = `demo-ep-${demoMovie.id}`
     const ep = await prisma.episode.create({
       data: {
-        id: demoEpId,
-        movieId: demoMovie.id,
-        episodeNumber: 1,
-        episodeOrder: 1,
-        episodeName: 'Tập Full',
-        episodeSlug: 'tap-full',
-        title: demoMovie.title,
-        slug: `${demoMovie.slug}-full`,
-        sourceName: 'Demo',
-        serverName: 'Server HLS',
-        streamType: 'hls',
-        streamUrl: DEMO_HLS_MAIN,
-        sourceUrl: DEMO_HLS_MAIN,
-        sortOrder: 1,
-        status: 'active',
-        isActive: true,
-        isPublished: true,
-        duration: 634,
+        id: demoEpId, movieId: demoMovie.id,
+        episodeNumber: 1, episodeOrder: 1,
+        episodeName: 'Tập Full', episodeSlug: 'tap-full',
+        title: demoMovie.title, slug: `${demoMovie.slug}-full`,
+        sourceName: 'Demo', serverName: 'Server HLS',
+        streamType: 'hls', streamUrl: DEMO_HLS_MAIN, sourceUrl: DEMO_HLS_MAIN,
+        sortOrder: 1, status: 'active', isActive: true, isPublished: true, duration: 634,
       },
     }).catch(() => null)
 
     if (!ep) continue
 
-    // Add VideoSource records
     await prisma.videoSource.create({
       data: {
-        id: `demo-src-main-${demoMovie.id}`,
-        episodeId: demoEpId,
-        sourceType: 'hls',
-        url: DEMO_HLS_MAIN,
-        label: 'Main HLS',
-        mimeType: 'application/x-mpegURL',
-        isPrimary: true,
-        isActive: true,
-        priority: 10,
+        id: `demo-src-main-${demoMovie.id}`, episodeId: demoEpId,
+        sourceType: 'hls', url: DEMO_HLS_MAIN, label: 'Main HLS',
+        mimeType: 'application/x-mpegURL', isPrimary: true, isActive: true, priority: 10,
       },
-    }).catch(() => { /* skip */ })
+    }).catch(() => {})
 
     await prisma.videoSource.create({
       data: {
-        id: `demo-src-backup-${demoMovie.id}`,
-        episodeId: demoEpId,
-        sourceType: 'hls',
-        url: DEMO_HLS_BACKUP,
-        label: 'Backup HLS',
-        mimeType: 'application/x-mpegURL',
-        isPrimary: false,
-        isActive: true,
-        priority: 5,
+        id: `demo-src-backup-${demoMovie.id}`, episodeId: demoEpId,
+        sourceType: 'hls', url: DEMO_HLS_BACKUP, label: 'Backup HLS',
+        mimeType: 'application/x-mpegURL', isPrimary: false, isActive: true, priority: 5,
       },
-    }).catch(() => { /* skip */ })
-
-    // Add subtitle tracks
-    await prisma.subtitleTrack.create({
-      data: {
-        id: `demo-sub-vi-${demoMovie.id}`,
-        episodeId: demoEpId,
-        label: 'Tiếng Việt',
-        lang: 'vi',
-        url: DEMO_SUBTITLE_EN, // placeholder — same file for demo
-        isDefault: true,
-        kind: 'subtitles',
-        isActive: true,
-      },
-    }).catch(() => { /* skip */ })
-
-    await prisma.subtitleTrack.create({
-      data: {
-        id: `demo-sub-en-${demoMovie.id}`,
-        episodeId: demoEpId,
-        label: 'English',
-        lang: 'en',
-        url: DEMO_SUBTITLE_EN,
-        isDefault: false,
-        kind: 'subtitles',
-        isActive: true,
-      },
-    }).catch(() => { /* skip */ })
+    }).catch(() => {})
   }
 
-  // 2. Add VideoSource + SubtitleTrack for first series episodes
-  const firstSeries = await prisma.movie.findFirst({
-    where: { contentType: { in: ['series', 'anime'] }, isPublished: true },
+  // ── Wallets for demo users ──
+  console.log('   💰 Seeding wallets...')
+  await prisma.wallet.upsert({
+    where: { userId: admin.id },
+    update: {},
+    create: { userId: admin.id, balance: 10000 },
   })
-  if (firstSeries) {
-    const seriesEps = await prisma.episode.findMany({
-      where: { movieId: firstSeries.id, isActive: true },
-      take: 3,
-    })
-    for (const ep of seriesEps) {
-      await prisma.videoSource.create({
-        data: {
-          id: `demo-vs-${ep.id}`,
-          episodeId: ep.id,
-          sourceType: 'hls',
-          url: DEMO_HLS_MAIN,
-          label: 'HLS 720p',
-          mimeType: 'application/x-mpegURL',
-          isPrimary: true,
-          isActive: true,
-          priority: 10,
-        },
-      }).catch(() => { /* skip if exists */ })
+  await prisma.wallet.upsert({
+    where: { userId: demoUser.id },
+    update: {},
+    create: { userId: demoUser.id, balance: 500 },
+  })
 
-      await prisma.subtitleTrack.create({
-        data: {
-          id: `demo-sub-${ep.id}`,
-          episodeId: ep.id,
-          label: 'English',
-          lang: 'en',
-          url: DEMO_SUBTITLE_EN,
-          isDefault: false,
-          kind: 'subtitles',
-          isActive: true,
-        },
-      }).catch(() => { /* skip if exists */ })
-    }
-  }
-
-  // ── Shorts ──
-  console.log('   🎞️ Seeding shorts...')
-  const shortData = [
-    { title: 'Behind the scenes: Tử Chiến', slug: 'bts-tu-chien', hashtags: '#bts,#hanh_dong', status: 'active', viewCount: 5000, likeCount: 320 },
-    { title: 'Phản ứng khán giả Hoa Máu', slug: 'reaction-hoa-mau', hashtags: '#reaction,#hoa_mau', status: 'active', viewCount: 3200, likeCount: 180 },
-    { title: 'Teaser: Chòm Sao Thiên Hậu', slug: 'teaser-chom-sao', hashtags: '#teaser,#comingsoon', status: 'draft', viewCount: 800, likeCount: 50 },
-  ]
-  for (const sh of shortData) {
-    await prisma.short.upsert({
-      where: { slug: sh.slug },
-      update: { viewCount: sh.viewCount },
-      create: { ...sh, createdBy: admin.email, description: `Short: ${sh.title}` },
-    })
-  }
-
-  // ── Movie Sources (sample) ──
-  console.log('   🔗 Seeding movie sources...')
-  const sampleMovies = await prisma.movie.findMany({ take: 3 })
-  for (const movie of sampleMovies) {
-    await prisma.movieSource.upsert({
-      where: { id: `src-manual-${movie.id}` },
-      update: {},
-      create: {
-        id: `src-manual-${movie.id}`,
-        movieId: movie.id,
-        sourceName: 'Manual',
-        quality: movie.quality || 'HD',
-        language: 'vietsub',
-        priority: 1,
-        isActive: true,
+  // ── Sample wallet transactions ──
+  const adminWallet = await prisma.wallet.findUnique({ where: { userId: admin.id } })
+  if (adminWallet) {
+    await prisma.walletTransaction.create({
+      data: {
+        walletId: adminWallet.id,
+        type: 'credit',
+        amount: 10000,
+        description: 'System bonus — Initial seed',
       },
-    })
+    }).catch(() => {})
   }
 
-  // ── Sample Watch History (with episode reference) ──
+  // ── Sample watch history ──
   console.log('   👁️ Seeding watch history...')
   const firstPublishedMovie = await prisma.movie.findFirst({
     where: { isPublished: true },
@@ -540,6 +399,15 @@ async function main() {
     }
   }
 
+  // ── Sample favorite ──
+  if (firstPublishedMovie) {
+    await prisma.favorite.upsert({
+      where: { userId_movieId: { userId: demoUser.id, movieId: firstPublishedMovie.id } },
+      update: {},
+      create: { userId: demoUser.id, movieId: firstPublishedMovie.id },
+    })
+  }
+
   // ── Admin log ──
   await prisma.adminLog.create({
     data: { actorId: admin.id, action: 'login', metadata: JSON.stringify({ note: 'Seed initial login' }) },
@@ -549,9 +417,9 @@ async function main() {
   console.log('   admin@terence.vn / Admin@12345 (super_admin)')
   console.log('   staff@terence.vn / Staff@12345 (staff)')
   console.log('   user@terence.vn  / User@12345  (user)')
-  console.log(`   ${movieData.length} movies, ${shortData.length} shorts`)
-  console.log(`   ${categoryData.length} categories, ${countryData.length} countries, ${peopleData.length} people`)
-  console.log('   🎥 HLS demo: VideoSource + SubtitleTrack seeded for standalone + series episodes')
+  console.log(`   ${movieData.length} movies, ${genreData.length} genres, ${countryData.length} countries`)
+  console.log('   💰 Wallets seeded for admin + demo user')
+  console.log('   ⭐ Favorites, watch history seeded')
 }
 
 main()

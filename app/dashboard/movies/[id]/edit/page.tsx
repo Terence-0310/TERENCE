@@ -73,6 +73,10 @@ export default function EditMoviePage({ params }: PageProps) {
   }
 
   const handleUpload = async (field: string, file: File) => {
+    if (file.size > 5 * 1024 * 1024) {
+      setError(`Dung lượng file không được vượt quá 5MB.`)
+      return
+    }
     setUploading(field)
     try {
       const fd = new FormData()

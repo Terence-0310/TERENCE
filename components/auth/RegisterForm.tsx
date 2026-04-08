@@ -1,0 +1,188 @@
+'use client'
+
+import { useState } from 'react'
+import { useAuthModal } from './auth-modal-store'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
+import { Mail, Lock, User, Eye, EyeOff } from 'lucide-react'
+
+export function RegisterForm() {
+  const { setView } = useAuthModal()
+  const [authMethod, setAuthMethod] = useState<'email' | 'phone'>('email')
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [phone, setPhone] = useState('')
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [showPass, setShowPass] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+    if (password !== confirmPassword) {
+      setError('Mật khẩu không khớp!')
+      setLoading(false)
+      return
+    }
+    try {
+      const signupId = authMethod === 'phone' ? `${phone}@phone.terence.vn` : email
+      const res = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email: signupId, password }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.message || data.error || 'Đăng ký thất bại')
+      }
+      
+      setView('login')
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="w-full relative">
+      <div className="text-center mb-6">
+        <h3 className="text-[26px] font-bold text-white mb-2 tracking-tight">Đăng ký</h3>
+        <p className="text-[13px] text-white/50">Tạo tài khoản để xem phim không giới hạn</p>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex w-full bg-[#1A1D2D] rounded-[10px] p-1 mb-6 border border-white/5">
+        <button 
+          type="button" 
+          onClick={() => setAuthMethod('email')}
+          className={`flex-1 py-2 text-[13px] font-semibold transition-all capitalize ${authMethod === 'email' ? 'text-white bg-[#0B0F19] rounded-[8px] shadow border border-white/5' : 'text-white/40 hover:text-white'}`}
+        >
+          Email
+        </button>
+        <button 
+          type="button" 
+          onClick={() => setAuthMethod('phone')}
+          className={`flex-1 py-2 text-[13px] font-semibold transition-all ${authMethod === 'phone' ? 'text-white bg-[#0B0F19] rounded-[8px] shadow capitalize border border-white/5' : 'text-white/40 hover:text-white'}`}
+        >
+          Số điện thoại
+        </button>
+      </div>
+
+      {error && (
+        <div className="mb-4 text-xs font-semibold text-red-300 bg-red-500/10 py-2 px-3 rounded-lg border border-red-500/20">
+          {error}
+        </div>
+      )}
+
+      {/* Adjust max-height and add custom scrollbar if it gets too long */}
+      <form onSubmit={handleSubmit} className="w-full space-y-4 max-h-[60vh] overflow-y-auto pr-1">
+        {/* Name Field */}
+        <div className="space-y-1.5 flex flex-col items-start">
+          <label className="text-[12px] font-bold text-white tracking-wide">Tên hiển thị</label>
+          <div className="relative w-full">
+            <User className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-white/40" />
+            <Input 
+              value={name} onChange={e=>setName(e.target.value)}
+              placeholder="Nhập tên của bạn" 
+              className="h-12 w-full pl-11 pr-4 bg-[#0B0F19] border-white/10 text-white text-[14px] rounded-[8px] focus:border-teal-400/50 focus:bg-[#12182b] transition-all placeholder:text-white/30" 
+              required 
+            />
+          </div>
+        </div>
+
+        {/* Email or Phone Field Group */}
+        {authMethod === 'email' ? (
+          <div className="space-y-1.5 flex flex-col items-start animate-fade-in-up">
+            <label className="text-[12px] font-bold text-white tracking-wide">Email</label>
+            <div className="relative w-full">
+              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-white/40" />
+              <Input 
+                value={email} onChange={e=>setEmail(e.target.value)}
+                placeholder="email@example.com" 
+                className="h-12 w-full pl-11 pr-4 bg-[#0B0F19] border-white/10 text-white text-[14px] rounded-[8px] focus:border-teal-400/50 focus:bg-[#12182b] transition-all placeholder:text-white/30" 
+                required 
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-1.5 flex flex-col items-start animate-fade-in-up">
+            <label className="text-[12px] font-bold text-white tracking-wide">Số điện thoại</label>
+            <div className="relative w-full">
+              <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-white/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+              <Input 
+                value={phone} onChange={e=>setPhone(e.target.value.replace(/\D/g, '').substring(0, 15))}
+                placeholder="Nhập số điện thoại" 
+                className="h-12 w-full pl-11 pr-4 bg-[#0B0F19] border-white/10 text-white text-[14px] rounded-[8px] focus:border-teal-400/50 focus:bg-[#12182b] transition-all placeholder:text-white/30" 
+                required 
+              />
+            </div>
+          </div>
+        )}
+        
+        {/* Password */}
+        <div className="space-y-1.5">
+          <label className="text-[12px] font-bold text-white tracking-wide block text-left">Mật khẩu</label>
+          <div className="relative w-full">
+            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-white/40" />
+            <Input 
+              type={showPass ? 'text' : 'password'}
+              value={password} onChange={e=>setPassword(e.target.value)}
+              placeholder="Nhập mật khẩu" 
+              className="h-12 w-full pl-11 pr-11 bg-[#0B0F19] border-white/10 text-white text-[14px] rounded-[8px] focus:border-teal-400/50 focus:bg-[#12182b] transition-all placeholder:text-white/30" 
+              required 
+            />
+            <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-4 top-1/2 -translate-y-1/2 text-white/40 hover:text-white transition-colors">
+              {showPass ? <EyeOff className="w-[18px] h-[18px]" /> : <Eye className="w-[18px] h-[18px]" />}
+            </button>
+          </div>
+        </div>
+
+        {/* Confirm Password */}
+        <div className="space-y-1.5">
+          <label className="text-[12px] font-bold text-white tracking-wide block text-left">Xác nhận mật khẩu</label>
+          <div className="relative w-full">
+            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-white/40" />
+            <Input 
+              type={showPass ? 'text' : 'password'}
+              value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)}
+              placeholder="Nhập lại mật khẩu" 
+              className="h-12 w-full pl-11 pr-11 bg-[#0B0F19] border-white/10 text-white text-[14px] rounded-[8px] focus:border-teal-400/50 focus:bg-[#12182b] transition-all placeholder:text-white/30" 
+              required 
+            />
+          </div>
+        </div>
+
+        {/* Captcha Placeholder styling matching Image 2 */}
+        <div className="h-[74px] w-full bg-[#1A1D2D] border border-white/5 rounded-[8px] flex items-center justify-between px-3 mt-4 mb-2">
+           <div className="flex items-center gap-3">
+             <div className="w-6 h-6 rounded-[2px] border-[2px] border-[#c1c1c1] bg-[#0B0F19] cursor-pointer hover:border-teal-400 transition-colors" />
+             <span className="text-[13px] text-white">Đang xác minh...</span>
+           </div>
+           <div className="flex flex-col items-center justify-center opacity-80">
+             <img src="https://upload.wikimedia.org/wikipedia/commons/9/94/Cloudflare_Logo.png" className="h-4 object-contain mb-1" alt="Cloudflare" />
+             <span className="text-[8px] text-white/60 text-right w-full leading-tight">Quyền riêng tư<br/>Điều khoản</span>
+           </div>
+        </div>
+
+        <Button disabled={loading} type="submit" className="w-full h-12 bg-[#2DD4BF] hover:bg-[#14B8A6] text-black font-semibold text-[15px] rounded-[8px] transition-colors mt-2 shadow-[0_0_20px_rgba(45,212,191,0.15)]">
+          {loading ? 'Đang xử lý...' : 'Đăng ký ngay'}
+        </Button>
+
+        <div className="text-center pt-6">
+          <p className="text-[13px] text-white/50">
+            Đã có tài khoản?{' '}
+            <button type="button" onClick={() => setView('login')} className="text-teal-400 font-semibold hover:underline">
+              Đăng nhập
+            </button>
+          </p>
+        </div>
+      </form>
+    </div>
+  )
+}

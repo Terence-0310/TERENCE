@@ -89,7 +89,7 @@ export async function upsertWatchProgress(input: UpsertWatchInput): Promise<Watc
   const now = new Date()
   const epId = episodeId || null
 
-  // Upsert manually: Prisma upsert with nullable composite unique is unreliable on SQLite
+  // Manual upsert: composite unique with nullable field needs findFirst + create/update pattern
   const includeRelations = {
     movie: {
       select: {

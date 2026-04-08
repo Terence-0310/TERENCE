@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
     where.deletedAt = null
   }
 
-  if (search) where.OR = [{ name: { contains: search } }, { email: { contains: search } }]
+  if (search) where.OR = [{ name: { contains: search, mode: 'insensitive' } }, { email: { contains: search, mode: 'insensitive' } }]
   if (role) where.role = role
   if (status) where.status = status
 
