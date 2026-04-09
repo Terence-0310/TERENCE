@@ -1,21 +1,24 @@
-// GET /api/tcoin/transactions?page=1&perPage=20&category=...
-// Returns paginated transaction history
+import { NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { listTransactions } from '@/services/wallet.service';
 
-import { NextRequest, NextResponse } from 'next/server'
-import { getTransactions } from '@/src/server/modules/tcoin/tcoin.service'
-import { getSession } from '@/lib/auth/session'
+export async function GET(req: Request) {
+  try {
+    const session = await getServerSession(authOptions);
+    const userId = session?.user ? (session.user as any).id : null;
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
-export async function GET(request: NextRequest) {
-  const session = await getSession()
-  if (!session?.userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const { searchParams } = new URL(req.url);
+    const page = parseInt(searchParams.get('page') || '1');
+    
+    const result = await listTransactions(userId, page);
+
+    return NextResponse.json(result);
+  } catch (error: any) {
+    console.error('Error fetching transactions:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
-
-  const { searchParams } = request.nextUrl
-  const page = Number(searchParams.get('page')) || 1
-  const perPage = Math.min(Number(searchParams.get('perPage')) || 20, 50)
-  const category = searchParams.get('category') || undefined
-
-  const result = await getTransactions(session.userId, page, perPage, category)
-  return NextResponse.json(result)
 }

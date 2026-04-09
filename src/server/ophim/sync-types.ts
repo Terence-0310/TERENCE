@@ -26,8 +26,7 @@ export interface MappedMovie {
   thumbUrl: string | null
   posterUrl: string | null
   isCopyright: boolean
-  actorText: string | null
-  directorText: string | null
+
   categoryText: string | null
   countryText: string | null
   tmdbId: number | null

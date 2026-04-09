@@ -65,17 +65,6 @@ async function main() {
     genreMap[g.slug] = created.id
   }
 
-  // ── Categories (legacy — mirror of genres for backward compat) ──
-  console.log('   📂 Seeding categories (legacy)...')
-  const categories: Record<string, string> = {}
-  for (const cat of genreData) {
-    const created = await prisma.category.upsert({
-      where: { slug: cat.slug },
-      update: { name: cat.name, tmdbId: cat.tmdbId },
-      create: { name: cat.name, slug: cat.slug, tmdbId: cat.tmdbId },
-    })
-    categories[cat.slug] = created.id
-  }
 
   // ── Countries ──
   console.log('   🌍 Seeding countries...')
@@ -140,7 +129,6 @@ async function main() {
       title: 'Tử Chiến Trên Không', slug: 'tu-chien-tren-khong', contentType: 'movie', status: 'published',
       categoryText: 'Hành Động, Phiêu Lưu', year: 2026, quality: 'FHD', viewCount: 12345,
       isFeatured: true, isPublished: true, isActive: true, sourceStatus: 'active',
-      directorText: 'Nguyễn Quang Dũng', actorText: 'Trấn Thành, Thu Trang',
       countryText: 'Việt Nam', language: 'vi', ageRating: 'C16',
       shortDescription: 'Cuộc chiến trên bầu trời',
       genreSlugs: ['hanh-dong', 'phieu-luu'],
@@ -155,7 +143,7 @@ async function main() {
       title: 'Hoa Máu', slug: 'hoa-mau', contentType: 'movie', status: 'published',
       categoryText: 'Hành Động, Tâm Lý', year: 2026, quality: 'HD', viewCount: 9876,
       isPublished: true, isActive: true, sourceStatus: 'active',
-      directorText: 'Victor Vũ', countryText: 'Việt Nam', language: 'vi', ageRating: 'C18',
+      countryText: 'Việt Nam', language: 'vi', ageRating: 'C18',
       genreSlugs: ['hanh-dong', 'tam-ly'],
       countrySlugs: ['viet-nam'],
       peopleSlugs: [{ slug: 'victor-vu', role: 'director' }],
@@ -182,7 +170,7 @@ async function main() {
       title: 'Tài Xế Ẩn Danh 3', slug: 'tai-xe-an-danh-3', contentType: 'movie', status: 'published',
       categoryText: 'Hành Động, Hài', year: 2026, quality: '4K', viewCount: 3210,
       isRecommended: true, isPublished: true, isActive: true, sourceStatus: 'active',
-      directorText: 'Lý Hải', countryText: 'Việt Nam', language: 'vi',
+      countryText: 'Việt Nam', language: 'vi',
       genreSlugs: ['hanh-dong', 'hai'],
       countrySlugs: ['viet-nam'],
       peopleSlugs: [{ slug: 'ly-hai', role: 'director' }],
@@ -212,16 +200,6 @@ async function main() {
       }
     }
 
-    // Link categories (legacy compat)
-    for (const catSlug of genreSlugs) {
-      if (categories[catSlug]) {
-        await prisma.movieCategory.upsert({
-          where: { movieId_categoryId: { movieId: movie.id, categoryId: categories[catSlug] } },
-          update: {},
-          create: { movieId: movie.id, categoryId: categories[catSlug] },
-        })
-      }
-    }
 
     // Link countries
     for (const cSlug of countrySlugs) {
@@ -360,10 +338,15 @@ async function main() {
   if (adminWallet) {
     await prisma.walletTransaction.create({
       data: {
+        userId: String(admin.id),
         walletId: adminWallet.id,
-        type: 'credit',
+        type: 'topup',
+        direction: 'credit',
+        status: 'completed',
         amount: 10000,
-        description: 'System bonus — Initial seed',
+        balanceBefore: 0,
+        balanceAfter: 10000,
+        metadata: { description: 'System bonus — Initial seed' },
       },
     }).catch(() => {})
   }

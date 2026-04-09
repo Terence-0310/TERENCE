@@ -56,8 +56,7 @@ export default function EditMoviePage({ params }: PageProps) {
         quality: str('quality') || null, language: str('language') || null,
         countryText: str('countryText') || null, categoryText: str('categoryText') || null,
         rating: num('rating') ? parseFloat(num('rating')) : null,
-        ageRating: str('ageRating') || null, actorText: str('actorText') || null,
-        directorText: str('directorText') || null, tags: str('tags') || null,
+        ageRating: str('ageRating') || null, tags: str('tags') || null,
         seoTitle: str('seoTitle') || null, seoDescription: str('seoDescription') || null,
         seoKeywords: str('seoKeywords') || null,
         isFeatured: bool('isFeatured'), isTrending: bool('isTrending'),
@@ -193,14 +192,10 @@ export default function EditMoviePage({ params }: PageProps) {
           </CardContent>
         </Card>
 
-        {/* Cast & Crew */}
+        {/* Cast & Crew (Legacy fields removed, managed via relations) */}
         <Card className="bg-card border-border">
-          <CardHeader><CardTitle className="text-lg">Diễn viên & Đạo diễn</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-lg">Tags & Phân loại</CardTitle></CardHeader>
           <CardContent className="space-y-4">
-            <div><label className={labelCls}>Đạo diễn</label><Input className={inputCls} value={str('directorText')} onChange={(e) => up('directorText', e.target.value)} /></div>
-            <div><label className={labelCls}>Diễn viên</label>
-              <textarea className="w-full mt-1 px-3 py-2 bg-muted border border-border rounded-lg h-20 resize-none text-sm"
-                value={str('actorText')} onChange={(e) => up('actorText', e.target.value)} /></div>
             <div><label className={labelCls}>Tags</label><Input className={inputCls} value={str('tags')} onChange={(e) => up('tags', e.target.value)} /></div>
           </CardContent>
         </Card>

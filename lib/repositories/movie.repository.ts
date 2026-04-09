@@ -218,8 +218,7 @@ export const movieRepository = {
         OR: [
           { title: { contains: q, mode: 'insensitive' } as any },
           { originalTitle: { contains: q, mode: 'insensitive' } as any },
-          { actorText: { contains: q, mode: 'insensitive' } as any },
-          { directorText: { contains: q, mode: 'insensitive' } as any },
+          { people: { some: { person: { name: { contains: q, mode: 'insensitive' } as any } } } },
           { slug: { contains: q.toLowerCase(), mode: 'insensitive' } as any },
         ],
       },

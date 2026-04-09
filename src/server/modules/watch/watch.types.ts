@@ -27,8 +27,7 @@ export interface WatchMovieDetail {
   rating: number | null
   ageRating: string | null
   categoryText: string | null
-  directorText: string | null
-  actorText: string | null
+
   countryText: string | null
 }
 

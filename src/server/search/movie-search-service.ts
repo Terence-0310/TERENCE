@@ -170,15 +170,14 @@ async function searchPrismaFallback(
     OR: [
       { title: { contains: query, mode: 'insensitive' } as any },
       { originalTitle: { contains: query, mode: 'insensitive' } as any },
-      { actorText: { contains: query, mode: 'insensitive' } as any },
-      { directorText: { contains: query, mode: 'insensitive' } as any },
+      { people: { some: { person: { name: { contains: query, mode: 'insensitive' } as any } } } },
       { description: { contains: query, mode: 'insensitive' } as any },
     ],
   }
 
   if (filters.contentType) where.contentType = filters.contentType
   if (filters.year) where.year = filters.year
-  if (filters.category) where.categories = { some: { category: { slug: filters.category } } }
+  if (filters.category) where.genres = { some: { genre: { slug: filters.category } } }
   if (filters.country) where.countries = { some: { country: { slug: filters.country } } }
 
   const [movies, total] = await Promise.all([
@@ -189,7 +188,7 @@ async function searchPrismaFallback(
         contentType: true, quality: true, language: true,
         thumbUrl: true, posterUrl: true, rating: true,
         episodeCurrent: true, episodeTotal: true,
-        categories: { include: { category: { select: { slug: true } } } },
+        genres: { include: { genre: { select: { slug: true } } } },
         countries: { include: { country: { select: { slug: true } } } },
       },
       orderBy: { updatedAt: 'desc' },
@@ -214,7 +213,7 @@ async function searchPrismaFallback(
       rating: m.rating || 0,
       episodeCurrent: m.episodeCurrent,
       episodeTotal: m.episodeTotal,
-      categories: m.categories.map(c => c.category.slug),
+      categories: (m as any).genres?.map((c: any) => c.genre.slug) || [],
       countries: m.countries.map(c => c.country.slug),
       score: 0,
     })),

@@ -13,7 +13,7 @@ const CARD_SELECT = {
   thumbUrl: true, posterUrl: true, rating: true,
   episodeCurrent: true, episodeTotal: true,
   isFeatured: true, isTrending: true, viewCount: true,
-  categories: { include: { category: { select: { name: true } } } },
+  genres: { include: { genre: { select: { name: true } } } },
   countries: { include: { country: { select: { name: true } } } },
 } as const
 
@@ -22,7 +22,7 @@ const DETAIL_SELECT = {
   description: true, shortDescription: true,
   backdropUrl: true, trailerUrl: true, trailerSite: true, trailerKey: true,
   tmdbId: true, imdbId: true, duration: true, ageRating: true,
-  actorText: true, directorText: true, tags: true,
+  tags: true,
   status: true, isRecommended: true, sourceStatus: true,
   seoTitle: true, seoDescription: true,
   matchConfidence: true, metadataSource: true,
@@ -121,7 +121,7 @@ export async function getMovieList(params: MovieListParams = {}) {
   if (trending !== undefined) where.isTrending = trending
 
   if (category) {
-    where.categories = { some: { category: { slug: category } } }
+    where.genres = { some: { genre: { slug: category } } }
   }
   if (country) {
     where.countries = { some: { country: { slug: country } } }

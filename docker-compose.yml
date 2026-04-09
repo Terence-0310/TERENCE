@@ -95,7 +95,7 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/terence_dev?schema=public
     ports:
-      - "5555:5555"
+      - "5556:5555"
     command: >
       sh -c "npx prisma generate && npx prisma studio --host 0.0.0.0 --port 5555"
     depends_on:

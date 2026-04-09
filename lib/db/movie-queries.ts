@@ -130,8 +130,7 @@ export const movieScopes = {
         { title: { contains: q, mode: 'insensitive' } as any },
         { originalTitle: { contains: q, mode: 'insensitive' } as any },
         { slug: { contains: q, mode: 'insensitive' } as any },
-        { actorText: { contains: q, mode: 'insensitive' } as any },
-        { directorText: { contains: q, mode: 'insensitive' } as any },
+        { people: { some: { person: { name: { contains: q, mode: 'insensitive' } as any } } } },
       ],
       deletedAt: null,
     }
@@ -149,7 +148,7 @@ export const movieIncludes = {
   card(): Prisma.MovieInclude {
     return {
       genres: { include: { genre: true } },
-      categories: { include: { category: true } },
+
       countries: { include: { country: true } },
     }
   },
@@ -164,7 +163,7 @@ export const movieIncludes = {
         orderBy: { episodeOrder: 'asc' },
       },
       genres: { include: { genre: true } },
-      categories: { include: { category: true } },
+
       countries: { include: { country: true } },
       people: {
         include: { person: true },

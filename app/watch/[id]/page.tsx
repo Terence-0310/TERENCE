@@ -6,6 +6,7 @@ import { WatchPageClient } from '@/components/player/WatchPageClient'
 import { WatchPageContainer } from '@/components/player/WatchPageContainer'
 
 import { getMovieDetail } from '@/services/tmdb/movie-service'
+import { getTvDetail } from '@/services/tmdb/tv-service'
 import { getMoviePlaybackData, getMoviePlaybackByTmdbId, getMoviePlaybackByTitle, getMultiServerSources } from '@/server/services/playback-service'
 import { resolveMovieSource } from '@/services/video-source'
 import { MovieRow } from '@/components/shared/MovieRow'
@@ -51,7 +52,26 @@ export default async function WatchPage({ params, searchParams }: PageProps) {
     try {
       tmdbMovie = await getMovieDetail(movieId)
     } catch {
-      // TMDB not available — no problem if we have DB data
+      try {
+        const tv = await getTvDetail(movieId)
+        tmdbMovie = {
+          ...tv,
+          crew: [], // Mock properties not present in SeriesDetail
+          cast: [],
+          genres: [],
+          trailer: null,
+          videos: [],
+          relatedMovies: [],
+          budget: 0,
+          revenue: 0,
+          runtime: null,
+          runtimeFormatted: '',
+          imdbId: null,
+          homepage: null,
+        } as unknown as Awaited<ReturnType<typeof getMovieDetail>>
+      } catch {
+        // TMDB not available — no problem if we have DB data
+      }
     }
   }
 
@@ -379,17 +399,17 @@ export default async function WatchPage({ params, searchParams }: PageProps) {
 
               {/* Credits */}
               <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
-                {(director || dbPlayback?.movie?.directorText) && (
+                {(director) && (
                   <span>
                     <span className="text-white/40">Đạo diễn:</span>{' '}
-                    <span className="text-white/70">{director?.name || dbPlayback?.movie?.directorText}</span>
+                    <span className="text-white/70">{director?.name}</span>
                   </span>
                  )}
-                {(movie?.cast?.length || dbPlayback?.movie?.actorText) ? (
+                {(movie?.cast?.length) ? (
                   <span>
                     <span className="text-white/40">Diễn viên:</span>{' '}
                     <span className="text-white/70">
-                      {movie?.cast?.slice(0, 3).map((c) => c.name).join(', ') || dbPlayback?.movie?.actorText}
+                      {movie?.cast?.slice(0, 3).map((c) => c.name).join(', ')}
                     </span>
                   </span>
                 ) : null}

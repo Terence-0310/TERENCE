@@ -37,7 +37,6 @@ import {
 const SIDEBAR_ITEMS = [
   { icon: LayoutDashboard, label: 'Tổng quan', href: '/dashboard' },
   { icon: Film, label: 'Quản lý phim', href: '/dashboard/movies' },
-  { icon: Video, label: 'Short Video', href: '/dashboard/shorts' },
   { icon: Tag, label: 'Nội dung', href: '/dashboard/content' },
   { icon: MessageSquare, label: 'Đánh giá', href: '/dashboard/reviews' },
   { icon: Newspaper, label: 'Tin tức', href: '/dashboard/news' },

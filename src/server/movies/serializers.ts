@@ -44,7 +44,7 @@ export function serializeMovieCard(m: Record<string, unknown>): MovieCardDto {
     isFeatured: !!m.isFeatured,
     isTrending: !!m.isTrending,
     viewCount: (m.viewCount as number) || 0,
-    categories: extractPivotNames(m.categories, 'category'),
+    categories: extractPivotNames(m.genres, 'genre'),
     countries: extractPivotNames(m.countries, 'country'),
   }
 }
@@ -78,8 +78,7 @@ export interface MovieDetailDto extends MovieCardDto {
   imdbId: string | null
   duration: number | null
   ageRating: string | null
-  actorText: string | null
-  directorText: string | null
+
   tags: string | null
   status: string
   isRecommended: boolean
@@ -120,8 +119,7 @@ export function serializeMovieDetail(m: Record<string, unknown>): MovieDetailDto
     imdbId: (m.imdbId as string) || null,
     duration: (m.duration as number) || null,
     ageRating: (m.ageRating as string) || null,
-    actorText: (m.actorText as string) || null,
-    directorText: (m.directorText as string) || null,
+
     tags: (m.tags as string) || null,
     status: m.status as string,
     isRecommended: !!m.isRecommended,

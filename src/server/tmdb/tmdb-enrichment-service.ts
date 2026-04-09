@@ -249,14 +249,8 @@ export async function enrichMovie(movieId: string, syncJobId?: string): Promise<
         directorNames.push(d.name)
       }
 
-      if (castNames.length > 0) {
-        updateData.actorText = castNames.join(', ')
-        fieldsUpdated.push('actorText')
-      }
-      if (directorNames.length > 0) {
-        updateData.directorText = directorNames.join(', ')
-        fieldsUpdated.push('directorText')
-      }
+      // Legacy actorText/directorText fields removed in schema migration.
+      // Actors and directors are fully tracked via MoviePerson table.
     } catch (e) {
       console.warn(`[TMDB Enrich] Failed to get credits:`, e instanceof Error ? e.message : e)
     }

@@ -42,15 +42,16 @@ export async function creditWallet(
 
     const txn = await tx.walletTransaction.create({
       data: {
+        userId: wallet.userId,
         walletId,
-        type: 'credit',
-        category,
+        direction: 'credit',
+        type: category, // Map old category logic to new type concept
+        status: 'completed',
         amount,
         balanceBefore,
         balanceAfter,
-        description,
         referenceId: referenceId ?? null,
-        referenceType: referenceType ?? null,
+        metadata: { description, referenceType: referenceType ?? null }
       },
     })
 
@@ -85,15 +86,16 @@ export async function debitWallet(
 
     const txn = await tx.walletTransaction.create({
       data: {
+        userId: wallet.userId,
         walletId,
-        type: 'debit',
-        category,
+        direction: 'debit',
+        type: category,
+        status: 'completed',
         amount,
         balanceBefore,
         balanceAfter,
-        description,
         referenceId: referenceId ?? null,
-        referenceType: referenceType ?? null,
+        metadata: { description, referenceType: referenceType ?? null }
       },
     })
 
@@ -107,10 +109,10 @@ export async function getTransactions(
   walletId: string,
   page: number,
   perPage: number,
-  category?: string,
+  type?: string,
 ) {
   const where: any = { walletId }
-  if (category) where.category = category
+  if (type) where.type = type
 
   const skip = (page - 1) * perPage
   const [transactions, total] = await Promise.all([
@@ -128,11 +130,11 @@ export async function getTransactions(
 export async function getAggregates(walletId: string) {
   const [earned, spent] = await Promise.all([
     prisma.walletTransaction.aggregate({
-      where: { walletId, type: 'credit' },
+      where: { walletId, direction: 'credit' },
       _sum: { amount: true },
     }),
     prisma.walletTransaction.aggregate({
-      where: { walletId, type: 'debit' },
+      where: { walletId, direction: 'debit' },
       _sum: { amount: true },
     }),
   ])
@@ -154,7 +156,7 @@ export async function hasCheckedInToday(walletId: string): Promise<boolean> {
   const count = await prisma.walletTransaction.count({
     where: {
       walletId,
-      category: 'daily_checkin',
+      type: 'daily_checkin',
       createdAt: { gte: today, lt: tomorrow },
     },
   })
@@ -164,7 +166,7 @@ export async function hasCheckedInToday(walletId: string): Promise<boolean> {
 /**
  * Count rewards of a category earned today.
  */
-export async function countTodayRewards(walletId: string, category: string): Promise<number> {
+export async function countTodayRewards(walletId: string, type: string): Promise<number> {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   const tomorrow = new Date(today)
@@ -173,7 +175,7 @@ export async function countTodayRewards(walletId: string, category: string): Pro
   return prisma.walletTransaction.count({
     where: {
       walletId,
-      category,
+      type,
       createdAt: { gte: today, lt: tomorrow },
     },
   })
@@ -181,30 +183,8 @@ export async function countTodayRewards(walletId: string, category: string): Pro
 
 // ─── Payment Orders ──────────────────────────────────────────
 
-export async function createPaymentOrder(data: {
-  userId: string
-  amount: number
-  currency: string
-  tcoins: number
-  provider: string
-  metadata?: string
-}) {
-  return prisma.paymentOrder.create({ data })
-}
-
 export async function findPaymentOrder(id: string) {
-  return prisma.paymentOrder.findUnique({ where: { id } })
-}
-
-export async function updatePaymentOrder(
-  id: string,
-  data: {
-    status: string
-    providerTxnId?: string
-    paidAt?: Date
-  },
-) {
-  return prisma.paymentOrder.update({ where: { id }, data })
+  return prisma.topupOrder.findUnique({ where: { id } })
 }
 
 // ─── Admin Queries ───────────────────────────────────────────
@@ -232,13 +212,13 @@ export async function getAllPaymentOrders(page: number, perPage: number, status?
 
   const skip = (page - 1) * perPage
   const [orders, total] = await Promise.all([
-    prisma.paymentOrder.findMany({
+    prisma.topupOrder.findMany({
       where,
       orderBy: { createdAt: 'desc' },
       skip,
       take: perPage,
     }),
-    prisma.paymentOrder.count({ where }),
+    prisma.topupOrder.count({ where }),
   ])
   return { orders, total }
 }

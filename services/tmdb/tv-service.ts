@@ -178,3 +178,48 @@ export async function searchTv(query: string, page = 1) {
     totalResults: data.total_results,
   }
 }
+
+export async function getTvByGenre(genreId: number, page = 1) {
+  const data = await tmdbFetch<TmdbPaginatedResponse<TmdbTvShow>>('/discover/tv', {
+    params: {
+      with_genres: genreId,
+      sort_by: 'popularity.desc',
+      page,
+    },
+    revalidate: 3600,
+  })
+  return {
+    items: data.results.map(mapTvShow),
+    page: data.page,
+    totalPages: data.total_pages,
+    totalResults: data.total_results,
+  }
+}
+
+export async function getTvByCountry(countryCode: string, page = 1) {
+  const data = await tmdbFetch<TmdbPaginatedResponse<TmdbTvShow>>('/discover/tv', {
+    params: {
+      with_origin_country: countryCode,
+      sort_by: 'popularity.desc',
+      page,
+    },
+    revalidate: 3600,
+  })
+  return {
+    items: data.results.map(mapTvShow),
+    page: data.page,
+    totalPages: data.total_pages,
+    totalResults: data.total_results,
+  }
+}
+
+export async function getTvGenres() {
+  const data = await tmdbFetch<{ genres: { id: number; name: string }[] }>('/genre/tv/list', {
+    revalidate: 86400,
+  })
+  return data.genres.map(g => ({
+    id: g.id,
+    name: g.name,
+    slug: g.name.toLowerCase().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-'),
+  }))
+}

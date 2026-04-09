@@ -120,22 +120,22 @@ export async function addSyncLog(
 // ─── Relation Upsert Helpers ────────────────────────────────────
 
 /**
- * Upsert categories for a movie (Category + MovieCategory pivot).
+ * Upsert genres for a movie (Genre + MovieGenre pivot).
  */
-export async function upsertCategories(
+export async function upsertGenres(
   movieId: string,
-  categories: Array<{ name: string; slug: string }>,
+  genres: Array<{ name: string; slug: string }>,
 ) {
-  for (const cat of categories) {
-    const category = await syncPrisma.category.upsert({
-      where: { slug: cat.slug },
-      create: { name: cat.name, slug: cat.slug, isActive: true },
-      update: { name: cat.name },
+  for (const item of genres) {
+    const genre = await syncPrisma.genre.upsert({
+      where: { slug: item.slug },
+      create: { name: item.name, slug: item.slug, isActive: true },
+      update: { name: item.name },
     })
 
-    await syncPrisma.movieCategory.upsert({
-      where: { movieId_categoryId: { movieId, categoryId: category.id } },
-      create: { movieId, categoryId: category.id },
+    await syncPrisma.movieGenre.upsert({
+      where: { movieId_genreId: { movieId, genreId: genre.id } },
+      create: { movieId, genreId: genre.id },
       update: {},
     })
   }

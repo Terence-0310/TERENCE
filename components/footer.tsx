@@ -18,8 +18,7 @@ export function Footer() {
             <Link href="/" className="flex items-center gap-2">
               <TerenceLogo size={36} />
               <div>
-                <span className="text-xl font-bold text-white">Terence</span>
-                <p className="text-[11px] text-primary/60">Phim hay cả rổ</p>
+                <span className="text-xl font-bold text-white tracking-widest uppercase">Terence</span>
               </div>
             </Link>
 

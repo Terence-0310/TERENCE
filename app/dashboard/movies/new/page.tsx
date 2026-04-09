@@ -17,7 +17,7 @@ const EMPTY_FORM = {
   title: '', originalTitle: '', slug: '', description: '', shortDescription: '',
   contentType: 'movie', status: 'draft', posterUrl: '', backdropUrl: '', thumbUrl: '',
   trailerUrl: '', year: '', duration: '', quality: 'HD', language: 'vi',
-  countryText: 'Việt Nam', categoryText: '', rating: '', ageRating: '', actorText: '', directorText: '',
+  countryText: 'Việt Nam', categoryText: '', rating: '', ageRating: '',
   tags: '', seoTitle: '', seoDescription: '', seoKeywords: '',
   isFeatured: false, isTrending: false, isRecommended: false,
 }
@@ -192,15 +192,10 @@ export default function NewMoviePage() {
           </CardContent>
         </Card>
 
-        {/* Cast & Crew */}
+        {/* Cast & Crew (Legacy fields removed, managed via relations) */}
         <Card className="bg-card border-border">
-          <CardHeader><CardTitle className="text-lg">Diễn viên & Đạo diễn</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-lg">Tags & Phân loại</CardTitle></CardHeader>
           <CardContent className="space-y-4">
-            <div><label className={labelCls}>Đạo diễn</label><Input className={inputCls} placeholder="Nguyễn Văn A"
-              value={form.directorText} onChange={(e) => up('directorText', e.target.value)} /></div>
-            <div><label className={labelCls}>Diễn viên</label>
-              <textarea className="w-full mt-1 px-3 py-2 bg-muted border border-border rounded-lg h-20 resize-none text-sm"
-                placeholder="Nguyễn Văn B, Trần Thị C, ..." value={form.actorText} onChange={(e) => up('actorText', e.target.value)} /></div>
             <div><label className={labelCls}>Tags</label><Input className={inputCls} placeholder="action, thriller, vn-2025"
               value={form.tags} onChange={(e) => up('tags', e.target.value)} /></div>
           </CardContent>

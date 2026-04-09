@@ -20,8 +20,6 @@ export const movieCreateSchema = z.object({
   categoryText: z.string().max(500).optional().nullable(),
   rating: z.number().min(0).max(10).optional().nullable(),
   ageRating: z.string().max(10).optional().nullable(),
-  actorText: z.string().max(2000).optional().nullable(),
-  directorText: z.string().max(500).optional().nullable(),
   tags: z.string().max(1000).optional().nullable(),
   seoTitle: z.string().max(200).optional().nullable(),
   seoDescription: z.string().max(500).optional().nullable(),

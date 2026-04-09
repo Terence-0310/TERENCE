@@ -1,10 +1,10 @@
 'use client'
 
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'
-
-// ── Types ──
+import { createContext, useContext, ReactNode } from 'react'
+import { useSession, signIn, signOut, SessionProvider } from 'next-auth/react'
 
 export interface User {
+  id?: string
   email: string
   name: string
   role: 'super_admin' | 'admin' | 'staff' | 'editor' | 'user'
@@ -21,73 +21,51 @@ interface AuthContextType {
   isAuthenticated: boolean
 }
 
-// ── Context ──
-
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-// ── Provider ──
-
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  return (
+    <SessionProvider>
+      <AuthContextInner>{children}</AuthContextInner>
+    </SessionProvider>
+  )
+}
 
-  // Restore session on mount via /api/auth/me
-  useEffect(() => {
-    fetch('/api/auth/me')
-      .then((res) => res.json())
-      .then((data: { user: User | null }) => {
-        setUser(data.user ?? null)
-      })
-      .catch(() => setUser(null))
-      .finally(() => setIsLoading(false))
-  }, [])
+function AuthContextInner({ children }: { children: ReactNode }) {
+  const { data: session, status } = useSession()
 
-  const login = useCallback(async (identifier: string, password: string): Promise<boolean> => {
-    if (!identifier.trim() || !password.trim()) return false
+  const user: User | null = session?.user ? {
+    id: (session as any).user?.id,
+    email: session.user.email || '',
+    name: session.user.name || '',
+    role: ((session as any).user?.role as any) || 'user',
+    avatar: session.user.image,
+  } : null
 
-    try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: identifier.trim(), password }),
-      })
+  const isLoading = status === 'loading'
 
-      if (!res.ok) return false
+  const login = async (identifier: string, password: string): Promise<boolean> => {
+    const res = await signIn('credentials', { email: identifier.trim(), password, redirect: false })
+    return !!res?.ok
+  }
 
-      const data = await res.json() as { user: User }
-      setUser(data.user)
-      return true
-    } catch {
-      return false
-    }
-  }, [])
+  const signup = async (name: string, email: string, password: string): Promise<boolean> => {
+    // Custom register route
+    const res = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name.trim(), email: email.trim(), password }),
+    })
+    if (!res.ok) return false
+    
+    // Auto login after successful signup
+    const loginRes = await signIn('credentials', { email: email.trim(), password, redirect: false })
+    return !!loginRes?.ok
+  }
 
-  const signup = useCallback(async (name: string, email: string, password: string): Promise<boolean> => {
-    if (!name.trim() || !email.trim() || !password.trim()) return false
-    if (password.length < 8) return false
-
-    try {
-      const res = await fetch('/api/auth/signup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), email: email.trim(), password }),
-      })
-
-      if (!res.ok) return false
-
-      const data = await res.json() as { user: User }
-      setUser(data.user)
-      return true
-    } catch {
-      return false
-    }
-  }, [])
-
-  const logout = useCallback(() => {
-    fetch('/api/auth/logout', { method: 'POST' })
-      .catch(() => {})
-      .finally(() => setUser(null))
-  }, [])
+  const logout = () => {
+    signOut({ redirect: true, callbackUrl: '/login' })
+  }
 
   return (
     <AuthContext.Provider value={{
@@ -96,7 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login,
       signup,
       logout,
-      isAdmin: !!user && ['super_admin', 'admin', 'staff', 'editor'].includes(user.role),
+      isAdmin: !!user && ['SUPER_ADMIN', 'ADMIN', 'STAFF', 'EDITOR'].includes(user.role.toUpperCase()),
       isAuthenticated: !!user,
     }}>
       {children}
@@ -104,9 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 }
 
-// ── Hook ──
-
-export function useAuth(): AuthContextType {
+export function useAuth() {
   const context = useContext(AuthContext)
   if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider')

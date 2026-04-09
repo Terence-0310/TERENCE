@@ -80,7 +80,7 @@ export const watchHistoryIncludes = {
     return {
       movie: {
         include: {
-          categories: { include: { category: true } },
+
           countries: { include: { country: true } },
         },
       },

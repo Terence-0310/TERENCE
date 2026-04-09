@@ -11,8 +11,6 @@ export {
   rewardReview,
   adminAdjust,
   spendTcoins,
-  createPurchaseOrder,
-  processPaymentCallback,
   getAdminWallets,
   getAdminPaymentOrders,
   REWARD_CONFIGS,

@@ -268,10 +268,12 @@ function HeaderInner() {
               )}
               {/* Member pill logged in */}
               <div className="flex items-center gap-2 rounded-full bg-[#2DD4BF] px-4 py-1.5 hover:bg-[#14B8A6] transition shadow-[0_0_15px_rgba(45,212,191,0.2)] cursor-pointer border-transparent">
-                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-black/10">
-                  <User className="h-4 w-4 text-black" />
-                </div>
-                <span className="text-[14px] font-bold text-black border-l border-black/10 pl-3 ml-0.5 py-1">{user.name}</span>
+                <Link href="/profile" className="flex items-center gap-2">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-black/10">
+                    <User className="h-4 w-4 text-black" />
+                  </div>
+                  <span className="text-[14px] font-bold text-black border-l border-black/10 pl-3 ml-0.5 py-1">{user.name}</span>
+                </Link>
                 <button onClick={handleLogout} className="ml-1 pl-1 text-black/60 hover:text-black transition-colors" title="Đăng xuất">
                   <LogOut className="h-[16px] w-[16px]" />
                 </button>
@@ -370,6 +372,9 @@ function HeaderInner() {
                     Dashboard
                   </Link>
                 )}
+                <Link href="/profile" onClick={() => setMobileOpen(false)} className="rounded-lg px-3 py-2.5 text-sm font-medium text-white/70 transition hover:bg-white/5">
+                  Hồ sơ cá nhân
+                </Link>
                 <button onClick={handleLogout} className="rounded-lg px-3 py-2.5 text-left text-sm font-medium text-red-400 transition hover:bg-white/5">
                   Đăng xuất
                 </button>

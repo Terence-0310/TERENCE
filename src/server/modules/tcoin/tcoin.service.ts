@@ -274,72 +274,6 @@ export async function spendTcoins(userId: string, optionId: string): Promise<Spe
 }
 
 // ═══════════════════════════════════════════════
-// PAYMENTS (Purchase TCoins)
-// ═══════════════════════════════════════════════
-
-export async function createPurchaseOrder(userId: string, packageId: string) {
-  const pkg = TCOIN_PACKAGES.find((p) => p.id === packageId)
-  if (!pkg) throw new Error('INVALID_PACKAGE')
-
-  const totalTcoins = pkg.tcoins + pkg.bonus
-
-  const order = await repo.createPaymentOrder({
-    userId,
-    amount: pkg.priceVnd,
-    currency: 'VND',
-    tcoins: totalTcoins,
-    provider: 'manual', // TODO: integrate real payment gateway
-    metadata: JSON.stringify({ packageId, packageName: pkg.name, bonus: pkg.bonus }),
-  })
-
-  return {
-    ok: true,
-    orderId: order.id,
-    amount: pkg.priceVnd,
-    tcoins: totalTcoins,
-    provider: 'manual',
-  }
-}
-
-export async function processPaymentCallback(
-  orderId: string,
-  providerTxnId: string,
-  status: 'completed' | 'failed',
-) {
-  const order = await repo.findPaymentOrder(orderId)
-  if (!order) throw new Error('ORDER_NOT_FOUND')
-  if (order.status !== 'pending') throw new Error('ORDER_ALREADY_PROCESSED')
-
-  if (status === 'completed') {
-    // Update order
-    await repo.updatePaymentOrder(orderId, {
-      status: 'completed',
-      providerTxnId,
-      paidAt: new Date(),
-    })
-
-    // Credit wallet
-    const wallet = await repo.getOrCreateWallet(order.userId)
-    await repo.creditWallet(
-      wallet.id,
-      order.tcoins,
-      'purchase',
-      `Nạp TCoin: ${order.tcoins} TCoin`,
-      orderId,
-      'payment_order',
-    )
-
-    return { ok: true, tcoins: order.tcoins }
-  } else {
-    await repo.updatePaymentOrder(orderId, {
-      status: 'failed',
-      providerTxnId,
-    })
-    return { ok: false, tcoins: 0 }
-  }
-}
-
-// ═══════════════════════════════════════════════
 // ADMIN
 // ═══════════════════════════════════════════════
 
@@ -376,11 +310,11 @@ export async function getAdminPaymentOrders(page = 1, perPage = 20, status?: str
         id: o.id,
         userId: o.userId,
         userName: user?.name ?? 'Unknown',
-        amount: o.amount,
-        currency: o.currency,
-        tcoins: o.tcoins,
+        amount: o.amountVnd,
+        currency: 'VND',
+        tcoins: o.coinAmount + o.bonusAmount,
         provider: o.provider,
-        providerTxnId: o.providerTxnId,
+        providerTxnId: null,
         status: o.status,
         paidAt: o.paidAt?.toISOString() ?? null,
         createdAt: o.createdAt.toISOString(),

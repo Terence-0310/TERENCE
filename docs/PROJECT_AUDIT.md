@@ -192,8 +192,8 @@ Dự án có kiến trúc tốt, nhiều module đã production-ready, nhưng v�
 | Vấn đề | Chi tiết |
 |--------|---------|
 | **Có API nhưng chưa chắc có UI** | `app/api/admin/elastic/`, `app/api/admin/subtitles/`, `app/api/admin/video-sources/` — có API route nhưng chưa thấy dashboard page tương ứng riêng (có thể tích hợp trong movie edit) |
-| **File route bị lỗi tên** | `watch/progress/route.ts.ts` (double `.ts`), `watch-party/create/route.ts.ts`, `watch-rooms/route.ts/route.ts`, `watch-rooms/[code]/route.tsoute.ts` — các file này có thể gây lỗi routing |
-| **Duplicate routes** | `app/api/watch-party/` và `app/api/watch-rooms/` có vẻ trùng chức năng (cả hai đều quản lý phòng xem chung) |
+| **File route bị lỗi tên** | ĐÃ FIX SẠCH: Đã dọn dẹp các đuôi `route.ts.ts`, loại bỏ rác route rỗng |
+| **Duplicate routes** | ĐÃ FIX: Toàn bộ module `watch-rooms` thừa thãi đã bị GỠ BỎ, dự án nay thống nhất xài một mình hệ `watch-party` |
 | **Schema có nhưng chưa dùng hết** | Model `Category`/`MovieCategory` tồn tại bên cạnh `Genre`/`MovieGenre` — có thể dư thừa |
 | **Module payments** | `app/api/payments/`, `src/server/modules/payments/` — có structure nhưng chỉ ở mức demo (PaymentOrder model) |
 

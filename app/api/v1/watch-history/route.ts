@@ -72,6 +72,10 @@ export async function GET(req: NextRequest) {
 
 // ─── POST: Upsert watch progress ────────────────────────────────
 
+// Write Cache to throttle DB writes (30 seconds per user-movie)
+const writeCache = new Map<string, number>()
+const THROTTLE_MS = 30000
+
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUser()
@@ -93,6 +97,23 @@ export async function POST(req: NextRequest) {
     if (body.duration !== undefined && (typeof body.duration !== 'number' || body.duration < 0)) {
       return apiError('duration must be a non-negative number', 400)
     }
+
+    // --- DEBOUNCE / THROTTLE PATTERN ---
+    // Prevent hitting the Database if less than 30s have passed since last write for this user+movie.
+    const cacheKey = `${user.id}:${body.movieId}:${body.episodeId || 'null'}`
+    const now = Date.now()
+    const lastWrite = writeCache.get(cacheKey)
+
+    if (lastWrite && now - lastWrite < THROTTLE_MS) {
+      // Return early; frontend will be content. The localStorage on client is the primary source of truth anyway.
+      return apiSuccess({ status: 'debounced', message: 'Write skipped to reduce DB load' })
+    }
+
+    // Update cache
+    writeCache.set(cacheKey, now)
+    
+    // Prevent Map memory leaks on long-running worker
+    if (writeCache.size > 50000) writeCache.clear()
 
     // Get client info
     const forwarded = req.headers.get('x-forwarded-for')

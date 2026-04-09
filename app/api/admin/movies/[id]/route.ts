@@ -14,7 +14,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
   const movie = await prisma.movie.findUnique({
     where: { id },
-    include: { episodes: { orderBy: { sortOrder: 'asc' } }, shorts: true },
+    include: { episodes: { orderBy: { sortOrder: 'asc' } } },
   })
   if (!movie) return errorResponse('Movie not found', 404)
 

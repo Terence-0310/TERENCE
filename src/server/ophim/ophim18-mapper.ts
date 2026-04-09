@@ -160,8 +160,6 @@ export function mapMovie(raw: OPhim18MovieItem, cdnBase?: string): MappedMovie {
     thumbUrl: resolveImageUrl(raw.thumb_url, cdn),
     posterUrl: resolveImageUrl(raw.poster_url, cdn),
     isCopyright: raw.is_copyright || false,
-    actorText: raw.actor?.length ? raw.actor.join(', ') : null,
-    directorText: raw.director?.length ? raw.director.join(', ') : null,
     categoryText: raw.category?.length ? raw.category.map(c => c.name).join(', ') : null,
     countryText: raw.country?.length ? raw.country.map(c => c.name).join(', ') : null,
     tmdbId: tmdbId && !isNaN(tmdbId) ? tmdbId : null,

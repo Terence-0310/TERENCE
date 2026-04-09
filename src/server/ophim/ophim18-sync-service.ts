@@ -14,7 +14,7 @@ import {
   completeSyncJob,
   failSyncJob,
   addSyncLog as _addSyncLog,
-  upsertCategories,
+  upsertGenres,
   upsertCountries,
   upsertEpisodes,
   disconnect,
@@ -147,8 +147,6 @@ export async function syncMovieBySlug(slug: string, syncJobId?: string): Promise
           thumbUrl: movieData.thumbUrl || movie!.thumbUrl,
           posterUrl: movieData.posterUrl || movie!.posterUrl,
           isCopyright: movieData.isCopyright,
-          actorText: movieData.actorText || movie!.actorText,
-          directorText: movieData.directorText || movie!.directorText,
           categoryText: movieData.categoryText,
           countryText: movieData.countryText,
           tmdbId: movieData.tmdbId || movie!.tmdbId,
@@ -163,7 +161,7 @@ export async function syncMovieBySlug(slug: string, syncJobId?: string): Promise
     }
 
     // 4. Upsert related data
-    await upsertCategories(movie.id, categories)
+    await upsertGenres(movie.id, categories)
     await upsertCountries(movie.id, countries)
     const epCount = await upsertEpisodes(movie.id, episodeData)
     await upsertMovieSource(movie.id, movieData.ophimId, movieData.slug)

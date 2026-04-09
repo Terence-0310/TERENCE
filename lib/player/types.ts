@@ -16,8 +16,7 @@ export interface PlayableMovie {
   quality: string | null
   rating: number | null
   categoryText: string | null
-  directorText: string | null
-  actorText: string | null
+
   countryText: string | null
 }
 

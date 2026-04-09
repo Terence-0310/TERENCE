@@ -20,8 +20,10 @@ export function MovieCard({ movie, priority = false, showRank, landscape = false
   const aspectClass = landscape ? 'aspect-video' : 'aspect-[2/3]'
   const hoverClass = landscape ? 'card-neon-hover' : 'card-hover'
 
+  const href = movie.mediaType === 'tv' ? `/tv/${movie.id}` : `/movie/${movie.id}`
+
   return (
-    <Link href={`/movie/${movie.id}`} className="group relative block flex-shrink-0 focus-ring rounded-xl">
+    <Link href={href} className="group relative block flex-shrink-0 focus-ring rounded-xl">
       <div className={`relative ${aspectClass} w-full overflow-hidden rounded-xl border border-white/[0.06] bg-card transition-all duration-300 ${hoverClass} group-hover:border-primary/20`}>
         {/* Image */}
         <Image

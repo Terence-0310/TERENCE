@@ -129,8 +129,6 @@ export async function getContinueWatching(
         quality: item.movie.quality,
         rating: item.movie.rating,
         categoryText: item.movie.categoryText,
-        directorText: item.movie.directorText,
-        actorText: item.movie.actorText,
         countryText: item.movie.countryText,
       },
       episode: item.episode

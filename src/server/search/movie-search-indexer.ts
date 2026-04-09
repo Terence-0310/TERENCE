@@ -16,8 +16,7 @@ interface MovieForIndex {
   title: string
   originalTitle: string | null
   description: string | null
-  actorText: string | null
-  directorText: string | null
+  people?: Array<{ role: string; person: { name: string } }>
   categoryText: string | null
   countryText: string | null
   year: number | null
@@ -35,7 +34,7 @@ interface MovieForIndex {
   isTrending: boolean
   publishedAt: Date | null
   updatedAt: Date
-  categories?: Array<{ category: { name: string; slug: string } }>
+  genres?: Array<{ genre: { name: string; slug: string } }>
   countries?: Array<{ country: { name: string; slug: string } }>
 }
 
@@ -56,8 +55,8 @@ function splitText(text: string | null): string[] {
 }
 
 export function buildDocument(movie: MovieForIndex) {
-  const categorySlugs = movie.categories
-    ? movie.categories.map(c => c.category.slug)
+  const categorySlugs = movie.genres
+    ? movie.genres.map((c: any) => c.genre.slug)
     : splitText(movie.categoryText)
   const countrySlugs = movie.countries
     ? movie.countries.map(c => c.country.slug)
@@ -70,8 +69,8 @@ export function buildDocument(movie: MovieForIndex) {
     originalTitle: movie.originalTitle,
     titleSuggest: normalizeForSuggest(movie.title, movie.originalTitle),
     description: movie.description,
-    actors: movie.actorText || '',
-    directors: movie.directorText || '',
+    actors: movie.people?.filter(p => p.role === 'actor').map(p => p.person.name).join(', ') || '',
+    directors: movie.people?.filter(p => p.role === 'director').map(p => p.person.name).join(', ') || '',
     categories: categorySlugs,
     countries: countrySlugs,
     year: movie.year,
@@ -129,8 +128,9 @@ export async function indexMovie(movieId: string): Promise<boolean> {
   const movie = await prisma.movie.findUnique({
     where: { id: movieId },
     include: {
-      categories: { include: { category: { select: { name: true, slug: true } } } },
+      genres: { include: { genre: { select: { name: true, slug: true } } } },
       countries: { include: { country: { select: { name: true, slug: true } } } },
+      people: { include: { person: { select: { name: true } } } },
     },
   })
 
@@ -186,7 +186,7 @@ export async function reindexAll(batchSize: number = 100): Promise<{ total: numb
     const findArgs: any = {
       where: { isActive: true, deletedAt: null },
       include: {
-        categories: { include: { category: { select: { name: true, slug: true } } } },
+        genres: { include: { genre: { select: { name: true, slug: true } } } },
         countries: { include: { country: { select: { name: true, slug: true } } } },
       },
       orderBy: { id: 'asc' },

@@ -12,8 +12,8 @@ export async function GET() {
 
   const [
     moviesMissingPoster, moviesMissingDescription, moviesMissingSource,
-    shortsMissingThumb, brokenEpisodes,
-    draftMovies, draftShorts,
+    brokenEpisodes,
+    draftMovies,
     blockedUsers, totalUploads,
     archivedMovies, unpublishedMovies,
     recentlyUpdated, totalActive,
@@ -24,7 +24,6 @@ export async function GET() {
       where: { sourceStatus: { in: ['missing', 'broken'] }, ...notDeleted },
       select, take: 50,
     }),
-    prisma.short.count({ where: { thumbnailUrl: null, deletedAt: null } }),
     prisma.episode.findMany({
       where: { status: 'broken' }, take: 50,
       select: {
@@ -35,10 +34,6 @@ export async function GET() {
     prisma.movie.findMany({
       where: { status: 'draft', ...notDeleted }, take: 20,
       select: { ...select, updatedAt: true },
-    }),
-    prisma.short.findMany({
-      where: { status: 'draft', deletedAt: null }, take: 20,
-      select: { id: true, title: true, createdAt: true },
     }),
     prisma.user.findMany({
       where: { status: { in: ['banned', 'blocked'] } }, take: 20,
@@ -75,11 +70,9 @@ export async function GET() {
       { type: 'movies_missing_poster', count: moviesMissingPoster, label: 'Phim thiếu poster' },
       { type: 'movies_missing_description', count: moviesMissingDescription, label: 'Phim thiếu mô tả' },
       { type: 'movies_broken_source', count: moviesMissingSource.length, label: 'Phim thiếu/lỗi nguồn phát', items: moviesMissingSource },
-      { type: 'shorts_missing_thumb', count: shortsMissingThumb, label: 'Short thiếu thumbnail' },
       { type: 'broken_episodes', count: brokenEpisodes.length, label: 'Tập phim lỗi nguồn', items: brokenEpisodes },
       { type: 'duplicate_slugs', count: duplicateSlugCandidates.length, label: 'Slug trùng lấp', items: duplicateSlugCandidates },
       { type: 'draft_movies', count: draftMovies.length, label: 'Phim chờ duyệt', items: draftMovies },
-      { type: 'draft_shorts', count: draftShorts.length, label: 'Short chờ duyệt', items: draftShorts },
       { type: 'blocked_users', count: blockedUsers.length, label: 'User bị khóa', items: blockedUsers },
     ],
     summary: {

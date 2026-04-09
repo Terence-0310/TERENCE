@@ -30,6 +30,10 @@ export async function login(body: unknown, headers?: Headers) {
     return NextResponse.json({ error: 'Tài khoản đã bị vô hiệu hóa' }, { status: 403 })
   }
 
+  if (!user.passwordHash) {
+    return NextResponse.json({ error: 'Vui lòng đăng nhập qua Google' }, { status: 400 })
+  }
+
   const valid = await authService.verifyPassword(password, user.passwordHash)
   if (!valid) {
     return NextResponse.json({ error: 'Email hoặc mật khẩu không đúng' }, { status: 401 })

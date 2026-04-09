@@ -154,22 +154,25 @@ enum SyncLogLevel {
 // ─────────────────────────────────────────────────────────────────
 
 model User {
-  id            String     @id @default(cuid())
-  name          String
-  email         String     @unique
-  passwordHash  String
-  role          String     @default("user")
-  avatar        String?
-  bio           String?
-  isActive      Boolean    @default(true)
-  status        String     @default("active")
-  blockedReason String?
-  lastLoginAt   DateTime?
-  lastLoginIp   String?
-  loginCount    Int        @default(0)
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-  deletedAt     DateTime?
+  id              String    @id @default(cuid())
+  name            String
+  email           String    @unique
+  passwordHash    String?
+  role            String    @default("user")
+  avatar          String?
+  image           String?
+  isEmailVerified Boolean   @default(false)
+  emailVerified   DateTime?
+  bio             String?
+  isActive        Boolean   @default(true)
+  status          String    @default("active")
+  blockedReason   String?
+  lastLoginAt     DateTime?
+  lastLoginIp     String?
+  loginCount      Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
 
   sessions               Session[]
   adminLogs              AdminLog[]
@@ -179,6 +182,37 @@ model User {
   wallet                 Wallet?
   hostedWatchParties     WatchPartyRoom[]
   watchPartyParticipants WatchPartyParticipant[]
+  passwordResetTokens    PasswordResetToken[]
+  accounts               Account[]
+  walletTransactions     WalletTransaction[]
+  topupOrders            TopupOrder[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
 }
 
 model Session {
@@ -190,22 +224,35 @@ model Session {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+}
+
 // ─────────────────────────────────────────────────────────────────
 // MOVIES (CATALOG)
 // ─────────────────────────────────────────────────────────────────
 
 model Movie {
-  id               String    @id @default(cuid())
-  ophimId          String?   @unique
+  id               String  @id @default(cuid())
+  ophimId          String? @unique
   tmdbId           Int?
   imdbId           String?
-  slug             String    @unique
+  slug             String  @unique
   title            String
   originalTitle    String?
   description      String?
   shortDescription String?
-  contentType      String    @default("movie")
-  status           String    @default("draft")
+  contentType      String  @default("movie")
+  status           String  @default("draft")
   quality          String?
   language         String?
   year             Int?
@@ -218,37 +265,35 @@ model Movie {
   thumbUrl         String?
   posterUrl        String?
   backdropUrl      String?
-  rating           Float?    @default(0)
+  rating           Float?  @default(0)
   ageRating        String?
   // Legacy text fields — kept for backward compat during migration
-  actorText        String?
-  directorText     String?
-  countryText      String?
-  categoryText     String?
-  tags             String?
-  seoTitle         String?
-  seoDescription   String?
-  seoKeywords      String?
-  isCopyright      Boolean   @default(false)
-  isActive         Boolean   @default(true)
-  isFeatured       Boolean   @default(false)
-  isTrending       Boolean   @default(false)
-  isRecommended    Boolean   @default(false)
-  isPublished      Boolean   @default(false)
-  metadataSource   String?
-  matchConfidence  Float?
-  sourceStatus     String    @default("pending")
-  viewCount        Int       @default(0)
-  publishedAt      DateTime?
-  lastSyncedAt     DateTime?
-  createdBy        String?
-  updatedBy        String?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-  deletedAt        DateTime?
+
+  countryText     String?
+  categoryText    String?
+  tags            String?
+  seoTitle        String?
+  seoDescription  String?
+  seoKeywords     String?
+  isCopyright     Boolean   @default(false)
+  isActive        Boolean   @default(true)
+  isFeatured      Boolean   @default(false)
+  isTrending      Boolean   @default(false)
+  isRecommended   Boolean   @default(false)
+  isPublished     Boolean   @default(false)
+  metadataSource  String?
+  matchConfidence Float?
+  sourceStatus    String    @default("pending")
+  viewCount       Int       @default(0)
+  publishedAt     DateTime?
+  lastSyncedAt    DateTime?
+  createdBy       String?
+  updatedBy       String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
 
   episodes        Episode[]
-  shorts          Short[]
   genres          MovieGenre[]
   countries       MovieCountry[]
   people          MoviePerson[]
@@ -260,7 +305,6 @@ model Movie {
   reviews         Review[]
   watchPartyRooms WatchPartyRoom[]
   // Legacy pivot — kept for backward compat; alias to genres
-  categories      MovieCategory[]
 
   @@index([title])
   @@index([originalTitle])
@@ -405,39 +449,6 @@ model MovieGenre {
   @@unique([movieId, genreId])
   @@index([movieId])
   @@index([genreId])
-}
-
-// Legacy Category model — kept for backward compat with existing code
-// New code should use Genre + MovieGenre instead
-model Category {
-  id          String   @id @default(cuid())
-  name        String   @unique
-  slug        String   @unique
-  tmdbId      Int?     @unique
-  description String?
-  sortOrder   Int      @default(0)
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  movies MovieCategory[]
-
-  @@index([slug])
-  @@index([isActive])
-}
-
-model MovieCategory {
-  id         String   @id @default(cuid())
-  movieId    String
-  categoryId String
-  createdAt  DateTime @default(now())
-
-  movie    Movie    @relation(fields: [movieId], references: [id], onDelete: Cascade)
-  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-
-  @@unique([movieId, categoryId])
-  @@index([movieId])
-  @@index([categoryId])
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -644,19 +655,19 @@ model Review {
 // ─────────────────────────────────────────────────────────────────
 
 model NewsPost {
-  id           String    @id @default(cuid())
-  title        String
-  slug         String    @unique
-  excerpt      String?
-  content      String?
-  coverImage   String?
-  authorId     String?
-  status       String    @default("draft")
-  tags         String?
-  viewCount    Int       @default(0)
-  publishedAt  DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id          String    @id @default(cuid())
+  title       String
+  slug        String    @unique
+  excerpt     String?
+  content     String?
+  coverImage  String?
+  authorId    String?
+  status      String    @default("draft")
+  tags        String?
+  viewCount   Int       @default(0)
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@index([slug])
   @@index([status])
@@ -679,47 +690,88 @@ model Wallet {
 }
 
 model WalletTransaction {
-  id            String   @id @default(cuid())
-  walletId      String
-  type          String   @default("credit")
-  category      String   @default("other")
-  amount        Int
-  balanceBefore Int      @default(0)
-  balanceAfter  Int      @default(0)
-  description   String?
-  referenceId   String?
-  referenceType String?
-  createdAt     DateTime @default(now())
+  id             String   @id @default(cuid())
+  walletId       String
+  userId         String
+  type           String   // TOPUP, REWARD, REDEEM, ADJUSTMENT, REFUND
+  direction      String   // CREDIT, DEBIT
+  amount         Int
+  balanceBefore  Int
+  balanceAfter   Int
+  status         String   // SUCCESS, PENDING, FAILED, CANCELED
+  provider       String?  // VIETQR, SEPAY
+  referenceType  String?
+  referenceId    String?
+  title          String   @default("")
+  description    String?
+  metadata       Json?
+  createdAt      DateTime @default(now())
 
   wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([walletId])
+  @@index([userId])
   @@index([type])
-  @@index([category])
   @@index([createdAt])
 }
 
 // ─────────────────────────────────────────────────────────────────
-// PAYMENT ORDERS
+// PAYMENT ORDERS & PACKAGES
 // ─────────────────────────────────────────────────────────────────
 
-model PaymentOrder {
-  id            String    @id @default(cuid())
-  userId        String
-  amount        Int
-  currency      String    @default("VND")
-  tcoins        Int       @default(0)
-  provider      String?
-  providerTxnId String?
-  status        String    @default("pending")
-  metadata      String?
-  paidAt        DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+model TCoinPackage {
+  id          String   @id @default(cuid())
+  slug        String   @unique @default(cuid())
+  name        String
+  coinAmount  Int
+  bonusAmount Int      @default(0)
+  priceVnd    Int
+  isPopular   Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  topupOrders TopupOrder[]
+}
+
+model TopupOrder {
+  id                    String   @id @default(cuid())
+  code                  String   @unique
+  userId                String
+  packageId             String
+  provider              String   // BANK_QR
+  amountVnd             Int
+  coinAmount            Int
+  bonusAmount           Int
+  transferContent       String   // ví dụ: TCOIN_AB12CD34
+  qrImageUrl            String?
+  status                String   // PENDING, PAID, FAILED, EXPIRED, CANCELED
+  matchedBankTxnId      String?  @unique
+  matchedBankAccount    String?
+  matchedBankAmount     Int?
+  matchedBankContent    String?
+  paidAt                DateTime?
+  expiresAt             DateTime?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  package TCoinPackage @relation(fields: [packageId], references: [id], onDelete: Restrict)
 
   @@index([userId])
-  @@index([status])
-  @@index([createdAt])
+  @@index([code])
+}
+
+model BankWebhookLog {
+  id          String   @id @default(cuid())
+  provider    String   // SEPAY
+  eventType   String?
+  rawPayload  Json
+  signature   String?
+  processed   Boolean  @default(false)
+  createdAt   DateTime @default(now())
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -727,25 +779,25 @@ model PaymentOrder {
 // ─────────────────────────────────────────────────────────────────
 
 model WatchPartyRoom {
-  id           String   @id @default(cuid())
-  roomCode     String   @unique
+  id           String    @id @default(cuid())
+  roomCode     String    @unique
   title        String
   hostUserId   String?
   movieId      String?
   episodeId    String?
-  status       String   @default("ACTIVE")
-  shareCode    String?  @unique
-  maxMembers   Int      @default(10)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  status       String    @default("ACTIVE")
+  shareCode    String?   @unique
+  maxMembers   Int       @default(10)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
   lastSyncedAt DateTime?
 
-  host     User?              @relation(fields: [hostUserId], references: [id], onDelete: SetNull)
-  movie    Movie?             @relation(fields: [movieId], references: [id], onDelete: SetNull)
-  episode  Episode?           @relation(fields: [episodeId], references: [id], onDelete: SetNull)
+  host         User?                   @relation(fields: [hostUserId], references: [id], onDelete: SetNull)
+  movie        Movie?                  @relation(fields: [movieId], references: [id], onDelete: SetNull)
+  episode      Episode?                @relation(fields: [episodeId], references: [id], onDelete: SetNull)
   participants WatchPartyParticipant[]
   state        WatchPartyState?
-  messages WatchPartyMessage[]
+  messages     WatchPartyMessage[]
 
   @@index([status])
   @@index([hostUserId])
@@ -803,39 +855,6 @@ model WatchPartyState {
   room WatchPartyRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
 
   @@index([roomId])
-}
-
-// ─────────────────────────────────────────────────────────────────
-// SHORTS
-// ─────────────────────────────────────────────────────────────────
-
-model Short {
-  id           String    @id @default(cuid())
-  movieId      String?
-  title        String
-  slug         String    @unique
-  description  String?
-  videoUrl     String?
-  sourceType   String    @default("mp4")
-  thumbnailUrl String?
-  duration     Int?
-  hashtags     String?
-  status       String    @default("draft")
-  viewCount    Int       @default(0)
-  likeCount    Int       @default(0)
-  shareCount   Int       @default(0)
-  saveCount    Int       @default(0)
-  createdBy    String?
-  updatedBy    String?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  deletedAt    DateTime?
-
-  movie Movie? @relation(fields: [movieId], references: [id], onDelete: SetNull)
-
-  @@index([status])
-  @@index([movieId])
-  @@index([createdAt])
 }
 
 // ─────────────────────────────────────────────────────────────────

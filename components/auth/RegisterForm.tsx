@@ -5,6 +5,7 @@ import { useAuthModal } from './auth-modal-store'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Mail, Lock, User, Eye, EyeOff } from 'lucide-react'
+import Turnstile from 'react-turnstile'
 
 export function RegisterForm() {
   const { setView } = useAuthModal()
@@ -17,6 +18,7 @@ export function RegisterForm() {
   const [showPass, setShowPass] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [captchaToken, setCaptchaToken] = useState<string>('')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -27,12 +29,17 @@ export function RegisterForm() {
       setLoading(false)
       return
     }
+    if (!captchaToken && process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY) {
+      setError('Vui lòng xác minh bạn không phải robot!')
+      setLoading(false)
+      return
+    }
     try {
       const signupId = authMethod === 'phone' ? `${phone}@phone.terence.vn` : email
-      const res = await fetch('/api/auth/signup', {
+      const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email: signupId, password }),
+        body: JSON.stringify({ name, email: signupId, password, captchaToken }),
       })
 
       const data = await res.json()
@@ -158,16 +165,13 @@ export function RegisterForm() {
           </div>
         </div>
 
-        {/* Captcha Placeholder styling matching Image 2 */}
-        <div className="h-[74px] w-full bg-[#1A1D2D] border border-white/5 rounded-[8px] flex items-center justify-between px-3 mt-4 mb-2">
-           <div className="flex items-center gap-3">
-             <div className="w-6 h-6 rounded-[2px] border-[2px] border-[#c1c1c1] bg-[#0B0F19] cursor-pointer hover:border-teal-400 transition-colors" />
-             <span className="text-[13px] text-white">Đang xác minh...</span>
-           </div>
-           <div className="flex flex-col items-center justify-center opacity-80">
-             <img src="https://upload.wikimedia.org/wikipedia/commons/9/94/Cloudflare_Logo.png" className="h-4 object-contain mb-1" alt="Cloudflare" />
-             <span className="text-[8px] text-white/60 text-right w-full leading-tight">Quyền riêng tư<br/>Điều khoản</span>
-           </div>
+        {/* Captcha */}
+        <div className="mt-4 mb-2 flex justify-center">
+          <Turnstile
+            sitekey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || '1x00000000000000000000AA'}
+            onVerify={(token) => setCaptchaToken(token)}
+            theme="dark"
+          />
         </div>
 
         <Button disabled={loading} type="submit" className="w-full h-12 bg-[#2DD4BF] hover:bg-[#14B8A6] text-black font-semibold text-[15px] rounded-[8px] transition-colors mt-2 shadow-[0_0_20px_rgba(45,212,191,0.15)]">

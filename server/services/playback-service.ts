@@ -49,8 +49,6 @@ function mapMovie(m: any): PlayableMovie {
     quality: m.quality,
     rating: m.rating,
     categoryText: m.categoryText,
-    directorText: m.directorText,
-    actorText: m.actorText,
     countryText: m.countryText,
   }
 }
@@ -296,7 +294,7 @@ export async function getMoviePlaybackByTitle(
   // 2. Case-insensitive title match
   const byTitle = await prisma.movie.findFirst({
     where: {
-      title: { equals: title },
+      title: { equals: title, mode: 'insensitive' } as any,
       isActive: true,
       episodes: { some: { streamUrl: { not: null } } },
     },
@@ -314,7 +312,7 @@ export async function getMoviePlaybackByTitle(
 
       const byPartialSlug = await prisma.movie.findFirst({
         where: {
-          slug: { startsWith: partialSlug },
+          slug: { startsWith: partialSlug, mode: 'insensitive' } as any,
           isActive: true,
           episodes: { some: { streamUrl: { not: null } } },
         },

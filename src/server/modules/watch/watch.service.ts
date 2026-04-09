@@ -224,8 +224,6 @@ function mapMovieDetail(m: any): WatchMovieDetail {
     rating: m.rating,
     ageRating: m.ageRating,
     categoryText: m.categoryText,
-    directorText: m.directorText,
-    actorText: m.actorText,
     countryText: m.countryText,
   }
 }
