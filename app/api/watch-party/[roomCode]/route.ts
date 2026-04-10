@@ -25,7 +25,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     return NextResponse.json({
       room: {
         id: room.id,
-        roomCode: room.roomCode,
+        code: room.roomCode,
         title: room.title,
         status: room.status,
         movieId: room.movieId,

@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { AuthProvider } from '@/contexts/auth-context'
 import { LayoutWrapper } from '@/components/layout-wrapper'
+import { Toaster } from 'sonner'
 import './globals.css'
 
 const inter = Inter({
@@ -42,6 +43,7 @@ export default function RootLayout({
           </LayoutWrapper>
         </AuthProvider>
         <Analytics />
+        <Toaster theme="dark" position="bottom-right" />
       </body>
     </html>
   )

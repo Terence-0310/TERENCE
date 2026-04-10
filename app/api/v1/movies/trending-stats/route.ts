@@ -25,7 +25,7 @@ export async function GET() {
       },
     })
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       success: true,
       data: movies.map((m, i) => ({
         rank: i + 1,
@@ -38,11 +38,15 @@ export async function GET() {
         viewCount: m.viewCount,
       })),
     })
+    res.headers.set('Content-Type', 'application/json; charset=utf-8')
+    return res
   } catch (error) {
     console.error('[API] GET /api/v1/movies/trending-stats error:', error)
-    return NextResponse.json(
+    const errRes = NextResponse.json(
       { success: false, message: 'Không thể tải phim sôi nổi' },
-      { status: 500 },
+      { status: 500 }
     )
+    errRes.headers.set('Content-Type', 'application/json; charset=utf-8')
+    return errRes
   }
 }

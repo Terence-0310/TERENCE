@@ -120,7 +120,7 @@ function RankingColumn({
           items.map((item) => (
             <Link
               key={item.movie.id}
-              href={`/movie/${item.movie.id}`}
+              href={`/watch/${item.movie.id}`}
               className="flex items-center gap-3 rounded-lg px-2 py-2 rank-item group"
             >
               {/* Rank number */}
@@ -149,12 +149,14 @@ function RankingColumn({
         )}
       </div>
       {items.length > 0 && (
-        <Link
-          href={moreHref}
-          className="mt-3 inline-block text-xs text-white/40 hover:text-white/70 transition"
-        >
-          Xem thêm
-        </Link>
+        <div className="flex justify-end mt-4">
+          <Link
+            href={moreHref}
+            className="text-xs font-semibold text-primary/80 hover:text-primary transition flex items-center gap-1"
+          >
+            Xem thêm <TrendingUp className="h-3 w-3" />
+          </Link>
+        </div>
       )}
     </div>
   )
@@ -184,7 +186,7 @@ function RecentReviewItem({ review }: { review: RecentReview }) {
             <span className="text-white/40">{review.content ? review.content.substring(0, 60) : ''}{(review.content?.length || 0) > 60 ? '...' : ''}</span>
           </p>
           <Link
-            href={`/movie/${review.movie.id}`}
+            href={`/watch/${review.movie.id}`}
             className="mt-0.5 flex items-center gap-1 text-xs text-white/30 hover:text-primary transition"
           >
             <Play className="h-2.5 w-2.5 fill-current" />

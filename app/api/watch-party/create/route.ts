@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       room: {
         id: result.room.id,
-        roomCode: result.room.roomCode,
+        code: result.room.roomCode,
         title: result.room.title,
         status: result.room.status,
         movieId: result.room.movieId,

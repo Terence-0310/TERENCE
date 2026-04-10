@@ -63,6 +63,7 @@ export const TCOIN_SPEND_OPTIONS: TCoinSpendOption[] = [
   { id: 'early-access', name: 'Xem sớm 24h', cost: 100, description: 'Xem phim mới trước cộng đồng', icon: '⏰' },
   { id: 'exclusive-badge', name: 'Huy hiệu đặc biệt', cost: 200, description: 'Nhận badge hiển thị khi chat', icon: '🏅' },
   { id: 'room-theme', name: 'Theme phòng xem chung', cost: 80, description: 'Tùy chỉnh giao diện phòng', icon: '🎨' },
+  { id: 'avatar-frame', name: 'Khung Avatar Neon', cost: 150, description: 'Hiệu ứng viền Avatar độc quyền', icon: '🖼️' },
 ]
 
 // ── Demo balance ──

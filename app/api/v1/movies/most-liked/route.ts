@@ -55,12 +55,16 @@ export async function GET() {
       })
       .filter(Boolean)
 
-    return NextResponse.json({ success: true, data })
+    const res = NextResponse.json({ success: true, data })
+    res.headers.set('Content-Type', 'application/json; charset=utf-8')
+    return res
   } catch (error) {
     console.error('[API] GET /api/v1/movies/most-liked error:', error)
-    return NextResponse.json(
+    const errRes = NextResponse.json(
       { success: false, message: 'Không thể tải phim yêu thích nhất' },
-      { status: 500 },
+      { status: 500 }
     )
+    errRes.headers.set('Content-Type', 'application/json; charset=utf-8')
+    return errRes
   }
 }

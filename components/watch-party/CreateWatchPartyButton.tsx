@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Users, Loader2 } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { toast } from 'sonner'
 
 interface CreateWatchPartyButtonProps {
   movieId: string
@@ -49,18 +50,21 @@ export function CreateWatchPartyButton({
         }),
       })
 
+      const data = await res.json()
       if (!res.ok) {
-        console.error('[CreateWatchParty] Failed to create room')
+        toast.error(data.error || 'Không thể tạo phòng xem chung')
         return
       }
 
-      const data = await res.json()
-      if (data.room?.roomCode) {
+      const code = data.room?.code || data.room?.roomCode
+      if (code) {
         setIsOpen(false)
-        onRoomCreated(data.room.roomCode)
+        onRoomCreated(code)
+      } else {
+        toast.error('Lỗi định dạng dữ liệu trả về từ máy chủ')
       }
-    } catch (err) {
-      console.error('[CreateWatchParty] Error:', err)
+    } catch (err: any) {
+      toast.error(err.message || 'Có lỗi xảy ra khi kết nối máy chủ')
     } finally {
       setIsCreating(false)
     }
