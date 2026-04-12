@@ -53,3 +53,6 @@ Must log:
 ## 9. ERROR HANDLING
 - Use try/catch
 - Do not expose sensitive info
+## PAGINATION
+- Use limit/offset or cursor
+- Avoid returning large dataset

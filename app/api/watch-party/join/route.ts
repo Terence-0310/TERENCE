@@ -6,9 +6,9 @@
 // Returns: { room, participant, state, isRejoin }
 
 import { NextRequest, NextResponse } from 'next/server'
-import { joinRoomSchema } from '@/server/watch-party/schemas'
-import * as service from '@/server/watch-party/service'
-import { WatchPartyError } from '@/server/watch-party/service'
+import { joinRoomSchema } from '@/src/be/modules/watch-party/watch-party.schema'
+import * as service from '@/src/be/modules/watch-party/watch-party.service'
+import { WatchPartyError } from '@/src/be/modules/watch-party/watch-party.service'
 
 export async function POST(request: NextRequest) {
   try {

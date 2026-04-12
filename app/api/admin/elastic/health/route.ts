@@ -3,8 +3,8 @@
 // ============================================
 
 import { NextResponse } from 'next/server'
-import { requireAdmin, isUser } from '@/src/server/admin/admin-guard'
-import { getClient, getMoviesIndex, isAvailable } from '@/src/server/search/elastic-client'
+import { requireAdmin, isUser } from '@/src/be/modules/admin/admin.guard'
+import { getClient, getMoviesIndex, isAvailable } from '@/src/be/modules/search/elastic-client'
 
 export async function GET() {
   const guard = await requireAdmin()

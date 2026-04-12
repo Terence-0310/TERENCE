@@ -3,7 +3,7 @@
 // ============================================
 // Usage:
 //   import { createMockPrisma } from '@/tests/helpers/mock-prisma'
-//   vi.mock('@/lib/auth/db', () => ({ prisma: createMockPrisma() }))
+//   vi.mock('@/src/be/shared/db/prisma', () => ({ prisma: createMockPrisma() }))
 
 import { vi } from 'vitest'
 

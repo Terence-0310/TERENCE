@@ -6,8 +6,8 @@
 // Returns: { room, participant, state }
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createRoomSchema } from '@/server/watch-party/schemas'
-import * as service from '@/server/watch-party/service'
+import { createRoomSchema } from '@/src/be/modules/watch-party/watch-party.schema'
+import * as service from '@/src/be/modules/watch-party/watch-party.service'
 
 export async function POST(request: NextRequest) {
   try {

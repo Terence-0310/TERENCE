@@ -3,8 +3,8 @@
 // ============================================
 
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAdmin, isUser } from '@/src/server/admin/admin-guard'
-import { enrichMovie } from '@/src/server/tmdb/tmdb-enrichment-service'
+import { requireAdmin, isUser } from '@/src/be/modules/admin/admin.guard'
+import { enrichMovie } from '@/src/be/modules/tmdb/tmdb-enrichment-service'
 
 export async function POST(
   _req: NextRequest,

@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { tmdbImage } from '@/lib/tmdb-image'
-import { mapMovie, mapMovieDetail, mapGenre } from '@/lib/tmdb/mapper'
+import { mapMovie, mapMovieDetail, mapGenre } from '@/src/be/modules/tmdb/legacy/mapper'
 import { fixtures } from '@/tests/fixtures'
 
 describe('tmdbImage()', () => {

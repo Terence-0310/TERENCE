@@ -4,7 +4,7 @@
 // Returns metadata health stats: missing trailers, unmatched TMDB, broken sources, recent failures.
 
 import { NextResponse } from 'next/server'
-import { requireAdmin, isUser } from '@/src/server/admin/admin-guard'
+import { requireAdmin, isUser } from '@/src/be/modules/admin/admin.guard'
 import { prisma } from '@/lib/db/prisma'
 
 export async function GET() {

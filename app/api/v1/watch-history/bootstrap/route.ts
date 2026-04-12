@@ -4,8 +4,8 @@
 // Returns full watch page bootstrap data (consolidated from /api/watch/bootstrap)
 
 import { NextRequest, NextResponse } from 'next/server'
-import { bootstrap } from '@/src/server/modules/watch/watch.service'
-import { getSession } from '@/lib/auth/session'
+import { bootstrap } from '@/src/be/modules/watch/watch.service'
+import { AuthService } from '@/src/be/modules/auth'
 
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl
@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
   // Get user session (optional — for resume progress)
   let userId: string | undefined
   try {
-    const session = await getSession()
+    const session = await AuthService.getSession()
     userId = session?.userId
   } catch {
     // Not logged in — no resume data

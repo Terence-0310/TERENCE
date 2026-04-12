@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { getOrderById } from '@/services/topup-order.service';
+import { getOrderById } from '@/src/be/services/topup-order.service';
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {

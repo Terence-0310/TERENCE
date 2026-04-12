@@ -6,9 +6,9 @@
 // Returns: updated state
 
 import { NextRequest, NextResponse } from 'next/server'
-import { syncStateSchema } from '@/server/watch-party/schemas'
-import * as service from '@/server/watch-party/service'
-import { WatchPartyError } from '@/server/watch-party/service'
+import { syncStateSchema } from '@/src/be/modules/watch-party/watch-party.schema'
+import * as service from '@/src/be/modules/watch-party/watch-party.service'
+import { WatchPartyError } from '@/src/be/modules/watch-party/watch-party.service'
 
 interface RouteContext {
   params: Promise<{ roomCode: string }>

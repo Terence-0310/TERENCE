@@ -4,11 +4,11 @@
 // Consolidated from /api/watch/complete
 
 import { NextRequest, NextResponse } from 'next/server'
-import { markComplete } from '@/src/server/modules/watch/watch.service'
-import { getSession } from '@/lib/auth/session'
+import { markComplete } from '@/src/be/modules/watch/watch.service'
+import { AuthService } from '@/src/be/modules/auth'
 
 export async function POST(request: NextRequest) {
-  const session = await getSession()
+  const session = await AuthService.getSession()
   if (!session?.userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
   await markComplete(session.userId, movieId, episodeId || null)
 
   // Award TCoin for watch completion (fire-and-forget)
-  import('@/src/server/modules/tcoin/tcoin.service')
+  import('@/src/be/modules/tcoin/tcoin.service')
     .then(({ rewardWatchComplete }) => rewardWatchComplete(session.userId, movieId))
     .catch(() => {}) // Non-critical
 

@@ -4,18 +4,18 @@
 // ============================================
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getSession } from '@/lib/auth/session'
+import { AuthService } from '@/src/be/modules/auth'
 import {
   getWatchHistory,
   getContinueWatching,
   upsertWatchProgress,
-} from '@/src/server/watch/watch-history-service'
-import { apiSuccess, apiError } from '@/lib/api/response'
+} from '@/src/be/modules/watch/watch-history-service'
+import { apiSuccess, apiError } from '@/src/be/shared/api-response'
 
 // ─── Auth Helper ────────────────────────────────────────────────
 
 async function requireUser() {
-  const session = await getSession()
+  const session = await AuthService.getSession()
   if (!session?.user?.id) return null
   return session.user
 }

@@ -7,7 +7,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { Server as SocketIOServer } from 'socket.io'
-import { registerWatchPartyHandlers } from '@/server/socket/watch-party'
+import { registerWatchPartyHandlers } from '@/src/be/modules/watch-party/watch-party.socket'
 
 // Global reference to prevent re-initialization
 declare global {

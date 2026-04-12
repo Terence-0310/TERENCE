@@ -2,8 +2,8 @@
 // DELETE /api/admin/genres/[id] — delete genre
 
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/auth/db'
-import { requireAdmin, logAdminAction } from '@/src/server/modules/admin/admin.utils'
+import { prisma } from '@/src/be/shared/db/prisma'
+import { requireAdmin, logAdminAction } from '@/src/be/modules/admin/admin.utils'
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireAdmin('editor')

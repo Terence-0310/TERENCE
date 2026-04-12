@@ -15,9 +15,9 @@ export interface PlayableMovie {
   year: number | null
   quality: string | null
   rating: number | null
-  categoryText: string | null
 
-  countryText: string | null
+
+
 }
 
 export interface PlayableEpisode {

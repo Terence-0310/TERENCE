@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { getWalletOverview } from '@/services/wallet.service';
+import { getWalletOverview } from '@/src/be/services/wallet.service';
 import { prisma } from '@/lib/db/prisma';
 
 export async function GET() {

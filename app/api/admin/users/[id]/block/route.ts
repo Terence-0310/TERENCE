@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
-import { prisma } from '@/lib/auth/db'
-import { requireAdmin, errorResponse, successResponse, parseBody } from '@/lib/admin/api-helpers'
-import { logAdminAction, getClientIp } from '@/lib/admin/audit'
+import { prisma } from '@/src/be/shared/db/prisma'
+import { requireAdmin, errorResponse, successResponse, parseBody } from '@/src/be/modules/admin/api-helpers'
+import { logAdminAction, getClientIp } from '@/src/be/modules/admin/audit'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -20,7 +20,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     return errorResponse('Không thể khóa chính tài khoản đang đăng nhập')
   }
 
-  if (user.role === 'super_admin' && auth.user.role !== 'super_admin') {
+  if (user.role === 'SUPER_ADMIN' && auth.user.role?.toUpperCase() !== 'SUPER_ADMIN') {
     return errorResponse('Không có quyền khóa Super Admin', 403)
   }
 

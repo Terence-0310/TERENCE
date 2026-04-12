@@ -15,7 +15,7 @@ import {
   sortSchema,
   idParamSchema,
   slugParamSchema,
-} from '@/lib/validators'
+} from '@/src/be/shared/validators/index'
 
 describe('newsCreateSchema', () => {
   it('should require title and slug', () => {

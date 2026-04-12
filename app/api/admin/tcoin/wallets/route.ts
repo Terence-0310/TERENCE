@@ -2,14 +2,12 @@
 // Admin: list all wallets with aggregates
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getAdminWallets } from '@/src/server/modules/tcoin/tcoin.service'
-import { getSession } from '@/lib/auth/session'
+import { getAdminWallets } from '@/src/be/modules/tcoin/tcoin.service'
+import { requireAdmin } from '@/src/be/modules/admin/api-helpers'
 
 export async function GET(request: NextRequest) {
-  const session = await getSession()
-  if (!session?.user || (session.user.role !== 'admin' && session.user.role !== 'ADMIN' && session.user.role !== 'SUPER_ADMIN')) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
+  const auth = await requireAdmin('payment.read')
+  if (auth instanceof NextResponse) return auth
 
   const { searchParams } = request.nextUrl
   const page = Number(searchParams.get('page')) || 1

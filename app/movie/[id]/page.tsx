@@ -2,10 +2,10 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { Star, Clock, Calendar, Play, ArrowLeft, ExternalLink, Film } from 'lucide-react'
-import { getMovieDetail } from '@/services/tmdb/movie-service'
-import { MovieRow } from '@/components/shared/MovieRow'
-import { MovieComments } from '@/components/shared/MovieComments'
-import { RelatedNews } from '@/components/news/RelatedNews'
+import { getMovieDetail } from '@/src/be/services/tmdb/movie-service'
+import { MovieRow } from '@/src/fe/components/shared/MovieRow'
+import { MovieComments } from '@/src/fe/components/shared/MovieComments'
+import { RelatedNews } from '@/src/fe/components/news/RelatedNews'
 import type { Metadata } from 'next'
 
 interface PageProps {
@@ -32,9 +32,16 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function MovieDetailPage({ params }: PageProps) {
   const { id } = await params
-  const movieId = Number(id)
-  if (isNaN(movieId)) notFound()
+  
+  if (isNaN(Number(id))) {
+    // If ID is not numeric, it's an internal DB slug from OPhim. 
+    // Redirect directly to the Watch player which supports DB playback natively.
+    const { redirect } = await import('next/navigation')
+    redirect(`/watch/${id}`)
+  }
 
+  const movieId = Number(id)
+  
   let movie
   try {
     movie = await getMovieDetail(movieId)
@@ -42,7 +49,7 @@ export default async function MovieDetailPage({ params }: PageProps) {
     notFound()
   }
 
-  const director = movie.crew.find((c) => c.job === 'Director')
+  const director = movie.crew?.find((c: any) => c.job === 'Director')
 
   return (
     <main className="min-h-screen bg-background">
@@ -144,9 +151,9 @@ export default async function MovieDetailPage({ params }: PageProps) {
             </div>
 
             {/* Genres */}
-            {movie.genres.length > 0 && (
+            {movie.genres?.length > 0 && (
               <div className="flex flex-wrap gap-2">
-                {movie.genres.map((g) => (
+                {movie.genres.map((g: any) => (
                   <Link
                     key={g.id}
                     href={`/browse?genre=${g.id}`}
@@ -193,13 +200,22 @@ export default async function MovieDetailPage({ params }: PageProps) {
               {director && (
                 <div className="rounded-xl bg-card/30 border border-white/[0.04] p-4">
                   <h3 className="mb-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Đạo diễn</h3>
-                  <p className="text-sm font-semibold text-white">{director.name}</p>
+                  <p className="text-sm font-semibold text-white">
+                    <Link href={`/person/${director.id}`} className="hover:text-primary transition-colors">{director.name}</Link>
+                  </p>
                 </div>
               )}
-              {movie.cast.length > 0 && (
+              {movie.cast?.length > 0 && (
                 <div className="rounded-xl bg-card/30 border border-white/[0.04] p-4">
                   <h3 className="mb-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Diễn viên chính</h3>
-                  <p className="text-sm text-white/80">{movie.cast.slice(0, 4).map((c) => c.name).join(' · ')}</p>
+                  <p className="text-sm text-white/80">
+                    {movie.cast.slice(0, 4).map((c: any, idx: number) => (
+                      <span key={c.id}>
+                        <Link href={`/person/${c.id}`} className="hover:text-primary transition-colors">{c.name}</Link>
+                        {idx < Math.min(movie.cast.length, 4) - 1 ? ' · ' : ''}
+                      </span>
+                    ))}
+                  </p>
                 </div>
               )}
             </div>
@@ -228,12 +244,12 @@ export default async function MovieDetailPage({ params }: PageProps) {
       )}
 
       {/* ═══════ CAST GRID ═══════ */}
-      {movie.cast.length > 0 && (
+      {movie.cast?.length > 0 && (
         <section className="mx-auto mt-14 max-w-7xl px-5 md:px-8 lg:px-10">
           <h2 className="mb-5 text-lg font-bold text-white">Dàn diễn viên</h2>
           <div className="grid grid-cols-3 gap-4 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-8">
-            {movie.cast.slice(0, 16).map((person) => (
-              <div key={person.id} className="group text-center">
+            {movie.cast.slice(0, 16).map((person: any) => (
+              <Link href={`/person/${person.id}`} key={person.id} className="block group text-center">
                 <div className="relative mx-auto mb-2.5 h-20 w-20 overflow-hidden rounded-full border-2 border-white/[0.06] bg-card transition-all group-hover:border-primary/30 group-hover:shadow-lg group-hover:shadow-primary/10">
                   <Image
                     src={person.profileUrl || '/placeholder-user.jpg'}
@@ -244,9 +260,9 @@ export default async function MovieDetailPage({ params }: PageProps) {
                     loading="lazy"
                   />
                 </div>
-                <p className="line-clamp-1 text-xs font-semibold text-white/90">{person.name}</p>
+                <p className="line-clamp-1 text-xs font-semibold text-white/90 group-hover:text-primary transition-colors">{person.name}</p>
                 <p className="line-clamp-1 text-[10px] text-muted-foreground">{person.character}</p>
-              </div>
+              </Link>
             ))}
           </div>
         </section>
@@ -256,7 +272,7 @@ export default async function MovieDetailPage({ params }: PageProps) {
       <MovieComments movieId={movie.id} />
 
       {/* ═══════ RELATED ═══════ */}
-      {movie.relatedMovies.length > 0 && (
+      {movie.relatedMovies?.length > 0 && (
         <div className="mt-14">
           <MovieRow title="Phim tương tự" movies={movie.relatedMovies} />
         </div>

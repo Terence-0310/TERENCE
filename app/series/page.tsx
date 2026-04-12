@@ -1,6 +1,6 @@
-import { searchTv, getTvPopular, getTvTrending, getTvTopRated, getTvByGenre, getTvByCountry, getTvGenres } from '@/services/tmdb/tv-service'
-import { MovieCard } from '@/components/shared/MovieCard'
-import { SearchBar } from '@/components/shared/SearchBar'
+import { searchTv, getTvPopular, getTvTrending, getTvTopRated, getTvByGenre, getTvByCountry, getTvGenres } from '@/src/be/services/tmdb/tv-service'
+import { MovieCard } from '@/src/fe/components/shared/MovieCard'
+import { SearchBar } from '@/src/fe/components/shared/SearchBar'
 import Link from 'next/link'
 import { Film, Search as SearchIcon } from 'lucide-react'
 import type { Metadata } from 'next'
@@ -15,9 +15,9 @@ export const metadata: Metadata = {
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
-  trending: '🔥 Xu hướng',
-  popular: '🎬 Phổ biến',
-  'top-rated': '⭐ Đánh giá cao',
+  trending: 'Xu hướng',
+  popular: 'Phổ biến',
+  'top-rated': 'Đánh giá cao',
 }
 
 export default async function SeriesPage({ searchParams }: PageProps) {

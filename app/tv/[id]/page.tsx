@@ -2,9 +2,9 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { Star, Calendar, Play, ArrowLeft, Tv } from 'lucide-react'
-import { getTvDetail } from '@/services/tmdb/tv-service'
-import { MovieComments } from '@/components/shared/MovieComments'
-import { RelatedNews } from '@/components/news/RelatedNews'
+import { getTvDetail } from '@/src/be/services/tmdb/tv-service'
+import { MovieComments } from '@/src/fe/components/shared/MovieComments'
+import { RelatedNews } from '@/src/fe/components/news/RelatedNews'
 import type { Metadata } from 'next'
 
 interface PageProps {
@@ -31,9 +31,14 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function SeriesDetailPage({ params }: PageProps) {
   const { id } = await params
-  const seriesId = Number(id)
-  if (isNaN(seriesId)) notFound()
+  
+  if (isNaN(Number(id))) {
+    const { redirect } = await import('next/navigation')
+    redirect(`/watch/${id}`)
+  }
 
+  const seriesId = Number(id)
+  
   let series
   try {
     series = await getTvDetail(seriesId)
@@ -166,7 +171,14 @@ export default async function SeriesDetailPage({ params }: PageProps) {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="rounded-xl bg-card/30 border border-white/[0.04] p-4">
                   <h3 className="mb-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Nhà sáng lập</h3>
-                  <p className="text-sm font-semibold text-white">{creators.map((c) => c.name).join(', ')}</p>
+                  <p className="text-sm font-semibold text-white">
+                    {creators.map((c, idx) => (
+                      <span key={c.id}>
+                        <Link href={`/person/${c.id}`} className="hover:text-primary transition-colors">{c.name}</Link>
+                        {idx < creators.length - 1 ? ', ' : ''}
+                      </span>
+                    ))}
+                  </p>
                 </div>
               </div>
             )}

@@ -4,9 +4,9 @@ import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, Save, Upload, X, Image as ImageIcon, RefreshCw } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/src/fe/components/ui/button'
+import { Input } from '@/src/fe/components/ui/input'
+import { Card, CardContent, CardHeader, CardTitle } from '@/src/fe/components/ui/card'
 
 const generateSlug = (t: string) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
   .replace(/đ/g, 'd').replace(/Đ/g, 'd').replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 200)
@@ -17,7 +17,7 @@ const EMPTY_FORM = {
   title: '', originalTitle: '', slug: '', description: '', shortDescription: '',
   contentType: 'movie', status: 'draft', posterUrl: '', backdropUrl: '', thumbUrl: '',
   trailerUrl: '', year: '', duration: '', quality: 'HD', language: 'vi',
-  countryText: 'Việt Nam', categoryText: '', rating: '', ageRating: '',
+  rating: '', ageRating: '',
   tags: '', seoTitle: '', seoDescription: '', seoKeywords: '',
   isFeatured: false, isTrending: false, isRecommended: false,
 }
@@ -176,7 +176,7 @@ export default function NewMoviePage() {
                   <option value="CAM">CAM</option><option value="HD">HD</option><option value="FHD">Full HD</option><option value="4K">4K</option>
                 </select></div>
               <div><label className={labelCls}>Ngôn ngữ</label><Input className={inputCls} value={form.language} onChange={(e) => up('language', e.target.value)} /></div>
-              <div><label className={labelCls}>Quốc gia</label><Input className={inputCls} value={form.countryText} onChange={(e) => up('countryText', e.target.value)} /></div>
+              
               <div><label className={labelCls}>Xếp hạng tuổi</label>
                 <select className={selectCls} value={form.ageRating} onChange={(e) => up('ageRating', e.target.value)}>
                   <option value="">Chưa chọn</option><option value="P">P (mọi lứa tuổi)</option>
@@ -184,8 +184,6 @@ export default function NewMoviePage() {
                 </select></div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div><label className={labelCls}>Thể loại</label><Input className={inputCls} placeholder="Hành động, Tâm lý, Kinh dị"
-                value={form.categoryText} onChange={(e) => up('categoryText', e.target.value)} /></div>
               <div><label className={labelCls}>Rating (0-10)</label><Input type="number" step="0.1" min="0" max="10" className={inputCls}
                 value={form.rating} onChange={(e) => up('rating', e.target.value)} /></div>
             </div>
@@ -237,15 +235,15 @@ export default function NewMoviePage() {
             <div className="flex flex-wrap gap-6">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" className="w-4 h-4 accent-primary" checked={form.isFeatured} onChange={(e) => up('isFeatured', e.target.checked)} />
-                <span className="text-sm">⭐ Nổi bật</span>
+                <span className="text-sm">Nổi bật</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" className="w-4 h-4 accent-primary" checked={form.isTrending} onChange={(e) => up('isTrending', e.target.checked)} />
-                <span className="text-sm">📈 Xu hướng</span>
+                <span className="text-sm">Xu hướng</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" className="w-4 h-4 accent-primary" checked={form.isRecommended} onChange={(e) => up('isRecommended', e.target.checked)} />
-                <span className="text-sm">👍 Đề xuất</span>
+                <span className="text-sm">Đề xuất</span>
               </label>
             </div>
           </CardContent>

@@ -1,8 +1,8 @@
 import { NextRequest } from 'next/server'
-import { requireAdmin, errorResponse, successResponse } from '@/lib/admin/api-helpers'
-import { handleMovieMediaUpload, deleteUploadedFile, type MovieMediaField } from '@/lib/admin/upload'
-import { logAdminAction, getClientIp } from '@/lib/admin/audit'
-import { prisma } from '@/lib/auth/db'
+import { requireAdmin, errorResponse, successResponse } from '@/src/be/modules/admin/api-helpers'
+import { handleMovieMediaUpload, deleteUploadedFile, type MovieMediaField } from '@/src/be/modules/uploads/legacy-upload'
+import { logAdminAction, getClientIp } from '@/src/be/modules/admin/audit'
+import { prisma } from '@/src/be/shared/db/prisma'
 
 const FIELD_MAP: Record<string, { dbField: string; mediaField: MovieMediaField }> = {
   posterUrl: { dbField: 'posterUrl', mediaField: 'poster' },

@@ -3,9 +3,9 @@
 // ============================================
 
 import { NextRequest } from 'next/server'
-import { getEpisodesByMovieSlug } from '@/src/server/movies/movie-service'
-import { serializeEpisode, groupEpisodesByServer } from '@/src/server/movies/serializers'
-import { jsonOk, jsonError } from '@/src/server/movies/api-helpers'
+import { getEpisodesByMovieSlug } from '@/src/be/modules/movies/movie-service'
+import { serializeEpisode, groupEpisodesByServer } from '@/src/be/modules/movies/serializers'
+import { jsonOk, jsonError } from '@/src/be/modules/movies/api-helpers'
 
 export async function GET(
   _req: NextRequest,
@@ -23,7 +23,7 @@ export async function GET(
       return jsonError('Movie not found', 404)
     }
 
-    const serialized = episodes.map(e => serializeEpisode(e as unknown as Record<string, unknown>))
+    const serialized = episodes.map((e: any) => serializeEpisode(e as unknown as Record<string, unknown>))
     const grouped = groupEpisodesByServer(serialized)
 
     return jsonOk({

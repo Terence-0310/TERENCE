@@ -8,7 +8,7 @@ WORKDIR /app
 RUN apk add --no-cache libc6-compat openssl
 
 COPY package.json package-lock.json ./
-COPY prisma ./prisma/
+COPY src/dta/prisma ./src/dta/prisma/
 
 # Install deps (postinstall runs prisma generate)
 RUN npm ci
@@ -66,18 +66,15 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# Copy Prisma schema + migrations + client (needed for runtime queries + migrate deploy)
-COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma ./node_modules/@prisma
-# Prisma CLI binary needed for `prisma migrate deploy` at runtime
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/prisma ./node_modules/prisma
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.bin/prisma ./node_modules/.bin/prisma
-# tsx + seed dependencies (for `prisma db seed`)
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/tsx ./node_modules/tsx
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/bcryptjs ./node_modules/bcryptjs
+# Copy Prisma schema + migrations + client
+COPY --from=builder --chown=nextjs:nodejs /app/src/dta/prisma ./src/dta/prisma
 
-# Copy package.json (prisma reads seed config from here)
+# We copy the entire node_modules from builder to ensure Prisma CLI, tsx, and seed scripts work perfectly at runtime.
+# NextJS App will use .next/standalone/node_modules, but the entrypoint script relies on this.
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
+
+# Copy source file needed for tsx execution (Prisma seed + Elastic reindex)
+COPY --from=builder --chown=nextjs:nodejs /app/src/ ./src/
 COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
 
 # Entrypoint script — runs migrations before starting app
@@ -107,10 +104,12 @@ if [ $RETRY -ge $MAX_RETRIES ]; then\n\
   echo "DB not available, starting anyway..."\n\
 else\n\
   echo "Running migrations..."\n\
-  ./node_modules/.bin/prisma migrate deploy 2>&1 || echo "Migration warning"\n\
+  ./node_modules/.bin/prisma migrate deploy --schema=src/dta/prisma/schema.prisma 2>&1 || echo "Migration warning"\n\
   if [ "${SEED_ON_START:-false}" = "true" ]; then\n\
     echo "Seeding database..."\n\
     ./node_modules/.bin/prisma db seed 2>&1 || echo "Seed warning"\n\
+    echo "Reindexing Elasticsearch (Local)..."\n\
+    ./node_modules/.bin/tsx src/dta/scripts/elastic-reindex.ts 2>&1 || echo "ES warning"\n\
   fi\n\
 fi\n\
 echo "Starting TERENCE on port ${PORT:-3000}..."\n\

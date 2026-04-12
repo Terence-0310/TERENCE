@@ -4,9 +4,9 @@ import { useState, useEffect, useRef, use } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, Save, Upload, X, Loader2 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/src/fe/components/ui/button'
+import { Input } from '@/src/fe/components/ui/input'
+import { Card, CardContent, CardHeader, CardTitle } from '@/src/fe/components/ui/card'
 
 const generateSlug = (t: string) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
   .replace(/đ/g, 'd').replace(/Đ/g, 'd').replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 200)
@@ -54,7 +54,7 @@ export default function EditMoviePage({ params }: PageProps) {
         year: num('year') ? parseInt(num('year')) : null,
         duration: num('duration') ? parseInt(num('duration')) : null,
         quality: str('quality') || null, language: str('language') || null,
-        countryText: str('countryText') || null, categoryText: str('categoryText') || null,
+         
         rating: num('rating') ? parseFloat(num('rating')) : null,
         ageRating: str('ageRating') || null, tags: str('tags') || null,
         seoTitle: str('seoTitle') || null, seoDescription: str('seoDescription') || null,
@@ -173,7 +173,7 @@ export default function EditMoviePage({ params }: PageProps) {
                   <option value="FHD">Full HD</option><option value="4K">4K</option>
                 </select></div>
               <div><label className={labelCls}>Ngôn ngữ</label><Input className={inputCls} value={str('language')} onChange={(e) => up('language', e.target.value)} /></div>
-              <div><label className={labelCls}>Quốc gia</label><Input className={inputCls} value={str('countryText')} onChange={(e) => up('countryText', e.target.value)} /></div>
+              
               <div><label className={labelCls}>Xếp hạng tuổi</label>
                 <select className={selectCls} value={str('ageRating')} onChange={(e) => up('ageRating', e.target.value)}>
                   <option value="">Chưa chọn</option><option value="P">P</option><option value="C13">C13</option>
@@ -181,7 +181,7 @@ export default function EditMoviePage({ params }: PageProps) {
                 </select></div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div><label className={labelCls}>Thể loại</label><Input className={inputCls} value={str('categoryText')} onChange={(e) => up('categoryText', e.target.value)} /></div>
+              
               <div><label className={labelCls}>Rating (0-10)</label><Input type="number" step="0.1" min="0" max="10" className={inputCls} value={num('rating')} onChange={(e) => up('rating', e.target.value)} /></div>
             </div>
             <div><label className={labelCls}>Trạng thái nguồn</label>
@@ -232,13 +232,13 @@ export default function EditMoviePage({ params }: PageProps) {
             <div className="flex flex-wrap gap-6">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" className="w-4 h-4 accent-primary" checked={bool('isFeatured')} onChange={(e) => up('isFeatured', e.target.checked)} />
-                <span className="text-sm">⭐ Nổi bật</span></label>
+                <span className="text-sm">Nổi bật</span></label>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" className="w-4 h-4 accent-primary" checked={bool('isTrending')} onChange={(e) => up('isTrending', e.target.checked)} />
-                <span className="text-sm">📈 Xu hướng</span></label>
+                <span className="text-sm">Xu hướng</span></label>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" className="w-4 h-4 accent-primary" checked={bool('isRecommended')} onChange={(e) => up('isRecommended', e.target.checked)} />
-                <span className="text-sm">👍 Đề xuất</span></label>
+                <span className="text-sm">Đề xuất</span></label>
             </div>
           </CardContent>
         </Card>

@@ -1,14 +1,21 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
+import { Inter, Nunito } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
-import { AuthProvider } from '@/contexts/auth-context'
-import { LayoutWrapper } from '@/components/layout-wrapper'
+import { AuthProvider } from '@/src/fe/features/auth/contexts/auth-context'
+import { LayoutWrapper } from '@/src/fe/components/layout-wrapper'
+import { ThemeProvider } from '@/src/fe/components/theme-provider'
 import { Toaster } from 'sonner'
 import './globals.css'
 
 const inter = Inter({
   subsets: ['latin', 'vietnamese'],
   variable: '--font-sans',
+  display: 'swap',
+})
+
+const nunito = Nunito({
+  subsets: ['latin', 'vietnamese'],
+  variable: '--font-nunito',
   display: 'swap',
 })
 
@@ -35,15 +42,17 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="vi" className="dark" suppressHydrationWarning>
-      <body className={`${inter.variable} font-sans antialiased bg-background text-foreground`}>
-        <AuthProvider>
-          <LayoutWrapper>
-            {children}
-          </LayoutWrapper>
-        </AuthProvider>
-        <Analytics />
-        <Toaster theme="dark" position="bottom-right" />
+    <html lang="vi" suppressHydrationWarning>
+      <body className={`${inter.variable} ${nunito.variable} font-sans antialiased bg-background text-foreground`}>
+        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
+          <AuthProvider>
+            <LayoutWrapper>
+              {children}
+            </LayoutWrapper>
+          </AuthProvider>
+          <Analytics />
+          <Toaster theme="dark" position="bottom-right" />
+        </ThemeProvider>
       </body>
     </html>
   )

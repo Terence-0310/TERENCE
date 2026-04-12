@@ -6,8 +6,8 @@ import {
   TCOIN_REWARDS,
   TCOIN_SPEND_OPTIONS,
 } from '@/lib/data/tcoin'
-import { useAuth } from '@/contexts/auth-context'
-import { useAuthModal } from '@/components/auth/auth-modal-store'
+import { useAuth } from '@/src/fe/features/auth/contexts/auth-context'
+import { useAuthModal } from '@/src/fe/components/auth/auth-modal-store'
 import { toast } from 'sonner' // Assuming they use sonner or similar
 
 export default function TCoinPage() {

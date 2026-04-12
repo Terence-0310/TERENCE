@@ -8,7 +8,7 @@
 // Sprint 5A-BE — Backend Hardening
 
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/auth/db'
+import { prisma } from '@/src/be/shared/db/prisma'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0

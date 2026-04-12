@@ -1,8 +1,8 @@
 import { NextRequest } from 'next/server'
-import { prisma } from '@/lib/auth/db'
-import { requireAdmin, errorResponse, successResponse, parseBody } from '@/lib/admin/api-helpers'
-import { hashPassword } from '@/lib/auth/password'
-import { logAdminAction, getClientIp } from '@/lib/admin/audit'
+import { prisma } from '@/src/be/shared/db/prisma'
+import { requireAdmin, errorResponse, successResponse, parseBody } from '@/src/be/modules/admin/api-helpers'
+import { logAdminAction, getClientIp } from '@/src/be/modules/admin/audit'
+import { AuthService } from '@/src/be/modules/auth'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -21,11 +21,11 @@ export async function POST(req: NextRequest, { params }: Params) {
   if (!user) return errorResponse('User not found', 404)
 
   // Prevent editing super_admin if not super_admin
-  if (user.role === 'super_admin' && auth.user.role !== 'super_admin') {
+  if (user.role === 'SUPER_ADMIN' && auth.user.role !== 'SUPER_ADMIN') {
     return errorResponse('Không có quyền reset password Super Admin', 403)
   }
 
-  const passwordHash = await hashPassword(body.password)
+  const passwordHash = await AuthService.hashPassword(body.password)
   await prisma.user.update({ where: { id }, data: { passwordHash } })
 
   // Invalidate sessions for security

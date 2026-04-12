@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/auth/db'
+import { prisma } from '@/src/be/shared/db/prisma'
 import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/lib/auth"
-import { handleFileUpload } from '@/lib/admin/upload'
+import { handleFileUpload } from '@/src/be/modules/uploads/legacy-upload'
 
 export async function POST(req: NextRequest) {
   try {

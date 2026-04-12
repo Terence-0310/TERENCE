@@ -31,6 +31,39 @@ services:
       retries: 10
       start_period: 10s
 
+  # ── Elasticsearch (Local Search) ──
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.14.3
+    container_name: terence-es
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200 >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ── Redis (Local Cache) ──
+  redis:
+    image: redis:7-alpine
+    container_name: terence-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   # ── Next.js Application ──
   app:
     container_name: terence-app
@@ -69,12 +102,24 @@ services:
       - PUBLIC_STREAM_ALLOWED_HOSTS=test-streams.mux.dev,devstreaming-cdn.apple.com
       - NEXT_PUBLIC_ENABLE_RESUME=true
       - NEXT_PUBLIC_ENABLE_SUBTITLES=true
+      # Elasticsearch API (Local Docker override)
+      - ELASTICSEARCH_HOST=http://elasticsearch:9200
+      - ELASTICSEARCH_INDEX_MOVIES=terence_movies
+      - ELASTICSEARCH_USERNAME=
+      - ELASTICSEARCH_PASSWORD=
+      - ELASTICSEARCH_API_KEY=
+      # Redis Cache
+      - REDIS_URL=redis://redis:6379
       # Auto-seed on first start (set to false after initial setup)
       - SEED_ON_START=true
     env_file:
       - .env
     depends_on:
       db:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
@@ -91,17 +136,19 @@ services:
     restart: unless-stopped
     working_dir: /app
     volumes:
-      - ./prisma:/app/prisma
+      - ./src/dta/prisma:/app/prisma
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/terence_dev?schema=public
     ports:
       - "5556:5555"
     command: >
-      sh -c "npx prisma generate && npx prisma studio --host 0.0.0.0 --port 5555"
+      sh -c "npx prisma generate --schema=prisma/schema.prisma && npx prisma studio --schema=prisma/schema.prisma --host 0.0.0.0 --port 5555"
     depends_on:
       db:
         condition: service_healthy
 
 volumes:
   postgres_data:
+    driver: local
+  es_data:
     driver: local

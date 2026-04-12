@@ -1,13 +1,13 @@
 import { NextRequest } from 'next/server'
-import { prisma } from '@/lib/auth/db'
-import { requireAdmin, errorResponse, successResponse } from '@/lib/admin/api-helpers'
-import { logAdminAction, getClientIp } from '@/lib/admin/audit'
+import { prisma } from '@/src/be/shared/db/prisma'
+import { requireAdmin, errorResponse, successResponse } from '@/src/be/modules/admin/api-helpers'
+import { logAdminAction, getClientIp } from '@/src/be/modules/admin/audit'
 
 type Params = { params: Promise<{ id: string }> }
 
 // POST /api/admin/movies/[id]/publish
 export async function POST(req: NextRequest, { params }: Params) {
-  const auth = await requireAdmin('movies.edit')
+  const auth = await requireAdmin('movie.publish')
   if (auth instanceof Response) return auth
   const { id } = await params
 

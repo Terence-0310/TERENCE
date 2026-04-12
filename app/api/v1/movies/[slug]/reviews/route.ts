@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
-import { reviewService } from '@/lib/services/review.service'
+import { getReviewsByMovie } from '@/src/be/modules/reviews/reviews.service'
+import { getMovieBySlug } from '@/src/be/modules/movies/movie-service'
 
 export async function GET(
   req: Request,
@@ -11,13 +12,18 @@ export async function GET(
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '10')
 
-    const result = await reviewService.getByMovie(slug, page, limit)
+    const movie = await getMovieBySlug(slug)
+    if (!movie) {
+      return NextResponse.json({ success: false, error: 'Movie not found' }, { status: 404 })
+    }
+
+    const result = await getReviewsByMovie(movie.id, page, limit)
     
     // Transform formatting to match what UI expects easily
-    const formattedData = result.data.map(r => ({
+    const formattedData = result.reviews.map(r => ({
       id: r.id,
-      author: r.user.name,
-      avatar: r.user.avatar,
+      author: r.user?.name || 'Anonymous',
+      avatar: r.user?.avatar,
       text: r.content,
       rating: r.rating,
       date: new Date(r.createdAt).toLocaleString('vi-VN'),

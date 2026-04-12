@@ -3,9 +3,9 @@
 // ============================================
 
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAdmin, isUser } from '@/src/server/admin/admin-guard'
-import { reindexAll } from '@/src/server/search/movie-search-indexer'
-import { isAvailable } from '@/src/server/search/elastic-client'
+import { requireAdmin, isUser } from '@/src/be/modules/admin/admin.guard'
+import { reindexAll } from '@/src/be/modules/search/movie-search-indexer'
+import { isAvailable } from '@/src/be/modules/search/elastic-client'
 
 export async function POST(req: NextRequest) {
   const guard = await requireAdmin()

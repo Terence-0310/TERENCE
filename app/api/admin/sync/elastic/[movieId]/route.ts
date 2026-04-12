@@ -3,8 +3,8 @@
 // ============================================
 
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAdmin, isUser } from '@/src/server/admin/admin-guard'
-import { indexMovie } from '@/src/server/search/movie-search-indexer'
+import { requireAdmin, isUser } from '@/src/be/modules/admin/admin.guard'
+import { indexMovie } from '@/src/be/modules/search/movie-search-indexer'
 
 export async function POST(
   _req: NextRequest,

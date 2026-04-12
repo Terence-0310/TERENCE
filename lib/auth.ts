@@ -2,8 +2,8 @@ import { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
-import { prisma } from "./auth/db";
-import { verifyPassword } from "./auth/password";
+import { prisma } from "@/src/be/shared/db/prisma";
+import { AuthService } from "@/src/be/modules/auth";
 import { Adapter } from "next-auth/adapters";
 
 export const authOptions: NextAuthOptions = {
@@ -60,7 +60,7 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Vui lòng đăng nhập bằng Google");
         }
 
-        const isValid = await verifyPassword(credentials.password, user.passwordHash);
+        const isValid = await AuthService.verifyPassword(credentials.password, user.passwordHash);
 
         if (!isValid) {
           throw new Error("Sai mật khẩu");
@@ -93,6 +93,14 @@ export const authOptions: NextAuthOptions = {
         token.id = user.id;
         token.role = (user as any).role || "USER";
         token.isActive = (user as any).isActive ?? true;
+        
+        try {
+          const { getUserEffectivePermissions } = await import('@/src/lib/permissions/access-control');
+          const perms = await getUserEffectivePermissions(user.id, (user as any).role || "USER");
+          token.permissions = perms.map(p => p.key);
+        } catch(e) {
+          token.permissions = [];
+        }
       }
       if (trigger === "update" && session?.name) {
         token.name = session.name;
@@ -105,6 +113,7 @@ export const authOptions: NextAuthOptions = {
         (session.user as any).id = token.id;
         (session.user as any).role = token.role;
         (session.user as any).isActive = token.isActive;
+        (session.user as any).permissions = token.permissions || [];
       }
       return session;
     }

@@ -1,8 +1,8 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { User } from 'lucide-react'
-import { tmdbFetch } from '@/lib/tmdb/client'
-import { tmdbProfileUrl } from '@/lib/tmdb/config'
+import { tmdbFetch } from '@/src/be/modules/tmdb/legacy/client'
+import { tmdbProfileUrl } from '@/src/be/modules/tmdb/legacy/config'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
@@ -56,9 +56,10 @@ export default async function PeoplePage({
         {data.results.length > 0 ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
             {data.results.map((person, i) => (
-              <div
+              <Link
+                href={`/person/${person.id}`}
                 key={person.id}
-                className="group rounded-xl border border-white/[0.06] bg-card/40 overflow-hidden transition hover:bg-card/60 hover:border-primary/20 animate-card-reveal"
+                className="block group rounded-xl border border-white/[0.06] bg-card/40 overflow-hidden transition hover:bg-card/60 hover:border-primary/20 animate-card-reveal"
                 style={{ '--i': i } as React.CSSProperties}
               >
                 {/* Avatar */}
@@ -92,7 +93,7 @@ export default async function PeoplePage({
                     </p>
                   )}
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         ) : (

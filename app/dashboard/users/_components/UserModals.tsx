@@ -6,8 +6,8 @@
 // ============================================
 
 import { X, Save } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Button } from '@/src/fe/components/ui/button'
+import { Input } from '@/src/fe/components/ui/input'
 
 // ─── Add User Modal ─────────────────────────────────────────────
 

@@ -2621,3 +2621,52 @@ D·ª± √°n h·ªçc t·∫≠p ‚Äî M√¥n C√¥ng ngh·ªá ph·∫ßn m·ªÅm (HUTECH).
 
 D·ªØ li·ªáu phim cung c·∫•p b·ªüi [TMDB](https://www.themoviedb.org/).
 Terence kh√¥ng host hay ph√¢n ph·ªëi n·ªôi dung b·∫£n quy·ªÅn.
+
+---
+
+## Grapuco Setup
+
+```bash
+npm install -g @bitsness/grapuco-cli
+grapuco login --api-key YOUR_API_KEY
+grapuco ingest --all
+```
+
+## ? Redis Cache (Safe Refactor)
+- **M?c tiÍu:** Tang t?c d? ph?n h?i API danh s·ch phim, chi ti?t phim v‡ trang ch?.
+- **C?u hÏnh:** ThÍm REDIS_URL=redis://localhost:6379 v‡o .env.
+- **Routes du?c cache:** Danh s·ch phim (300s), Chi ti?t phim (1800s), D? li?u trang ch? (180s), GetEpisodes (1800s).
+- **Invalidate:** T? d?ng xÛa cache (b?ng DeleteByPrefix) khi Admin cÛ thao t·c thÍm/s?a/xÛa phim.
+- **Fallback:** T? d?ng query DB khi Redis ch?t (KhÙng block API flow).
+
+## ??? RBAC & Permission System
+
+H? th?ng ph‚n quy?n chu?n cÙng ty h? tr?:
+1. **Dynamic Permissions**: Map role qua Permission trong DB (RolePermission / UserPermission).
+2. **Scope-based Rule**: H? tr? scope (all, own, team).
+3. **Audit Log Ho‡n ch?nh**: Ghi nh?n to‡n b? thao t·c thay d?i ? backend AdminLog.
+4. **Database-Safe Guard**: C·c thay d?i DB s? migrate permission m‡ khÙng l‡m s?p config cu.
+
+### Qu?n tr? Permission
+- C·c Constant Permissions t?p trung t?i: `src/constants/permissions.ts`.
+- C·c Matrix Role Policy n?i b? t?p trung t?i: `src/lib/permissions/role-permissions.ts`.
+- Engine Logic: `src/lib/permissions/access-control.ts`.
+
+### C‡i d?t Seed
+–? map data cho RolePermission m?i: ch?y file seed tuong ?ng thÙng qua l?nh Prisma d„ update (du?c support s?n trÍn `src/lib/permissions/seed.ts`).
+
+## ??? Security: RBAC Audit
+
+To‡n b? codebase d„ du?c ki?m to·n quy?n l?c s‚u (RBAC Audit) d? ch?ng l?i ph‚n quy?n leo thang (Privilege Escalation), IDOR v‡ rÚ r? d? li?u (Overposting).
+
+### C·ch test Role/Permission
+B?n cÛ th? tham kh?o 3 file sinh ra trong folder `/docs/security/` d? hi?u tu?ng t?n qu· trÏnh b?o m?t:
+1. **rbac-permission-matrix.md**: C?u hÏnh Permission chi ti?t.
+2. **rbac-manual-test-checklist.md**: +50 Test cases hu?ng d?n Unit Test & e2e b?ng tay ho?c automation.
+3. **rbac-audit-report.md**: B·o c·o t?ng quan v? c·c l? h?ng d„ fix.
+D? ·n s? d?ng \
+px vitest run tests/unit/security-rbac.test.ts\ d? verify Backend AccessControl Engine.
+
+### Known Limitations
+- (Tuong lai) UserPermission overrides chua cÛ UI giao di?n riÍng d? modify/grant, c?n c?p nh?t UI Admin cho ph?n n‡y d? ph·t huy t?i da 100% Fine-Grained Permissions.
+

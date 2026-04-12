@@ -1,7 +1,7 @@
-import { searchMovies } from '@/services/tmdb/search-service'
-import { getTrending, getPopular, getTopRated, getNowPlaying, getUpcoming, getMoviesByGenre, getMoviesByCountry, getGenres } from '@/services/tmdb/movie-service'
-import { MovieCard } from '@/components/shared/MovieCard'
-import { SearchBar } from '@/components/shared/SearchBar'
+import { searchMovies } from '@/src/be/services/tmdb/search-service'
+import { getTrending, getPopular, getTopRated, getNowPlaying, getUpcoming, getMoviesByGenre, getMoviesByCountry, getGenres } from '@/src/be/services/tmdb/movie-service'
+import { MovieCard } from '@/src/fe/components/shared/MovieCard'
+import { SearchBar } from '@/src/fe/components/shared/SearchBar'
 import Link from 'next/link'
 import { Film, Search as SearchIcon } from 'lucide-react'
 import type { Metadata } from 'next'
@@ -17,11 +17,11 @@ export const metadata: Metadata = {
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
-  trending: '🔥 Xu hướng',
-  popular: '🎬 Phổ biến',
-  'top-rated': '⭐ Đánh giá cao',
-  'now-playing': '🍿 Đang chiếu',
-  upcoming: '📅 Sắp ra mắt',
+  trending: 'Xu hướng',
+  popular: 'Phổ biến',
+  'top-rated': 'Đánh giá cao',
+  'now-playing': 'Đang chiếu',
+  upcoming: 'Sắp ra mắt',
 }
 
 export default async function MoviesPage({ searchParams }: PageProps) {

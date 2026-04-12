@@ -21,6 +21,26 @@ services:
       timeout: 5s
       retries: 5
 
+  elasticsearch-test:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.14.3
+    container_name: terence-test-es
+    environment:
+      - node.name=terence-test-es
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - xpack.security.http.ssl.enabled=false
+      - bootstrap.memory_lock=true
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200 >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
   test:
     build:
       context: .
@@ -36,7 +56,11 @@ services:
       - NODE_ENV=test
       - DATABASE_URL=postgresql://postgres:postgres@db-test:5432/terence_test?schema=public
       - DIRECT_URL=postgresql://postgres:postgres@db-test:5432/terence_test?schema=public
+      - ELASTICSEARCH_HOST=http://elasticsearch-test:9200
+      - ELASTICSEARCH_API_KEY=
     command: sh -c "npx prisma generate && npm run test"
     depends_on:
       db-test:
+        condition: service_healthy
+      elasticsearch-test:
         condition: service_healthy

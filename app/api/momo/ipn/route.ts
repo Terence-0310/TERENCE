@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
-import { markOrderPaid, getOrderByCode } from '@/services/topup-order.service';
-import { verifyMoMoSignature } from '@/lib/payments/momo';
+import { markOrderPaid, getOrderByCode } from '@/src/be/services/topup-order.service';
+import { verifyMoMoSignature } from '@/src/be/modules/payments/momo';
 
 export async function POST(req: NextRequest) {
   try {

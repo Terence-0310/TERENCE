@@ -1,8 +1,8 @@
 import { NextRequest } from 'next/server'
-import { prisma } from '@/lib/auth/db'
-import { requireAdmin, parsePagination, paginatedResponse, errorResponse, successResponse, parseBody } from '@/lib/admin/api-helpers'
-import { movieCreateSchema, generateSlug } from '@/lib/admin/validators'
-import { logAdminAction, getClientIp } from '@/lib/admin/audit'
+import { requireAdmin, parsePagination, paginatedResponse, errorResponse, successResponse, parseBody } from '@/src/be/modules/admin/api-helpers'
+import { movieCreateSchema, generateSlug } from '@/src/be/modules/admin/validators'
+import { logAdminAction, getClientIp } from '@/src/be/modules/admin/audit'
+import { AdminMovieService } from '@/src/be/modules/movies/movie-service'
 
 // GET /api/admin/movies — list with full search/filter/sort
 export async function GET(req: NextRequest) {
@@ -62,13 +62,7 @@ export async function GET(req: NextRequest) {
   }
   const orderBy = orderByMap[sortBy] || orderByMap.newest
 
-  const [data, total] = await Promise.all([
-    prisma.movie.findMany({
-      where, skip, take: limit, orderBy,
-      include: { _count: { select: { episodes: true } } },
-    }),
-    prisma.movie.count({ where }),
-  ])
+  const [data, total] = await AdminMovieService.getPaginatedMovies(where, skip, limit, orderBy)
 
   return paginatedResponse(data, total, page, limit)
 }
@@ -87,15 +81,10 @@ export async function POST(req: NextRequest) {
   const data = parsed.data
   if (!data.slug) data.slug = generateSlug(data.title)
 
-  const existing = await prisma.movie.findUnique({ where: { slug: data.slug } })
+  const existing = await AdminMovieService.getMovieBySlug(data.slug)
   if (existing) return errorResponse('Slug đã tồn tại', 409)
 
-  // Sync isPublished with status
-  const isPublished = data.status === 'published'
-
-  const movie = await prisma.movie.create({
-    data: { ...data, isPublished, createdBy: auth.user.email },
-  })
+  const movie = await AdminMovieService.createMovie(data, auth.user.email)
 
   await logAdminAction({
     actorId: auth.user.email, action: 'create', targetType: 'movie', targetId: movie.id,

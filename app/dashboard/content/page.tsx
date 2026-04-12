@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { Search, Plus, Edit, Trash2, RefreshCw, X, Save, Tag, Globe2, Users2 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/src/fe/components/ui/button'
+import { Input } from '@/src/fe/components/ui/input'
+import { Card, CardContent, CardHeader, CardTitle } from '@/src/fe/components/ui/card'
 
 interface GenreItem { id: string; name: string; slug: string; _count?: { movies: number } }
 interface CountryItem { id: string; name: string; slug: string; _count?: { movies: number } }

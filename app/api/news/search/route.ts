@@ -6,7 +6,7 @@
 // Response: ApiListResponse<NewsArticle>
 
 import { NextRequest, NextResponse } from 'next/server'
-import { searchNewsByKeyword } from '@/lib/news/articles'
+import { searchNewsByKeyword } from '@/src/be/modules/news/articles'
 
 const VALID_TYPES = ['all', 'trailer', 'review', 'breaking'] as const
 

@@ -2,8 +2,8 @@
 // POST /api/admin/countries — create country
 
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/auth/db'
-import { requireAdmin, logAdminAction, paginatedResponse } from '@/src/server/modules/admin/admin.utils'
+import { prisma } from '@/src/be/shared/db/prisma'
+import { requireAdmin, logAdminAction, paginatedResponse } from '@/src/be/modules/admin/admin.utils'
 
 export async function GET(request: NextRequest) {
   const auth = await requireAdmin('editor')

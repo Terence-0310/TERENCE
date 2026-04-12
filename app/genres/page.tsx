@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { tmdbFetch } from '@/lib/tmdb/client'
+import { tmdbFetch } from '@/src/be/modules/tmdb/legacy/client'
 import { Film } from 'lucide-react'
 import type { Metadata } from 'next'
 

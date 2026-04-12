@@ -3,9 +3,9 @@
 // ============================================
 
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/auth/db'
-import { requireAdmin, parsePagination, paginatedResponse, errorResponse, successResponse, parseBody } from '@/lib/admin/api-helpers'
-import { logAdminAction, getClientIp } from '@/lib/admin/audit'
+import { prisma } from '@/src/be/shared/db/prisma'
+import { requireAdmin, parsePagination, paginatedResponse, errorResponse, successResponse, parseBody } from '@/src/be/modules/admin/api-helpers'
+import { logAdminAction, getClientIp } from '@/src/be/modules/admin/audit'
 import { z } from 'zod'
 
 const subtitleCreateSchema = z.object({

@@ -5,10 +5,10 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Eye, EyeOff, Mail, Lock, Phone } from 'lucide-react'
 import { signIn } from 'next-auth/react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { useAuth } from '@/contexts/auth-context'
-import { TerenceLogo } from '@/components/terence-logo'
+import { Button } from '@/src/fe/components/ui/button'
+import { Input } from '@/src/fe/components/ui/input'
+import { useAuth } from '@/src/fe/features/auth/contexts/auth-context'
+import { TerenceLogo } from '@/src/fe/components/terence-logo'
 
 export default function LoginPage() {
   const router = useRouter()

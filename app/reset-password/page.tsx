@@ -4,9 +4,9 @@ import { useState, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Lock, ArrowLeft, Eye, EyeOff } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { TerenceLogo } from '@/components/terence-logo'
+import { Button } from '@/src/fe/components/ui/button'
+import { Input } from '@/src/fe/components/ui/input'
+import { TerenceLogo } from '@/src/fe/components/terence-logo'
 
 function ResetPasswordForm() {
   const router = useRouter()

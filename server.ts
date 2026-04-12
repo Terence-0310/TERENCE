@@ -10,7 +10,7 @@
 import { createServer } from 'http'
 import next from 'next'
 import { Server as SocketIOServer } from 'socket.io'
-import { registerWatchPartyHandlers } from './server/socket/watch-party'
+import { registerWatchPartyHandlers } from './src/be/modules/watch-party/watch-party.socket'
 
 const dev = process.env.NODE_ENV !== 'production'
 const hostname = process.env.HOSTNAME || '0.0.0.0'

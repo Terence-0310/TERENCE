@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAdmin, errorResponse, successResponse } from '@/lib/admin/api-helpers'
-import { handleFileUpload } from '@/lib/admin/upload'
-import { logAdminAction, getClientIp } from '@/lib/admin/audit'
-import { prisma } from '@/lib/auth/db'
+import { requireAdmin, errorResponse, successResponse } from '@/src/be/modules/admin/api-helpers'
+import { UploadsService } from '@/src/be/modules/uploads/uploads.service'
+import { logAdminAction, getClientIp } from '@/src/be/modules/admin/audit'
 
 // POST /api/admin/uploads — upload file
 export async function POST(req: NextRequest) {
@@ -16,7 +15,7 @@ export async function POST(req: NextRequest) {
 
     if (!file) return errorResponse('No file provided')
 
-    const result = await handleFileUpload(file, subDir, auth.user.email)
+    const result = await UploadsService.handleFileUpload(file, subDir, auth.user.email)
 
     await logAdminAction({
       actorId: auth.user.email, action: 'upload', targetType: 'upload',
@@ -39,11 +38,9 @@ export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams
   const page = Math.max(1, parseInt(sp.get('page') || '1', 10))
   const limit = Math.min(100, parseInt(sp.get('limit') || '20', 10))
+  const skip = (page - 1) * limit
 
-  const [data, total] = await Promise.all([
-    prisma.upload.findMany({ skip: (page - 1) * limit, take: limit, orderBy: { createdAt: 'desc' } }),
-    prisma.upload.count(),
-  ])
+  const [data, total] = await UploadsService.getPaginatedUploads(skip, limit)
 
   return NextResponse.json({ data, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } })
 }

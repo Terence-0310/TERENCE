@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { rateLimit, getClientIdentifier } from '@/lib/api/rate-limit'
+import { rateLimit, getClientIdentifier } from '@/src/be/shared/rate-limit'
 import { getToken } from 'next-auth/jwt'
 
 const PROTECTED_PATHS = ['/dashboard']
@@ -12,7 +12,12 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   
   // 1. Rate Limiting cho API Đăng nhập / Đăng ký
-  if (pathname.startsWith('/api/auth/login') || pathname.startsWith('/api/auth/signup')) {
+  if (
+    pathname.includes('/api/auth/callback/credentials') || 
+    pathname.startsWith('/api/auth/register') ||
+    pathname.startsWith('/api/auth/reset-password') ||
+    pathname.startsWith('/api/auth/forgot-password')
+  ) {
     const ip = getClientIdentifier(request)
     const result = authLimiter.check(ip)
     if (!result.allowed) {
@@ -24,7 +29,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // 2. Rate Limiting cho API Phim (Lấy nguồn phim, xem lịch sử)
-  if (pathname.startsWith('/api/v1/watch') || pathname.startsWith('/api/v1/watch-history')) {
+  if (pathname.startsWith('/api/v1/watch-history')) {
     const ip = getClientIdentifier(request)
     const result = watchLimiter.check(ip)
     if (!result.allowed) {
@@ -46,10 +51,21 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(loginUrl)
     }
     
-    // Optional: Only allow ADMIN/STAFF
+    // Check roles natively, but mostly enforce at least one dashboard-level permission
     const role = (token as any).role?.toUpperCase() || ''
-    if (!['ADMIN', 'SUPER_ADMIN', 'STAFF', 'EDITOR'].includes(role)) {
-       return new NextResponse("Forbidden", { status: 403 })
+    const permissions = ((token as any).permissions || []) as string[]
+    
+    // Bypass for SUPER_ADMIN
+    if (role !== 'SUPER_ADMIN') {
+       // Must have at least one of these permissions to even enter dashboard
+       const hasDashboardAccess = permissions.some(p => [
+         'dashboard.view', 'movie.read', 'user.read', 'payment.read', 'review.read', 'settings.read'
+       ].includes(p))
+
+       if (!hasDashboardAccess) {
+          const homeUrl = new URL('/?error=unauthorized', request.url)
+          return NextResponse.redirect(homeUrl)
+       }
     }
   }
 
@@ -63,13 +79,10 @@ export const config = {
      * - /dashboard
      * - /api/auth/login
      * - /api/auth/signup
-     * - /api/v1/watch
      * - /api/v1/watch-history
      */
     '/dashboard/:path*',
-    '/api/auth/login/:path*',
-    '/api/auth/signup/:path*',
-    '/api/v1/watch/:path*',
+    '/api/auth/:path*',
     '/api/v1/watch-history/:path*'
   ],
 }

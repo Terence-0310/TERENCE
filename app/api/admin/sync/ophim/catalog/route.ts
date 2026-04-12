@@ -3,8 +3,8 @@
 // ============================================
 
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAdmin, isUser } from '@/src/server/admin/admin-guard'
-import { syncCatalog } from '@/src/server/ophim/ophim-sync-service'
+import { requireAdmin, isUser } from '@/src/be/modules/admin/admin.guard'
+import { syncCatalog } from '@/src/be/modules/ophim/ophim-sync-service'
 
 export async function POST(req: NextRequest) {
   const guard = await requireAdmin()

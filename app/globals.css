@@ -4,24 +4,24 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: #020617;
-  --foreground: #F8FAFC;
-  --card: #0B1120;
-  --card-foreground: #F8FAFC;
-  --popover: #0B1120;
-  --popover-foreground: #F8FAFC;
+  --background: #F8FAFC;
+  --foreground: #020617;
+  --card: #FFFFFF;
+  --card-foreground: #020617;
+  --popover: #FFFFFF;
+  --popover-foreground: #020617;
   --primary: #2DD4BF;
   --primary-foreground: #022c22;
-  --secondary: #0F172A;
-  --secondary-foreground: #F8FAFC;
-  --muted: #1E293B;
-  --muted-foreground: #94A3B8;
+  --secondary: #F1F5F9;
+  --secondary-foreground: #0F172A;
+  --muted: #F1F5F9;
+  --muted-foreground: #64748B;
   --accent: #14B8A6;
   --accent-foreground: #F0FDFA;
-  --destructive: #f43f5e;
+  --destructive: #ef4444;
   --destructive-foreground: #ffffff;
-  --border: #1E293B;
-  --input: #0F172A;
+  --border: #E2E8F0;
+  --input: #E2E8F0;
   --ring: #2DD4BF;
   --chart-1: #2DD4BF;
   --chart-2: #06b6d4;
@@ -29,23 +29,23 @@
   --chart-4: #ec4899;
   --chart-5: #10b981;
   --radius: 0.75rem;
-  --sidebar: #030712;
-  --sidebar-foreground: #F8FAFC;
+  --sidebar: #FFFFFF;
+  --sidebar-foreground: #020617;
   --sidebar-primary: #2DD4BF;
   --sidebar-primary-foreground: #022c22;
-  --sidebar-accent: #0F172A;
-  --sidebar-accent-foreground: #F8FAFC;
-  --sidebar-border: #1E293B;
+  --sidebar-accent: #F1F5F9;
+  --sidebar-accent-foreground: #0F172A;
+  --sidebar-border: #E2E8F0;
   --sidebar-ring: #2DD4BF;
   /* Cinematic extras */
-  --gold: #fbbf24;
-  --surface: #020617;
-  --glass: rgba(11, 17, 32, 0.75);
+  --gold: #f59e0b;
+  --surface: #FFFFFF;
+  --glass: rgba(255, 255, 255, 0.75);
   /* RoPhim-style layout tokens — teal stays primary */
-  --surface-elevated: #111827;
+  --surface-elevated: #F8FAFC;
   --neon-glow: rgba(45, 212, 191, 0.2);
-  --badge-bg: rgba(255, 255, 255, 0.08);
-  --badge-border: rgba(255, 255, 255, 0.12);
+  --badge-bg: rgba(0, 0, 0, 0.05);
+  --badge-border: rgba(0, 0, 0, 0.08);
 }
 
 .dark {
@@ -81,11 +81,20 @@
   --sidebar-accent-foreground: #F8FAFC;
   --sidebar-border: #1E293B;
   --sidebar-ring: #2DD4BF;
+  /* Cinematic extras */
+  --gold: #f59e0b;
+  --surface: #0B1120;
+  --glass: rgba(11, 17, 32, 0.75);
+  --surface-elevated: #0F172A;
+  --neon-glow: rgba(45, 212, 191, 0.15);
+  --badge-bg: rgba(255, 255, 255, 0.1);
+  --badge-border: rgba(255, 255, 255, 0.1);
 }
 
 @theme inline {
   --font-sans: 'Inter', 'Geist', system-ui, sans-serif;
   --font-mono: 'Geist Mono', 'Geist Mono Fallback', monospace;
+  --font-nunito: var(--font-nunito);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);

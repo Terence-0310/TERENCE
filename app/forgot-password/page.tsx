@@ -3,9 +3,9 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { Mail, ArrowLeft } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { TerenceLogo } from '@/components/terence-logo'
+import { Button } from '@/src/fe/components/ui/button'
+import { Input } from '@/src/fe/components/ui/input'
+import { TerenceLogo } from '@/src/fe/components/terence-logo'
 
 export default function ForgotPasswordPage() {
   const [isLoading, setIsLoading] = useState(false)

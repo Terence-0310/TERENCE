@@ -3,9 +3,9 @@
 // ============================================
 
 import { NextRequest } from 'next/server'
-import { getMovieBySlug } from '@/src/server/movies/movie-service'
-import { serializeMovieDetail } from '@/src/server/movies/serializers'
-import { jsonOk, jsonError } from '@/src/server/movies/api-helpers'
+import { getMovieBySlug } from '@/src/be/modules/movies/movie-service'
+import { serializeMovieDetail } from '@/src/be/modules/movies/serializers'
+import { jsonOk, jsonError } from '@/src/be/modules/movies/api-helpers'
 
 export async function GET(
   _req: NextRequest,

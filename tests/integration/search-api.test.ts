@@ -12,12 +12,12 @@ const { mockSearchMovies } = vi.hoisted(() => ({
   mockSearchMovies: vi.fn(),
 }))
 
-vi.mock('@/src/server/search/movie-search-service', () => ({
+vi.mock('@/src/be/modules/search/movie-search-service', () => ({
   searchMovies: mockSearchMovies,
 }))
 
 // ── Mock rate limiter (always allow in tests) ──
-vi.mock('@/lib/api/rate-limit', () => ({
+vi.mock('@/src/be/shared/rate-limit', () => ({
   rateLimit: () => ({
     check: () => ({ allowed: true, remaining: 10, resetMs: Date.now() + 60000 }),
   }),

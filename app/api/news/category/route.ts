@@ -6,7 +6,7 @@
 // Response: ApiListResponse<NewsArticle>
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getNewsByCategory } from '@/lib/news/articles'
+import { getNewsByCategory } from '@/src/be/modules/news/articles'
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)

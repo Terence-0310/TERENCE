@@ -3,7 +3,7 @@
 // ============================================
 
 import { describe, it, expect } from 'vitest'
-import { rateLimit } from '@/lib/api/rate-limit'
+import { rateLimit } from '@/src/be/shared/rate-limit'
 
 describe('rateLimit', () => {
   it('should allow requests within limit', () => {

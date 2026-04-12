@@ -6,11 +6,11 @@ const nextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: 'images.unsplash.com',
+        hostname: '**',
       },
       {
-        protocol: 'https',
-        hostname: 'image.tmdb.org',
+        protocol: 'http',
+        hostname: '**',
       },
     ],
     // Optimize image sizes for common breakpoints

@@ -2,14 +2,13 @@
 // Admin: manually adjust a user's TCoin balance
 
 import { NextRequest, NextResponse } from 'next/server'
-import { adminAdjust } from '@/src/server/modules/tcoin/tcoin.service'
-import { getSession } from '@/lib/auth/session'
+import { adminAdjust } from '@/src/be/modules/tcoin/tcoin.service'
+import { requireAdmin } from '@/src/be/modules/admin/api-helpers'
 
 export async function POST(request: NextRequest) {
-  const session = await getSession()
-  if (!session?.user || (session.user.role !== 'admin' && session.user.role !== 'ADMIN' && session.user.role !== 'SUPER_ADMIN')) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
+  const auth = await requireAdmin('payment.update')
+  if (auth instanceof NextResponse) return auth
+  const session = { userId: (auth.user as any).id || 'admin' }
 
   let body: any
   try {

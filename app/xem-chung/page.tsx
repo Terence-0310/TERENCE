@@ -1,7 +1,7 @@
 'use client'
 
-import { WatchPartyHero } from '@/components/watch-party/WatchPartyHero'
-import { WatchRoomCard } from '@/components/watch-party/WatchRoomCard'
+import { WatchPartyHero } from '@/src/fe/components/watch-party/WatchPartyHero'
+import { WatchRoomCard } from '@/src/fe/components/watch-party/WatchRoomCard'
 import { useWatchRooms } from '@/lib/watch-party/client'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@radix-ui/react-tabs'
 

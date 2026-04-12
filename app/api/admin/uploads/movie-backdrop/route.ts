@@ -1,8 +1,8 @@
 import { NextRequest } from 'next/server'
-import { requireAdmin, errorResponse, successResponse } from '@/lib/admin/api-helpers'
-import { handleMovieMediaUpload, deleteUploadedFile } from '@/lib/admin/upload'
-import { logAdminAction, getClientIp } from '@/lib/admin/audit'
-import { prisma } from '@/lib/auth/db'
+import { requireAdmin, errorResponse, successResponse } from '@/src/be/modules/admin/api-helpers'
+import { handleMovieMediaUpload, deleteUploadedFile } from '@/src/be/modules/uploads/legacy-upload'
+import { logAdminAction, getClientIp } from '@/src/be/modules/admin/audit'
+import { prisma } from '@/src/be/shared/db/prisma'
 
 // POST /api/admin/uploads/movie-backdrop — upload backdrop image for a movie
 export async function POST(req: NextRequest) {

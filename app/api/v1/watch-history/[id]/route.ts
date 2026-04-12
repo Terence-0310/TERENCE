@@ -3,15 +3,15 @@
 // ============================================
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getSession } from '@/lib/auth/session'
-import { deleteWatchRecord } from '@/src/server/watch/watch-history-service'
+import { AuthService } from '@/src/be/modules/auth'
+import { deleteWatchRecord } from '@/src/be/modules/watch/watch-history-service'
 
 export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getSession()
+    const session = await AuthService.getSession()
     if (!session?.user?.id) {
       return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 })
     }

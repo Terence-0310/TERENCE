@@ -4,11 +4,11 @@
 // Consolidated from /api/watch/continue + /api/v1/continue-watching
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getContinueWatching } from '@/src/server/modules/watch/watch.service'
-import { getSession } from '@/lib/auth/session'
+import { getContinueWatching } from '@/src/be/modules/watch/watch.service'
+import { AuthService } from '@/src/be/modules/auth'
 
 export async function GET(request: NextRequest) {
-  const session = await getSession()
+  const session = await AuthService.getSession()
   if (!session?.userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }

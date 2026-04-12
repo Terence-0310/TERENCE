@@ -5,8 +5,8 @@
 //   q (required), limit (default 8, max 15)
 
 import { NextRequest } from 'next/server'
-import { suggestMovies } from '@/src/server/search/movie-search-service'
-import { parseIntParam, jsonError } from '@/src/server/movies/api-helpers'
+import { suggestMovies } from '@/src/be/modules/search/movie-search-service'
+import { parseIntParam, jsonError } from '@/src/be/modules/movies/api-helpers'
 
 export async function GET(req: NextRequest) {
   try {

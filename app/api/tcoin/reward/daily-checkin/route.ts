@@ -2,11 +2,11 @@
 // Claims daily check-in reward
 
 import { NextResponse } from 'next/server'
-import { claimDailyCheckin } from '@/src/server/modules/tcoin/tcoin.service'
-import { getSession } from '@/lib/auth/session'
+import { claimDailyCheckin } from '@/src/be/modules/tcoin/tcoin.service'
+import { AuthService } from '@/src/be/modules/auth'
 
 export async function POST() {
-  const session = await getSession()
+  const session = await AuthService.getSession()
   if (!session?.userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }

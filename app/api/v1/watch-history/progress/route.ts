@@ -4,11 +4,11 @@
 // Consolidated from /api/watch/progress + /api/v1/progress
 
 import { NextRequest, NextResponse } from 'next/server'
-import { saveProgress } from '@/src/server/modules/watch/watch.service'
-import { getSession } from '@/lib/auth/session'
+import { saveProgress } from '@/src/be/modules/watch/watch.service'
+import { AuthService } from '@/src/be/modules/auth'
 
 export async function POST(request: NextRequest) {
-  const session = await getSession()
+  const session = await AuthService.getSession()
   if (!session?.userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }

@@ -1,10 +1,10 @@
 import { NextRequest } from 'next/server'
-import { prisma } from '@/lib/auth/db'
-import { requireAdmin, parsePagination, paginatedResponse, errorResponse, successResponse, parseBody } from '@/lib/admin/api-helpers'
-import { userCreateSchema } from '@/lib/admin/validators'
-import { hashPassword } from '@/lib/auth/password'
-import { logAdminAction, getClientIp } from '@/lib/admin/audit'
-import { canChangeRole } from '@/lib/auth/permissions'
+import { requireAdmin, parsePagination, paginatedResponse, errorResponse, successResponse, parseBody } from '@/src/be/modules/admin/api-helpers'
+import { userCreateSchema } from '@/src/be/modules/admin/validators'
+import { AuthService } from '@/src/be/modules/auth'
+import { logAdminAction, getClientIp } from '@/src/be/modules/admin/audit'
+import { canChangeRole } from '@/src/be/modules/auth/permissions'
+import { UsersService } from '@/src/be/modules/users/users.service'
 
 // GET /api/admin/users — list with full search/filter/sort
 export async function GET(req: NextRequest) {
@@ -19,42 +19,7 @@ export async function GET(req: NextRequest) {
   const deleted = sp.get('deleted')
   const sortBy = sp.get('sortBy') || 'newest'
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const where: any = {}
-
-  // Soft delete filter
-  if (deleted === 'true') {
-    where.deletedAt = { not: null }
-  } else if (deleted !== 'all') {
-    where.deletedAt = null
-  }
-
-  if (search) where.OR = [{ name: { contains: search, mode: 'insensitive' } }, { email: { contains: search, mode: 'insensitive' } }]
-  if (role) where.role = role
-  if (status) where.status = status
-
-  // Sort
-  const orderByMap: Record<string, object> = {
-    newest: { createdAt: 'desc' },
-    oldest: { createdAt: 'asc' },
-    lastLogin: { lastLoginAt: 'desc' },
-    loginCount: { loginCount: 'desc' },
-    name: { name: 'asc' },
-  }
-  const orderBy = orderByMap[sortBy] || orderByMap.newest
-
-  const [data, total] = await Promise.all([
-    prisma.user.findMany({
-      where, skip, take: limit, orderBy,
-      select: {
-        id: true, name: true, email: true, role: true, status: true,
-        isActive: true, avatar: true, lastLoginAt: true, lastLoginIp: true,
-        loginCount: true, blockedReason: true, createdAt: true, updatedAt: true,
-        deletedAt: true,
-      },
-    }),
-    prisma.user.count({ where }),
-  ])
+  const [data, total] = await UsersService.getPaginatedUsers(search, role, status, deleted, sortBy, skip, limit)
 
   return paginatedResponse(data, total, page, limit)
 }
@@ -71,16 +36,16 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) return errorResponse(parsed.error.errors[0]?.message || 'Validation error')
 
   // Check role assignment permission
-  if (parsed.data.role !== 'user' && !canChangeRole(auth.user, 'user', parsed.data.role)) {
+  if (parsed.data.role !== 'USER' && !canChangeRole(auth.user as any, 'USER', parsed.data.role as any)) {
     return errorResponse('Bạn không có quyền tạo user với role này', 403)
   }
 
-  const existing = await prisma.user.findUnique({ where: { email: parsed.data.email.toLowerCase() } })
+  const existing = await UsersService.getUserByEmail(parsed.data.email.toLowerCase())
   if (existing) return errorResponse('Email đã được sử dụng', 409)
 
-  const passwordHash = await hashPassword(parsed.data.password)
-  const user = await prisma.user.create({
-    data: { name: parsed.data.name, email: parsed.data.email.toLowerCase(), passwordHash, role: parsed.data.role },
+  const passwordHash = await AuthService.hashPassword(parsed.data.password)
+  const user = await UsersService.createUser({
+    name: parsed.data.name, email: parsed.data.email.toLowerCase(), passwordHash, role: parsed.data.role.toUpperCase() as any
   })
 
   await logAdminAction({

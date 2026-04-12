@@ -11,7 +11,7 @@ import {
   userCreateSchema,
   userUpdateSchema,
   generateSlug,
-} from '@/lib/admin/validators'
+} from '@/src/be/modules/admin/validators'
 import {
   paginationSchema,
   searchSchema,
@@ -19,7 +19,7 @@ import {
   loginSchema,
   signupSchema,
   watchProgressSchema,
-} from '@/lib/validators'
+} from '@/src/be/shared/validators/index'
 
 describe('Admin Validators', () => {
   describe('movieCreateSchema', () => {

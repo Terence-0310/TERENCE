@@ -6,7 +6,7 @@ const { mockGetMovieList } = vi.hoisted(() => ({
   mockGetMovieList: vi.fn(),
 }))
 
-vi.mock('@/src/server/movies/movie-service', () => ({
+vi.mock('@/src/be/modules/movies/movie-service', () => ({
   getMovieList: mockGetMovieList
 }))
 

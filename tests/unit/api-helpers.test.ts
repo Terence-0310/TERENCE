@@ -4,7 +4,7 @@
 // Covers: src/server/movies/api-helpers.ts
 
 import { describe, it, expect } from 'vitest'
-import { parseIntParam, parseStringParam, parseBoolParam } from '@/src/server/movies/api-helpers'
+import { parseIntParam, parseStringParam, parseBoolParam } from '@/src/be/modules/movies/api-helpers'
 
 describe('parseIntParam()', () => {
   it('should return default for null', () => {

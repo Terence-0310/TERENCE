@@ -5,9 +5,9 @@
 //   q (required), page, perPage, type, year, category, country
 
 import { NextRequest } from 'next/server'
-import { searchMovies } from '@/src/server/search/movie-search-service'
-import { parseIntParam, parseStringParam, jsonError } from '@/src/server/movies/api-helpers'
-import { rateLimit, getClientIdentifier } from '@/lib/api/rate-limit'
+import { searchMovies } from '@/src/be/modules/search/movie-search-service'
+import { parseIntParam, parseStringParam, jsonError } from '@/src/be/modules/movies/api-helpers'
+import { rateLimit, getClientIdentifier } from '@/src/be/shared/rate-limit'
 
 const ALLOWED_TYPES = ['movie', 'series', 'anime']
 

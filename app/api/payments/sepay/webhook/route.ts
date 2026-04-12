@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
-import { SePayWebhookPayload, verifySePaySignature } from '@/lib/payments/sepay';
-import { markOrderPaid } from '@/services/topup-order.service';
+import { SePayWebhookPayload, verifySePaySignature } from '@/src/be/modules/payments/sepay';
+import { markOrderPaid } from '@/src/be/services/topup-order.service';
 
 export async function POST(req: Request) {
   try {

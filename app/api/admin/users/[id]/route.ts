@@ -1,10 +1,10 @@
 import { NextRequest } from 'next/server'
-import { prisma } from '@/lib/auth/db'
-import { requireAdmin, errorResponse, successResponse, parseBody } from '@/lib/admin/api-helpers'
-import { userUpdateSchema } from '@/lib/admin/validators'
-import { hashPassword } from '@/lib/auth/password'
-import { logAdminAction, getClientIp } from '@/lib/admin/audit'
-import { canChangeRole } from '@/lib/auth/permissions'
+import { requireAdmin, errorResponse, successResponse, parseBody } from '@/src/be/modules/admin/api-helpers'
+import { userUpdateSchema } from '@/src/be/modules/admin/validators'
+import { AuthService } from '@/src/be/modules/auth'
+import { logAdminAction, getClientIp } from '@/src/be/modules/admin/audit'
+import { canChangeRole } from '@/src/be/modules/auth/permissions'
+import { UsersService } from '@/src/be/modules/users/users.service'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -14,15 +14,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
   if (auth instanceof Response) return auth
   const { id } = await params
 
-  const user = await prisma.user.findUnique({
-    where: { id },
-    select: {
-      id: true, name: true, email: true, role: true, status: true,
-      isActive: true, avatar: true, lastLoginAt: true, lastLoginIp: true,
-      loginCount: true, blockedReason: true, createdAt: true, updatedAt: true,
-      deletedAt: true,
-    },
-  })
+  const user = await UsersService.getUserById(id)
   if (!user) return errorResponse('User not found', 404)
   return successResponse(user)
 }
@@ -36,7 +28,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const body = await parseBody<Record<string, unknown>>(req)
   if (!body) return errorResponse('Invalid request body')
 
-  const user = await prisma.user.findUnique({ where: { id } })
+  const user = await UsersService.getUserById(id)
   if (!user) return errorResponse('User not found', 404)
 
   // Prevent self-demotion/blocking
@@ -50,13 +42,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
 
   // Prevent admin from editing super_admin
-  if (user.role === 'super_admin' && auth.user.role !== 'super_admin') {
+  if (user.role === 'SUPER_ADMIN' && auth.user.role !== 'SUPER_ADMIN') {
     return errorResponse('Không có quyền chỉnh sửa Super Admin', 403)
   }
 
   // Handle role change permission
-  if (body.role && typeof body.role === 'string' && body.role !== user.role) {
-    if (!canChangeRole(auth.user, user.role, body.role)) {
+  if (body.role && typeof body.role === 'string' && body.role.toLowerCase() !== user.role?.toLowerCase()) {
+    if (!canChangeRole(auth.user, (user.role as string)?.toLowerCase() as any, body.role.toLowerCase() as any)) {
       return errorResponse('Bạn không có quyền đổi role này', 403)
     }
   }
@@ -64,12 +56,16 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   // Handle password reset inline
   const updateData: Record<string, unknown> = {}
   if (body.password && typeof body.password === 'string' && body.password.length >= 8) {
-    updateData.passwordHash = await hashPassword(body.password)
+    updateData.passwordHash = await AuthService.hashPassword(body.password)
     delete body.password
   }
 
   const parsed = userUpdateSchema.safeParse(body)
   if (!parsed.success) return errorResponse(parsed.error.errors[0]?.message || 'Validation error')
+
+  if (parsed.data.role) {
+    (parsed.data as any).role = parsed.data.role.toUpperCase()
+  }
 
   // Sync isActive with status
   if (parsed.data.status === 'banned' || parsed.data.status === 'suspended') {
@@ -79,13 +75,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     updateData.blockedReason = null
   }
 
-  const updated = await prisma.user.update({ where: { id }, data: { ...parsed.data, ...updateData } })
+  const updated = await UsersService.updateUser(id, { ...parsed.data, ...updateData, role: parsed.data.role?.toUpperCase() as any })
 
   // Determine action type for logging
   const action = parsed.data.status === 'banned' ? 'block' :
     parsed.data.status === 'suspended' ? 'suspend' :
     parsed.data.status === 'active' && (user.status === 'banned' || user.status === 'suspended') ? 'unblock' :
-    parsed.data.role && parsed.data.role !== user.role ? 'change_role' :
+    parsed.data.role && (parsed.data.role as string).toUpperCase() !== user.role ? 'change_role' :
     updateData.passwordHash ? 'reset_password' : 'update'
 
   await logAdminAction({
@@ -109,25 +105,19 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   if (auth instanceof Response) return auth
   const { id } = await params
 
-  const user = await prisma.user.findUnique({ where: { id } })
+  const user = await UsersService.getUserById(id)
   if (!user) return errorResponse('User not found', 404)
 
   if (user.email === auth.user.email) {
     return errorResponse('Không thể xóa chính tài khoản đang đăng nhập')
   }
 
-  if (user.role === 'super_admin' && auth.user.role !== 'super_admin') {
+  if (user.role === 'SUPER_ADMIN' && auth.user.role !== 'SUPER_ADMIN') {
     return errorResponse('Không có quyền xóa Super Admin', 403)
   }
 
-  // Soft delete with deletedAt
-  await prisma.user.update({
-    where: { id },
-    data: { deletedAt: new Date(), isActive: false },
-  })
-
-  // Invalidate sessions
-  await prisma.session.deleteMany({ where: { userId: id } })
+  // Soft delete with deletedAt and invalidate sessions
+  await UsersService.softDeleteUser(id)
 
   await logAdminAction({
     actorId: auth.user.email, action: 'delete', targetType: 'user', targetId: id,

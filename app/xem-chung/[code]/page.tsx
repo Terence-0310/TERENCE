@@ -14,9 +14,9 @@ import {
   Video, VideoOff, Send, Crown, Monitor, Smile,
 } from 'lucide-react'
 import Link from 'next/link'
-import { useLiveKitRoom } from '@/hooks/useLiveKitRoom'
-import { WatchPlayer, type WatchPlayerRef } from '@/components/watch/WatchPlayer'
-import { useWatchSync, type ChatMessage } from '@/hooks/useWatchSync'
+import { useLiveKitRoom } from '@/src/fe/features/watch-party/hooks/useLiveKitRoom'
+import { WatchPlayer, type WatchPlayerRef } from '@/src/fe/components/watch/WatchPlayer'
+import { useWatchSync, type ChatMessage } from '@/src/fe/features/watch-party/hooks/useWatchSync'
 
 // ── Reaction emoji config ──
 const REACTION_EMOJIS = ['😂', '❤️', '🔥', '👏', '😮', '😢', '💯', '🎬']
@@ -501,9 +501,9 @@ export default function WatchRoomPage() {
   // MAIN UI
   // ════════════════════════════════════════════
   return (
-    <main className="min-h-screen bg-[#020617] relative">
+    <main className="h-screen bg-[#020617] relative flex flex-col overflow-hidden">
       {/* ═══ TOP BAR ═══ */}
-      <header className="flex items-center justify-between px-4 py-2 border-b border-white/[0.06] bg-black/60 backdrop-blur-md z-30 relative">
+      <header className="flex-none flex items-center justify-between px-4 py-2 border-b border-white/[0.06] bg-black/60 backdrop-blur-md z-30 relative">
         <div className="flex items-center gap-3 min-w-0">
           <button onClick={() => router.push('/xem-chung')} className="p-1.5 rounded-lg hover:bg-white/10 transition text-white/50 hover:text-white shrink-0">
             <ArrowLeft className="w-5 h-5" />
@@ -599,7 +599,7 @@ export default function WatchRoomPage() {
       </header>
 
       {/* ═══ CONTENT ═══ */}
-      <div className="flex h-[calc(100vh-45px)]">
+      <div className="flex flex-1 min-h-0">
         {/* ── Player ── */}
         <div className="flex-1 flex flex-col min-w-0">
           <div className="flex-1 relative bg-black">

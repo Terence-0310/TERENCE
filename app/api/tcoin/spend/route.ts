@@ -2,11 +2,11 @@
 // Spend TCoins on a predefined option
 
 import { NextRequest, NextResponse } from 'next/server'
-import { spendTcoins } from '@/src/server/modules/tcoin/tcoin.service'
-import { getSession } from '@/lib/auth/session'
+import { spendTcoins } from '@/src/be/modules/tcoin/tcoin.service'
+import { AuthService } from '@/src/be/modules/auth'
 
 export async function POST(request: NextRequest) {
-  const session = await getSession()
+  const session = await AuthService.getSession()
   if (!session?.userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }

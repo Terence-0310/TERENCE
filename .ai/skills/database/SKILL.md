@@ -29,3 +29,5 @@ Add index for:
 ## 6. MIGRATION
 - Safe migration only
 - Do not lose data
+## SOFT DELETE (if needed)
+- Use isDeleted instead of hard delete

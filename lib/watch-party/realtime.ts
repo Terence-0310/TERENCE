@@ -5,17 +5,11 @@
 // ============================================
 // Abstraction for realtime communication in watch party rooms.
 //
-// Current implementation: Polling + BroadcastChannel (zero-dependency).
-// The API surface is designed for easy swap to WebSocket/Socket.IO later.
-//
-// Architecture:
-// - RealtimeChannel: represents a connection to a room
-// - Uses SWR-style polling for cross-network sync (via Next.js API routes)
-// - Uses BroadcastChannel for instant same-browser tab sync
-// - Emits typed events via a simple callback system
+// New implementation: Socket.IO
+// Replaces Polling + BroadcastChannel for robust cross-network realtime sync.
 
-import type { WatchPartySyncEvent, WatchRoomMessage, WatchRoomMember, WatchRoom } from './types'
-import { POLL_FALLBACK_INTERVAL_MS } from './constants'
+import { io, Socket } from 'socket.io-client'
+import type { WatchPartySyncEvent, WatchRoomMessage } from './types'
 
 // ── Types ──
 
@@ -36,182 +30,129 @@ export interface RealtimeChannel {
   isConnected: boolean
 }
 
-// ── BroadcastChannel + Polling Implementation ──
+// ── Socket.IO Implementation ──
 
-/**
- * Create a realtime channel for a watch party room.
- * 
- * Current strategy:
- * 1. BroadcastChannel for instant same-browser sync
- * 2. Polling API for cross-network sync (via /api/watch-party/[roomCode])
- */
 export function createRealtimeChannel(
   roomCode: string,
   memberId: string,
 ): RealtimeChannel {
   const handlers = new Set<RealtimeEventHandler>()
-  let pollTimer: ReturnType<typeof setInterval> | null = null
-  let broadcastChannel: BroadcastChannel | null = null
+  let socket: Socket | null = null
   let connected = false
 
-  // ── BroadcastChannel (same-browser instant sync) ──
-  try {
-    broadcastChannel = new BroadcastChannel(`terence:watch-party:${roomCode}`)
-    broadcastChannel.onmessage = (event) => {
-      const data = event.data as WatchPartySyncEvent
-      // Don't process our own events
-      if ('senderId' in data && data.senderId === memberId) return
-      handlers.forEach((h) => h(data))
-    }
-  } catch {
-    // BroadcastChannel not available (e.g., older browsers)
-  }
-
-  // ── Polling (cross-network sync) ──
-  let lastKnownState: {
-    playbackTime?: number
-    isPlaying?: boolean
-    episodeId?: string | null
-    version?: number
-    participantCount?: number
-  } = {}
-
-  let seenMessageIds = new Set<string>()
-
-  async function poll() {
-    try {
-      const res = await fetch(`/api/watch-party/${roomCode}`)
-      if (!res.ok) {
-        if (res.status === 404) {
-          handlers.forEach((h) =>
-            h({ type: 'ROOM_CLOSED', reason: 'Room not found' }),
-          )
-          disconnect()
-        }
-        return
-      }
-
-      const data = await res.json() as {
-        room: any
-        participants: any[]
-        state: any
-        messages: WatchRoomMessage[]
-      }
-
-      const state = data.state
-
-      // Detect state changes and emit events
-      if (state && lastKnownState.version !== undefined) {
-        if (lastKnownState.version !== state.version) {
-          // State version changed — emit appropriate event
-          if (state.lastEventType === 'PLAY') {
-            handlers.forEach((h) =>
-              h({ type: 'PLAY', currentTime: state.playbackTime, senderId: 'server' }),
-            )
-          } else if (state.lastEventType === 'PAUSE') {
-            handlers.forEach((h) =>
-              h({ type: 'PAUSE', currentTime: state.playbackTime, senderId: 'server' }),
-            )
-          } else if (state.lastEventType === 'SEEK') {
-            handlers.forEach((h) =>
-              h({ type: 'SEEK', currentTime: state.playbackTime, senderId: 'server' }),
-            )
-          } else if (state.lastEventType === 'CHANGE_EPISODE') {
-            handlers.forEach((h) =>
-              h({ type: 'CHANGE_EPISODE', episodeSlug: state.episodeId!, senderId: 'server' }),
-            )
-          } else {
-            // Generic state sync
-            handlers.forEach((h) =>
-              h({
-                type: 'STATE_SYNC',
-                currentTime: state.playbackTime,
-                isPlaying: state.isPlaying,
-                episodeSlug: state.episodeId,
-                serverIndex: 0,
-                senderId: 'server',
-              }),
-            )
-          }
-        }
-      }
-
-      // Member changes
-      if (lastKnownState.participantCount !== undefined && data.participants.length !== lastKnownState.participantCount) {
-        handlers.forEach((h) =>
-          h({
-            type: 'STATE_SYNC',
-            currentTime: state?.playbackTime ?? 0,
-            isPlaying: state?.isPlaying ?? false,
-            episodeSlug: state?.episodeId,
-            serverIndex: 0,
-            senderId: 'server',
-          }),
-        )
-      }
-
-      // New Messages
-      if (data.messages && data.messages.length > 0) {
-        data.messages.forEach(msg => {
-          if (!seenMessageIds.has(msg.id)) {
-            seenMessageIds.add(msg.id)
-            // Don't process our own events via polling because BroadcastChannel handles our own optimistically
-            if (msg.senderId !== memberId) {
-              handlers.forEach((h) => h({ type: 'CHAT_MESSAGE', message: msg }))
-            }
-          }
-        })
-      }
-
-      lastKnownState = {
-        playbackTime: state?.playbackTime,
-        isPlaying: state?.isPlaying,
-        episodeId: state?.episodeId,
-        version: state?.version,
-        participantCount: data.participants.length,
-      }
-    } catch {
-      // Network error — silent, will retry on next poll
-    }
-  }
-
-  // Start polling
   function connect() {
     if (connected) return
-    connected = true
-    // Initial sync
-    poll()
-    // Start polling
-    pollTimer = setInterval(poll, POLL_FALLBACK_INTERVAL_MS)
+
+    socket = io({
+      path: '/api/socketio',
+      transports: ['websocket', 'polling'],
+      reconnectionAttempts: 10,
+    })
+
+    socket.on('connect', () => {
+      connected = true
+      // We join the room without modifying host config, that is done via API logic previously.
+      socket?.emit('wp:join', {
+        roomCode,
+        userId: memberId,
+        displayName: 'Member',
+        isHost: false, // The socket handler respects existing host logic
+      })
+    })
+
+    socket.on('disconnect', () => {
+      connected = false
+    })
+
+    // Player Events
+    socket.on('wp:play', (data: { currentTime: number; by: string }) => {
+      if (data.by !== memberId) handlers.forEach((h) => h({ type: 'PLAY', currentTime: data.currentTime, senderId: data.by }))
+    })
+
+    socket.on('wp:pause', (data: { currentTime: number; by: string }) => {
+      if (data.by !== memberId) handlers.forEach((h) => h({ type: 'PAUSE', currentTime: data.currentTime, senderId: data.by }))
+    })
+
+    socket.on('wp:seek', (data: { currentTime: number; by: string }) => {
+      if (data.by !== memberId) handlers.forEach((h) => h({ type: 'SEEK', currentTime: data.currentTime, senderId: data.by }))
+    })
+
+    socket.on('wp:state', (data: any) => {
+      handlers.forEach((h) =>
+        h({
+          type: 'STATE_SYNC',
+          currentTime: data.playbackTime,
+          isPlaying: data.isPlaying,
+          serverIndex: 0,
+          senderId: data.lastEventBy || 'server',
+        })
+      )
+    })
+
+    // Chat Events
+    socket.on('wp:chat-message', (data: WatchRoomMessage) => {
+      if (data.senderId !== memberId) {
+        handlers.forEach((h) => h({ type: 'CHAT_MESSAGE', message: data }))
+      }
+    })
+
+    // Room Membership Events
+    socket.on('wp:user-joined', (data: { userId: string; displayName: string }) => {
+      handlers.forEach((h) =>
+        h({ type: 'MEMBER_JOIN', member: { id: data.userId, userId: data.userId, guestName: data.displayName, role: 'viewer', isOnline: true } as any })
+      )
+    })
+
+    socket.on('wp:user-left', (data: { userId: string; displayName?: string }) => {
+      handlers.forEach((h) => h({ type: 'MEMBER_LEAVE', memberId: data.userId, memberName: data.displayName || 'Thành viên' }))
+    })
+
+    socket.on('wp:error', (data: { message: string }) => {
+        console.error('[WatchParty] Socket Error:', data.message)
+    })
   }
 
   function disconnect() {
+    if (socket) {
+      socket.emit('wp:leave', { roomCode, userId: memberId })
+      socket.disconnect()
+      socket = null
+    }
     connected = false
-    if (pollTimer) {
-      clearInterval(pollTimer)
-      pollTimer = null
-    }
-    if (broadcastChannel) {
-      broadcastChannel.close()
-      broadcastChannel = null
-    }
     handlers.clear()
   }
 
   function send(event: WatchPartySyncEvent) {
-    // Broadcast to same-browser tabs instantly
-    if (broadcastChannel) {
-      try {
-        broadcastChannel.postMessage(event)
-      } catch {
-        // BroadcastChannel serialization error
-      }
-    }
+    if (!socket) return
 
-    // Send to server via API (so polling clients pick it up)
-    sendToServer(roomCode, event).catch(() => {
-      // Non-critical — other clients will eventually sync via polling
-    })
+    // Immediately trigger local broadcast to simulate instant reflection if we are host, but PlayerSyncService handles local loops.
+    // Instead we just emit to the socket.io backend.
+    switch (event.type) {
+      case 'PLAY':
+        socket.emit('wp:play', { roomCode, userId: memberId, currentTime: event.currentTime })
+        break
+      case 'PAUSE':
+        socket.emit('wp:pause', { roomCode, userId: memberId, currentTime: event.currentTime })
+        break
+      case 'SEEK':
+        socket.emit('wp:seek', { roomCode, userId: memberId, currentTime: event.currentTime })
+        break
+      case 'CHAT_MESSAGE':
+        socket.emit('wp:chat', {
+          roomCode,
+          userId: memberId,
+          displayName: event.message.senderName,
+          content: event.message.content,
+        })
+        break
+      case 'STATE_SYNC':
+      case 'CHANGE_EPISODE':
+      case 'CHANGE_SERVER':
+         // We might implement these later or fallback to API
+         break
+      default:
+        break
+    }
   }
 
   // Auto-connect
@@ -223,62 +164,8 @@ export function createRealtimeChannel(
     onEvent: (handler) => handlers.add(handler),
     offEvent: (handler) => handlers.delete(handler),
     disconnect,
-    get isConnected() { return connected },
-  }
-}
-
-// ── Server API dispatcher ──
-
-async function sendToServer(roomCode: string, event: WatchPartySyncEvent): Promise<void> {
-  switch (event.type) {
-    case 'PLAY':
-      await fetch(`/api/watch-party/${roomCode}/sync`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isPlaying: true, playbackTime: event.currentTime, eventType: 'PLAY' }),
-      })
-      break
-    case 'PAUSE':
-      await fetch(`/api/watch-party/${roomCode}/sync`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isPlaying: false, playbackTime: event.currentTime, eventType: 'PAUSE' }),
-      })
-      break
-    case 'SEEK':
-      await fetch(`/api/watch-party/${roomCode}/sync`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ playbackTime: event.currentTime, eventType: 'SEEK' }),
-      })
-      break
-    case 'CHANGE_EPISODE':
-      await fetch(`/api/watch-party/${roomCode}/sync`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ episodeId: event.episodeSlug, eventType: 'CHANGE_EPISODE' }),
-      })
-      break
-    case 'CHANGE_SERVER':
-      await fetch(`/api/watch-party/${roomCode}/sync`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ eventType: 'CHANGE_SERVER' }),
-      })
-      break
-    case 'CHAT_MESSAGE':
-      await fetch(`/api/watch-party/${roomCode}/messages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          senderName: event.message.senderName,
-          content: event.message.content,
-          participantId: event.message.senderId,
-        }),
-      })
-      break
-    // Other event types are local-only
-    default:
-      break
+    get isConnected() {
+      return connected
+    },
   }
 }

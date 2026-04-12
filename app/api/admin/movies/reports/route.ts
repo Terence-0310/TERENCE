@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/auth/db'
-import { requireAdmin } from '@/lib/admin/api-helpers'
+import { prisma } from '@/src/be/shared/db/prisma'
+import { requireAdmin } from '@/src/be/modules/admin/api-helpers'
 
 // GET /api/admin/movies/reports — movie health checks
 export async function GET() {

@@ -6,9 +6,10 @@
 // ============================================
 
 import {
-  Edit, Trash2, RotateCcw, KeyRound, Ban, UserCheck,
+  Edit, Trash2, RotateCcw, KeyRound, Ban, UserCheck, Shield
 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/src/fe/components/ui/button'
+import { useAuth } from '@/src/fe/features/auth/contexts/auth-context'
 
 interface UserItem {
   id: string; name: string; email: string; role: string; status: string
@@ -27,6 +28,7 @@ interface UserTableProps {
   onDelete: (id: string, name: string) => void
   onRestore: (id: string, name: string) => void
   onRoleChange: (id: string, newRole: string) => void
+  onManagePermissions: (user: UserItem) => void
   roleLabel: (r: string) => string
   roleColor: (r: string) => string
   statusLabel: (s: string) => string
@@ -37,8 +39,11 @@ interface UserTableProps {
 
 export function UserTable({
   users, loading, onEdit, onResetPassword, onBlock, onUnblock, onDelete, onRestore,
-  onRoleChange, roleLabel, roleColor, statusLabel, statusColor, fmtDate, fmtDateTime,
+  onRoleChange, onManagePermissions, roleLabel, roleColor, statusLabel, statusColor, fmtDate, fmtDateTime,
 }: UserTableProps) {
+  const { user: currentUser } = useAuth()
+  const currentUserRole = currentUser?.role?.toUpperCase() || ''
+
   if (loading && users.length === 0) {
     return (
       <div className="overflow-x-auto">
@@ -110,15 +115,15 @@ export function UserTable({
                 </div>
               </td>
               <td className="py-4 px-4">
-                {user.deletedAt ? (
+                {user.deletedAt || currentUserRole === 'USER' ? (
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${roleColor(user.role)}`}>{roleLabel(user.role)}</span>
                 ) : (
                   <select className={`px-2 py-1 rounded-full text-xs font-medium border-0 cursor-pointer ${roleColor(user.role)}`}
                     value={user.role} onChange={(e) => onRoleChange(user.id, e.target.value)}>
-                    <option value="super_admin">Super Admin</option>
-                    <option value="admin">Admin</option>
-                    <option value="staff">Staff</option>
-                    <option value="editor">Editor</option>
+                    {currentUserRole === 'SUPER_ADMIN' && <option value="super_admin">Super Admin</option>}
+                    {['SUPER_ADMIN', 'ADMIN'].includes(currentUserRole) && <option value="admin">Admin</option>}
+                    {['SUPER_ADMIN', 'ADMIN', 'STAFF'].includes(currentUserRole) && <option value="staff">Staff</option>}
+                    {['SUPER_ADMIN', 'ADMIN', 'STAFF'].includes(currentUserRole) && <option value="editor">Editor</option>}
                     <option value="user">User</option>
                   </select>
                 )}
@@ -131,34 +136,51 @@ export function UserTable({
               <td className="py-4 px-4">
                 <div className="flex items-center justify-end gap-1">
                   {user.deletedAt ? (
-                    <Button variant="ghost" size="icon" className="h-8 w-8" title="Khôi phục"
-                      onClick={() => onRestore(user.id, user.name)}>
-                      <RotateCcw className="w-4 h-4 text-green-500" />
-                    </Button>
+                    ['SUPER_ADMIN', 'ADMIN'].includes(currentUserRole) && (
+                      <Button variant="ghost" size="icon" className="h-8 w-8" title="Khôi phục"
+                        onClick={() => onRestore(user.id, user.name)}>
+                        <RotateCcw className="w-4 h-4 text-green-500" />
+                      </Button>
+                    )
                   ) : (
                     <>
-                      <Button variant="ghost" size="icon" className="h-8 w-8" title="Sửa" onClick={() => onEdit(user)}>
-                        <Edit className="w-4 h-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8" title="Reset mật khẩu"
-                        onClick={() => onResetPassword(user.id, user.name)}>
-                        <KeyRound className="w-4 h-4" />
-                      </Button>
-                      {user.status === 'banned' ? (
-                        <Button variant="ghost" size="icon" className="h-8 w-8" title="Mở khóa"
-                          onClick={() => onUnblock(user.id)}>
-                          <UserCheck className="w-4 h-4 text-green-500" />
-                        </Button>
-                      ) : (
-                        <Button variant="ghost" size="icon" className="h-8 w-8" title="Khóa"
-                          onClick={() => onBlock(user.id, user.name)}>
-                          <Ban className="w-4 h-4 text-destructive" />
-                        </Button>
+                      {/* ADMIN KHÔNG được sửa SUPER_ADMIN */}
+                      {!(currentUserRole !== 'SUPER_ADMIN' && user.role.toUpperCase() === 'SUPER_ADMIN') && (
+                        <>
+                          <Button variant="ghost" size="icon" className="h-8 w-8" title="Sửa" onClick={() => onEdit(user)}>
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8" title="Reset mật khẩu"
+                            onClick={() => onResetPassword(user.id, user.name)}>
+                            <KeyRound className="w-4 h-4" />
+                          </Button>
+                          {user.status === 'banned' ? (
+                            <Button variant="ghost" size="icon" className="h-8 w-8" title="Mở khóa"
+                              onClick={() => onUnblock(user.id)}>
+                              <UserCheck className="w-4 h-4 text-green-500" />
+                            </Button>
+                          ) : (
+                            <Button variant="ghost" size="icon" className="h-8 w-8" title="Khóa"
+                              onClick={() => onBlock(user.id, user.name)}>
+                              <Ban className="w-4 h-4 text-destructive" />
+                            </Button>
+                          )}
+                          {/* Sửa Dynamic Permission Override */}
+                          {['SUPER_ADMIN', 'ADMIN'].includes(currentUserRole) && (
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" title="Override Phân Quyền"
+                              onClick={() => onManagePermissions(user)}>
+                              <Shield className="w-4 h-4" />
+                            </Button>
+                          )}
+                          {/* STAFF KHÔNG xóa user, EDITOR KHÔNG quản lý user */}
+                          {['SUPER_ADMIN', 'ADMIN'].includes(currentUserRole) && (
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" title="Xóa"
+                              onClick={() => onDelete(user.id, user.name)}>
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          )}
+                        </>
                       )}
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" title="Xóa"
-                        onClick={() => onDelete(user.id, user.name)}>
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
                     </>
                   )}
                 </div>

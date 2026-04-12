@@ -3,11 +3,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Save, LogOut, Camera, History, Star, UserCircle, Edit3, Settings } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { useAuth } from '@/contexts/auth-context'
+import { Button } from '@/src/fe/components/ui/button'
+import { Input } from '@/src/fe/components/ui/input'
+import { Textarea } from '@/src/fe/components/ui/textarea'
+import { Avatar, AvatarFallback, AvatarImage } from '@/src/fe/components/ui/avatar'
+import { useAuth } from '@/src/fe/features/auth/contexts/auth-context'
 
 interface UserProfile {
   id: string

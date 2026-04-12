@@ -8,9 +8,9 @@
 //   sort (newest|oldest|popular|rating|year|title)
 
 import { NextRequest } from 'next/server'
-import { getMovieList, type MovieListParams } from '@/src/server/movies/movie-service'
-import { serializeMovieCard, serializePagination } from '@/src/server/movies/serializers'
-import { parseIntParam, parseStringParam, parseBoolParam, jsonPaginated, jsonError } from '@/src/server/movies/api-helpers'
+import { getMovieList, type MovieListParams } from '@/src/be/modules/movies/movie-service'
+import { serializeMovieCard, serializePagination } from '@/src/be/modules/movies/serializers'
+import { parseIntParam, parseStringParam, parseBoolParam, jsonPaginated, jsonError } from '@/src/be/modules/movies/api-helpers'
 
 const ALLOWED_TYPES = ['movie', 'series', 'anime']
 const ALLOWED_SORTS = ['newest', 'oldest', 'popular', 'rating', 'year', 'title']
@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
     const { movies, total, page, perPage } = await getMovieList(params)
 
     return jsonPaginated(
-      movies.map(m => serializeMovieCard(m as unknown as Record<string, unknown>)),
+      movies.map((m: any) => serializeMovieCard(m as unknown as Record<string, unknown>)),
       serializePagination(page, perPage, total),
     )
   } catch (error) {

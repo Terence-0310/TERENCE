@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/auth/db'
+import { prisma } from '@/src/be/shared/db/prisma'
 
 export async function POST(
   req: Request,

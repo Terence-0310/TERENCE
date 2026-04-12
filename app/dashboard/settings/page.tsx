@@ -2,9 +2,9 @@
 
 import { useState } from 'react'
 import { Save, Bell, Shield, Globe, Palette, Mail } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Button } from '@/src/fe/components/ui/button'
+import { Input } from '@/src/fe/components/ui/input'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/src/fe/components/ui/card'
 
 export default function SettingsPage() {
   const [saved, setSaved] = useState(false)

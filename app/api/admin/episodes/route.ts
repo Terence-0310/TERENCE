@@ -1,8 +1,9 @@
 import { NextRequest } from 'next/server'
-import { prisma } from '@/lib/auth/db'
-import { requireAdmin, parsePagination, paginatedResponse, errorResponse, successResponse, parseBody } from '@/lib/admin/api-helpers'
-import { episodeCreateSchema } from '@/lib/admin/validators'
-import { logAdminAction, getClientIp } from '@/lib/admin/audit'
+import { prisma } from '@/src/be/shared/db/prisma'
+import { requireAdmin, parsePagination, paginatedResponse, errorResponse, successResponse, parseBody } from '@/src/be/modules/admin/api-helpers'
+import { episodeCreateSchema } from '@/src/be/modules/admin/validators'
+import { logAdminAction, getClientIp } from '@/src/be/modules/admin/audit'
+import { EpisodesService } from '@/src/be/modules/episodes/episodes.service'
 
 // GET /api/admin/episodes?movieId=xxx
 export async function GET(req: NextRequest) {
@@ -14,14 +15,7 @@ export async function GET(req: NextRequest) {
   const movieId = sp.get('movieId') || ''
   const status = sp.get('status') || ''
 
-  const where: Record<string, unknown> = {}
-  if (movieId) where.movieId = movieId
-  if (status) where.status = status
-
-  const [data, total] = await Promise.all([
-    prisma.episode.findMany({ where, skip, take: limit, orderBy: { sortOrder: 'asc' }, include: { movie: { select: { title: true } } } }),
-    prisma.episode.count({ where }),
-  ])
+  const [data, total] = await EpisodesService.getPaginatedEpisodes(movieId, status, skip, limit)
 
   return paginatedResponse(data, total, page, limit)
 }
@@ -40,7 +34,7 @@ export async function POST(req: NextRequest) {
   const movie = await prisma.movie.findUnique({ where: { id: parsed.data.movieId } })
   if (!movie) return errorResponse('Movie not found', 404)
 
-  const episode = await prisma.episode.create({ data: parsed.data })
+  const episode = await EpisodesService.createEpisode(parsed.data)
 
   await logAdminAction({
     actorId: auth.user.email, action: 'create', targetType: 'episode', targetId: episode.id,

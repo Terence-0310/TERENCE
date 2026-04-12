@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
-import { prisma } from '@/lib/auth/db'
-import { requireAdmin, errorResponse, successResponse } from '@/lib/admin/api-helpers'
-import { logAdminAction, getClientIp } from '@/lib/admin/audit'
+import { prisma } from '@/src/be/shared/db/prisma'
+import { requireAdmin, errorResponse, successResponse } from '@/src/be/modules/admin/api-helpers'
+import { logAdminAction, getClientIp } from '@/src/be/modules/admin/audit'
 
 type Params = { params: Promise<{ id: string }> }
 

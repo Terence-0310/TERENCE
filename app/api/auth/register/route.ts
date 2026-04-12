@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/auth/db";
-import { hashPassword } from "@/lib/auth/password";
+import { prisma } from "@/src/be/shared/db/prisma";
+import { AuthService } from "@/src/be/modules/auth";
 import { z } from "zod";
 
 const registerSchema = z.object({
@@ -44,14 +44,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Email đã được sử dụng" }, { status: 400 });
     }
 
-    const hashedPassword = await hashPassword(password);
+    const hashedPassword = await AuthService.hashPassword(password);
 
     const user = await prisma.user.create({
       data: {
         name,
         email: email.toLowerCase(),
         passwordHash: hashedPassword,
-        role: "user",
+        role: "USER",
         isActive: true,
       },
       select: { id: true, name: true, email: true, role: true },

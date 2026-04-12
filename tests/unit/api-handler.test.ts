@@ -8,7 +8,7 @@ import {
   parseSort,
   parseFilters,
   getErrorMessage,
-} from '@/lib/api/handler'
+} from '@/src/be/shared/api-handler'
 import { ZodError, z } from 'zod'
 
 describe('lib/api/handler', () => {

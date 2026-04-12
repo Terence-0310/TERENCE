@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "grapuco": {
+      "url": "https://api.grapuco.com/mcp",
+      "headers": {
+        "Authorization": "Bearer ${GRAPUCO_API_KEY}"
+      }
+    }
+  }
+}

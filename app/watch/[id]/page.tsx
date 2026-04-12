@@ -2,15 +2,15 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import { ArrowLeft, Play, Film, Share2, Heart, Users, Star, Clock, Tv } from 'lucide-react'
-import { WatchPageClient } from '@/components/player/WatchPageClient'
-import { WatchPageContainer } from '@/components/player/WatchPageContainer'
+import { WatchPageClient } from '@/src/fe/components/player/WatchPageClient'
+import { WatchPageContainer } from '@/src/fe/components/player/WatchPageContainer'
 
-import { getMovieDetail } from '@/services/tmdb/movie-service'
-import { getTvDetail } from '@/services/tmdb/tv-service'
-import { getMoviePlaybackData, getMoviePlaybackByTmdbId, getMoviePlaybackByTitle, getMultiServerSources } from '@/server/services/playback-service'
-import { resolveMovieSource } from '@/services/video-source'
-import { MovieRow } from '@/components/shared/MovieRow'
-import { getSession } from '@/lib/auth/session'
+import { getMovieDetail } from '@/src/be/services/tmdb/movie-service'
+import { getTvDetail } from '@/src/be/services/tmdb/tv-service'
+import { getMoviePlaybackData, getMoviePlaybackByTmdbId, getMoviePlaybackByTitle, getMultiServerSources } from '@/src/be/modules/watch/playback.service'
+import { resolveMovieSource } from '@/src/be/services/video-source'
+import { MovieRow } from '@/src/fe/components/shared/MovieRow'
+import { AuthService } from '@/src/be/modules/auth'
 import type { Metadata } from 'next'
 import type { PlayableSource, EpisodePlaybackData } from '@/lib/player/types'
 
@@ -35,7 +35,7 @@ export default async function WatchPage({ params, searchParams }: PageProps) {
 
   // Check auth for progress features
   // Auth session available for future progress-tracking features
-  await getSession()
+  await AuthService.getSession()
 
   // ── Step 1: Try DB-backed playback first ──
   let dbPlayback = await getMoviePlaybackData(id, episodeSlug || undefined)
@@ -187,98 +187,101 @@ export default async function WatchPage({ params, searchParams }: PageProps) {
     <main className="min-h-screen bg-[#0F172A] pb-20">
       <div className="mx-auto max-w-[1400px] px-4 md:px-8 pt-8">
         
-        {/* ═══════ HEADER ═══════ */}
+        {/* ═══════ BACK LINK ═══════ */}
         <header className="mb-4">
           <Link 
             href={tmdbMovie ? `/movie/${tmdbMovie.id}` : '/'} 
-            className="inline-flex items-center gap-2 rounded-full bg-white/5 py-1.5 pr-4 pl-1.5 text-sm font-medium text-white/80 transition hover:bg-white/10 hover:text-white mb-6"
+            className="inline-flex items-center gap-2 rounded-full bg-white/5 py-1.5 pr-4 pl-1.5 text-sm font-medium text-white/80 transition hover:bg-white/10 hover:text-white mb-2"
           >
             <div className="flex h-6 w-6 items-center justify-center rounded-full bg-black/40">
               <ArrowLeft className="h-3.5 w-3.5" />
             </div>
             Xem phim {movieTitle}
           </Link>
-
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between px-1">
-            <div>
-              <h1 className="text-2xl font-bold text-white md:text-[28px] tracking-tight">
-                {movieTitle}
-              </h1>
-              {(episodeData?.episode || episodeList.length > 0) && (
-                <p className="mt-2 text-[15px] font-medium text-white/60">
-                  Phần 1 - {episodeData?.episode?.episodeName || `Tập ${episodeData?.episode?.episodeNumber || providerEps.find(e => e.slug === episodeSlug)?.number || ''}`}
-                </p>
-              )}
-            </div>
-
-            {(episodeList.length > 1 || providerEps.length > 0) && (
-              <a 
-                href="#episode-list"
-                className="inline-flex items-center gap-2 rounded-lg bg-white/5 px-4 py-2 text-sm font-medium text-white/80 transition hover:bg-white/10 hover:text-white"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><line x1="9" x2="9" y1="3" y2="21"/></svg>
-                Danh sách tập
-              </a>
-            )}
-          </div>
         </header>
       </div>
 
-      <div className="w-full 2xl:[max-width:1800px] px-0 sm:px-2 md:px-4 lg:px-6 mx-auto mt-2 flex-grow">
-        <WatchPageContainer
-          playerArea={
-            <>
-              {hasAnySource && episodeData ? (
-                <WatchPageClient
-                  episodeData={episodeData}
-                  movieId={dbPlayback?.movie?.id || ''}
-                  movieSlug={movieSlug}
-                  movieTitle={movieTitle}
-                  posterUrl={backdropUrl || undefined}
-                  thumbUrl={posterUrl || undefined}
-                  trailerUrl={tmdbMovie?.trailer?.embedUrl}
-                  additionalServers={multiServerSources}
-                />
-              ) : tmdbMovie?.trailer?.embedUrl ? (
-                /* No source available but has trailer */
-                <div className="relative flex h-full w-full bg-black">
-                  <iframe
-                    src={tmdbMovie.trailer.embedUrl}
-                    className="h-full w-full border-0"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                  />
-                </div>
-              ) : (
-                /* No source available and no trailer — placeholder */
-                <div className="relative flex h-full flex-col items-center justify-center bg-zinc-900/50">
-                  {backdropUrl && backdropUrl !== '/placeholder.jpg' && (
-                    <>
-                      <Image
-                        src={backdropUrl}
-                        alt=""
-                        fill
-                        className="object-cover opacity-20 blur-sm"
-                      />
-                      <div className="absolute inset-0 bg-black/60" />
-                    </>
+      <div className="w-full mx-auto max-w-[1400px] px-0 sm:px-4 md:px-8 mt-2 flex-grow">
+        <div className="w-full">
+          <WatchPageContainer
+            headerArea={
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-2 sm:px-0">
+                <div>
+                  <h1 className="text-lg font-bold text-white md:text-xl tracking-tight">
+                    {movieTitle}
+                  </h1>
+                  {(episodeData?.episode || episodeList.length > 0) && (
+                    <p className="mt-1 text-[13px] font-medium text-white/60">
+                      Phần 1 - {episodeData?.episode?.episodeName || `Tập ${episodeData?.episode?.episodeNumber || providerEps.find(e => e.slug === episodeSlug)?.number || ''}`}
+                    </p>
                   )}
-                  <div className="relative z-10 flex flex-col items-center gap-5 px-6 text-center">
-                    <div className="flex h-20 w-20 items-center justify-center rounded-full border border-white/10 bg-white/5 backdrop-blur-md">
-                      <Film className="h-9 w-9 text-white/30" />
-                    </div>
-                    <div>
-                      <h2 className="text-lg font-bold text-white/90">Phim hiện chưa có nguồn phát hợp lệ</h2>
-                      <p className="mt-2 max-w-sm text-sm leading-relaxed text-white/40">
-                        Nguồn phát cho phim này hiện chưa khả dụng.
-                      </p>
+                </div>
+
+                {(episodeList.length > 1 || providerEps.length > 0) && (
+                  <a 
+                    href="#episode-list"
+                    className="inline-flex items-center gap-2 rounded-lg bg-white/5 px-4 py-2 text-sm font-medium text-white/80 transition hover:bg-white/10 hover:text-white shrink-0 border border-white/[0.04]"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><line x1="9" x2="9" y1="3" y2="21"/></svg>
+                    Danh sách tập
+                  </a>
+                )}
+              </div>
+            }
+            playerArea={
+              <>
+                {hasAnySource && episodeData ? (
+                  <WatchPageClient
+                    episodeData={episodeData}
+                    movieId={dbPlayback?.movie?.id || ''}
+                    movieSlug={movieSlug}
+                    movieTitle={movieTitle}
+                    posterUrl={backdropUrl || undefined}
+                    thumbUrl={posterUrl || undefined}
+                    trailerUrl={tmdbMovie?.trailer?.embedUrl}
+                    additionalServers={multiServerSources}
+                  />
+                ) : tmdbMovie?.trailer?.embedUrl ? (
+                  /* No source available but has trailer */
+                  <div className="relative flex h-full w-full bg-black">
+                    <iframe
+                      src={tmdbMovie.trailer.embedUrl}
+                      className="h-full w-full border-0"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                    />
+                  </div>
+                ) : (
+                  /* No source available and no trailer — placeholder */
+                  <div className="relative flex h-full flex-col items-center justify-center bg-zinc-900/50">
+                    {backdropUrl && backdropUrl !== '/placeholder.jpg' && (
+                      <>
+                        <Image
+                          src={backdropUrl}
+                          alt=""
+                          fill
+                          className="object-cover opacity-20 blur-sm"
+                        />
+                        <div className="absolute inset-0 bg-black/60" />
+                      </>
+                    )}
+                    <div className="relative z-10 flex flex-col items-center gap-5 px-6 text-center">
+                      <div className="flex h-20 w-20 items-center justify-center rounded-full border border-white/10 bg-white/5 backdrop-blur-md">
+                        <Film className="h-9 w-9 text-white/30" />
+                      </div>
+                      <div>
+                        <h2 className="text-lg font-bold text-white/90">Phim hiện chưa có nguồn phát hợp lệ</h2>
+                        <p className="mt-2 max-w-sm text-sm leading-relaxed text-white/40">
+                          Nguồn phát cho phim này hiện chưa khả dụng.
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
-            </>
-          }
-        />
+                )}
+              </>
+            }
+          />
+        </div>
       </div>
 
       {/* ═══════ EPISODES LIST (BOTTOM) ═══════ */}
@@ -406,11 +409,16 @@ export default async function WatchPage({ params, searchParams }: PageProps) {
                   </span>
                  )}
                 {(movie?.cast?.length) ? (
-                  <span>
-                    <span className="text-white/40">Diễn viên:</span>{' '}
-                    <span className="text-white/70">
-                      {movie?.cast?.slice(0, 3).map((c) => c.name).join(', ')}
-                    </span>
+                  <span className="flex flex-wrap items-center gap-1">
+                    <span className="text-white/40">Diễn viên:</span>
+                    {movie.cast.slice(0, 3).map((c, idx) => (
+                      <span key={c.id || idx} className="text-white/70">
+                        <Link href={`/person/${c.id}`} className="hover:text-primary transition-colors">
+                          {c.name}
+                        </Link>
+                        {idx < Math.min(movie?.cast?.length || 0, 3) - 1 ? ', ' : ''}
+                      </span>
+                    ))}
                   </span>
                 ) : null}
               </div>

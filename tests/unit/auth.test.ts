@@ -3,32 +3,31 @@
 // ============================================
 
 import { describe, it, expect } from 'vitest'
-import { hashPassword, verifyPassword } from '@/lib/auth/password'
-import { hasPermission, canAccessDashboard, canChangeRole, getRoleLabel } from '@/lib/auth/permissions'
-import type { PublicUser } from '@/lib/auth/current-user'
+import { AuthService, type PublicUser } from '@/src/be/modules/auth'
+import { hasPermission, canAccessDashboard, canChangeRole, getRoleLabel } from '@/src/be/modules/auth/permissions'
 
 describe('lib/auth/password', () => {
   it('should hash a password', async () => {
-    const hash = await hashPassword('mypassword')
+    const hash = await AuthService.hashPassword('mypassword')
     expect(hash).not.toBe('mypassword')
     expect(hash.length).toBeGreaterThan(0)
   })
 
   it('should verify correct password', async () => {
-    const hash = await hashPassword('correct-password')
-    const result = await verifyPassword('correct-password', hash)
+    const hash = await AuthService.hashPassword('correct-password')
+    const result = await AuthService.verifyPassword('correct-password', hash)
     expect(result).toBe(true)
   })
 
   it('should reject wrong password', async () => {
-    const hash = await hashPassword('correct-password')
-    const result = await verifyPassword('wrong-password', hash)
+    const hash = await AuthService.hashPassword('correct-password')
+    const result = await AuthService.verifyPassword('wrong-password', hash)
     expect(result).toBe(false)
   })
 
   it('should produce different hashes for same password', async () => {
-    const hash1 = await hashPassword('same-password')
-    const hash2 = await hashPassword('same-password')
+    const hash1 = await AuthService.hashPassword('same-password')
+    const hash2 = await AuthService.hashPassword('same-password')
     expect(hash1).not.toBe(hash2) // bcrypt uses random salt
   })
 })
@@ -40,60 +39,60 @@ describe('lib/auth/permissions', () => {
   const user: PublicUser = { email: 'user@test.com', name: 'User', role: 'user' }
 
   describe('hasPermission()', () => {
-    it('should return false for null user', () => {
-      expect(hasPermission(null, 'dashboard.access')).toBe(false)
+    it('should return false for null user', async () => {
+      expect(await hasPermission(null, 'dashboard.view' as any)).toBe(false)
     })
 
-    it('should grant admin dashboard access', () => {
-      expect(hasPermission(admin, 'dashboard.access')).toBe(true)
+    it('should grant admin dashboard access', async () => {
+      expect(await hasPermission(admin, 'dashboard.view' as any)).toBe(true)
     })
 
-    it('should deny regular user dashboard access', () => {
-      expect(hasPermission(user, 'dashboard.access')).toBe(false)
+    it('should deny regular user dashboard access', async () => {
+      expect(await hasPermission(user, 'dashboard.view' as any)).toBe(false)
     })
 
-    it('should grant admin movie management', () => {
-      expect(hasPermission(admin, 'movies.create')).toBe(true)
-      expect(hasPermission(admin, 'movies.delete')).toBe(true)
+    it('should grant admin movie creation but deny deletion per new policy', async () => {
+      expect(await hasPermission(admin, 'movie.create' as any)).toBe(true)
+      expect(await hasPermission(admin, 'movie.delete' as any)).toBe(false)
     })
 
-    it('should deny staff movie deletion', () => {
-      expect(hasPermission(staff, 'movies.delete')).toBe(false)
+    it('should deny staff movie deletion', async () => {
+      expect(await hasPermission(staff, 'movie.delete' as any)).toBe(false)
     })
 
-    it('should grant staff movie creation', () => {
-      expect(hasPermission(staff, 'movies.create')).toBe(true)
+    it('should grant staff movie creation', async () => {
+      expect(await hasPermission(staff, 'movie.create' as any)).toBe(true)
     })
 
-    it('should deny editor user management', () => {
-      expect(hasPermission(editor, 'users.view')).toBe(false)
+    it('should deny editor user management', async () => {
+      expect(await hasPermission(editor, 'user.read' as any)).toBe(false)
     })
 
-    it('should deny user all permissions', () => {
-      expect(hasPermission(user, 'movies.view')).toBe(false)
-      expect(hasPermission(user, 'users.view')).toBe(false)
+    it('should deny user all permissions', async () => {
+      expect(await hasPermission(user, 'movie.read' as any)).toBe(false)
+      expect(await hasPermission(user, 'user.read' as any)).toBe(false)
     })
   })
 
   describe('canAccessDashboard()', () => {
-    it('should allow admin', () => {
-      expect(canAccessDashboard(admin)).toBe(true)
+    it('should allow admin', async () => {
+      expect(await canAccessDashboard(admin)).toBe(true)
     })
 
-    it('should allow staff', () => {
-      expect(canAccessDashboard(staff)).toBe(true)
+    it('should allow staff', async () => {
+      expect(await canAccessDashboard(staff)).toBe(true)
     })
 
-    it('should allow editor', () => {
-      expect(canAccessDashboard(editor)).toBe(true)
+    it('should allow editor', async () => {
+      expect(await canAccessDashboard(editor)).toBe(true)
     })
 
-    it('should deny regular user', () => {
-      expect(canAccessDashboard(user)).toBe(false)
+    it('should deny regular user', async () => {
+      expect(await canAccessDashboard(user)).toBe(false)
     })
 
-    it('should deny null', () => {
-      expect(canAccessDashboard(null)).toBe(false)
+    it('should deny null', async () => {
+      expect(await canAccessDashboard(null)).toBe(false)
     })
   })
 

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { listTransactions } from '@/services/wallet.service';
+import { listTransactions } from '@/src/be/services/wallet.service';
 
 export async function GET(req: Request) {
   try {

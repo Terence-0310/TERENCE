@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/auth/db'
-import { hashPassword } from '@/lib/auth/password'
+import { prisma } from '@/src/be/shared/db/prisma'
+import { AuthService } from '@/src/be/modules/auth'
 
 export async function POST(req: NextRequest) {
   try {
@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Token đã hết hạn' }, { status: 400 })
     }
 
-    const hashedPassword = await hashPassword(password)
+    const hashedPassword = await AuthService.hashPassword(password)
 
     // Update password and clean up all reset tokens for this user
     await prisma.$transaction([

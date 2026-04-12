@@ -1,13 +1,14 @@
-import { HeroBanner } from '@/components/home/HeroBanner'
-import { ContinueWatchingRow } from '@/components/home/ContinueWatchingRow'
-import { InterestsSection } from '@/components/home/InterestsSection'
-import { MovieRow } from '@/components/shared/MovieRow'
-import { PhimHayRow } from '@/components/home/PhimHayRow'
-import { TopCommentsCarousel } from '@/components/home/TopCommentsCarousel'
-import { TrendingRankings } from '@/components/home/TrendingRankings'
-import { MovieNewsSection } from '@/components/news/MovieNewsSection'
-import { UpcomingMoviesSection } from '@/components/news/UpcomingMoviesSection'
-import { getTrending, getPopular, getTopRated, getNowPlaying, getUpcoming } from '@/services/tmdb/movie-service'
+import { HeroBanner } from '@/src/fe/components/home/HeroBanner'
+import { ContinueWatchingRow } from '@/src/fe/components/home/ContinueWatchingRow'
+import { InterestsSection } from '@/src/fe/components/home/InterestsSection'
+import { MovieRow } from '@/src/fe/components/shared/MovieRow'
+import { PhimHayRow } from '@/src/fe/components/home/PhimHayRow'
+import { TopCommentsCarousel } from '@/src/fe/components/home/TopCommentsCarousel'
+import { TrendingRankings } from '@/src/fe/components/home/TrendingRankings'
+import { MovieNewsSection } from '@/src/fe/components/news/MovieNewsSection'
+import { UpcomingMoviesSection } from '@/src/fe/components/news/UpcomingMoviesSection'
+import { getTrending, getPopular, getTopRated, getNowPlaying, getUpcoming } from '@/src/be/services/tmdb/movie-service'
+import { Film } from 'lucide-react'
 
 export default async function HomePage() {
   // Use allSettled so ONE failed call doesn't crash the entire page
@@ -35,7 +36,7 @@ export default async function HomePage() {
       <main className="min-h-screen bg-background">
         <div className="flex min-h-[80vh] flex-col items-center justify-center px-6 text-center">
           <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-primary/10">
-            <span className="text-4xl">🎬</span>
+            <Film className="h-10 w-10 text-primary" />
           </div>
           <h1 className="mb-3 text-3xl font-bold text-white">Chào mừng đến Terence</h1>
           <p className="mb-6 max-w-md text-muted-foreground leading-relaxed">
@@ -134,16 +135,7 @@ export default async function HomePage() {
         </div>
       </div>
 
-      {/* TMDB Attribution */}
-      <div className="border-t border-white/[0.04] px-5 py-6 text-center">
-        <p className="text-[11px] text-muted-foreground/40">
-          Dữ liệu phim cung cấp bởi{' '}
-          <a href="https://www.themoviedb.org" target="_blank" rel="noopener" className="underline hover:text-muted-foreground/60">
-            TMDB
-          </a>
-          . Terence không host hay phân phối nội dung bản quyền.
-        </p>
-      </div>
+
     </main>
   )
 }
