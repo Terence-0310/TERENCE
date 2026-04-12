@@ -693,11 +693,11 @@ model WalletTransaction {
   walletId      String
   userId        String
   type          String // TOPUP, REWARD, REDEEM, ADJUSTMENT, REFUND
-  direction     String // CREDIT, DEBIT
+  direction     String @default("CREDIT") // CREDIT, DEBIT
   amount        Int
   balanceBefore Int
   balanceAfter  Int
-  status        String // SUCCESS, PENDING, FAILED, CANCELED
+  status        String @default("SUCCESS") // SUCCESS, PENDING, FAILED, CANCELED
   provider      String? // VIETQR, SEPAY
   referenceType String?
   referenceId   String?
