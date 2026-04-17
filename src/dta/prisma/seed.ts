@@ -402,6 +402,48 @@ async function main() {
     data: { actorId: admin.id, action: 'login', resource: 'user', metadataJson: JSON.stringify({ note: 'Seed initial login' }) },
   })
 
+  // ── Sample reviews ──
+  console.log('   💬 Seeding reviews...')
+  const reviewMovies = await prisma.movie.findMany({ take: 3 })
+  if (reviewMovies.length >= 3) {
+    await prisma.review.upsert({
+      where: { userId_movieId: { userId: regular.id, movieId: reviewMovies[0].id } },
+      update: {},
+      create: {
+        userId: regular.id,
+        movieId: reviewMovies[0].id,
+        rating: 9.5,
+        title: 'Tuyệt đỉnh',
+        content: 'Phim cực hay, góc máy và màu sắc khỏi bàn cãi. Xem xong vẫn còn ám ảnh với plot twist!',
+        status: 'approved'
+      }
+    });
+
+    await prisma.review.upsert({
+      where: { userId_movieId: { userId: admin.id, movieId: reviewMovies[1].id } },
+      update: {},
+      create: {
+        userId: admin.id,
+        movieId: reviewMovies[1].id,
+        rating: 8.0,
+        content: 'Cốt truyện ổn, diễn viên nhập vai tốt. Đáng để các dẫn đi xem vào cuối tuần.',
+        status: 'approved'
+      }
+    });
+
+    await prisma.review.upsert({
+      where: { userId_movieId: { userId: regular.id, movieId: reviewMovies[2].id } },
+      update: {},
+      create: {
+        userId: regular.id,
+        movieId: reviewMovies[2].id,
+        rating: 10,
+        content: 'Tuyệt tác của thập kỷ, không thể chờ thêm phần 2 😱. Admin up thêm phim của đạo diễn này nhé!',
+        status: 'approved'
+      }
+    });
+  }
+
   console.log('✅ Seed complete!')
   console.log('   admin@terence.vn / Admin@12345 (super_admin)')
   console.log('   staff@terence.vn / Staff@12345 (staff)')
