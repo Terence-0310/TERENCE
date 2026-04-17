@@ -19,7 +19,7 @@ import {
   upsertEpisodes,
   disconnect,
 } from './sync-helpers'
-import { fetchCatalogPage, fetchMovieDetail } from './kkphim-client'
+import { fetchCatalogPage, fetchMovieDetail, fetchVietnameseCatalog } from './kkphim-client'
 import { mapMovie, mapEpisodes, mapCategories, mapCountries } from './kkphim-mapper'
 import type { SyncResult } from './types'
 
@@ -208,23 +208,27 @@ export async function syncMovieBySlug(slug: string, syncJobId?: string): Promise
 export async function syncCatalog(
   startPage: number = 1,
   endPage?: number,
-  delayMs: number = 500
+  delayMs: number = 500,
+  vietnamOnly: boolean = false
 ): Promise<{ jobId: string; results: SyncResult[] }> {
-  const job = await createSyncJob('incremental', { startPage, endPage })
+  const job = await createSyncJob('incremental', { startPage, endPage, vietnamOnly })
   const results: SyncResult[] = []
   const stats = { total: 0, processed: 0, failed: 0, skipped: 0 }
 
+  // Dynamic fetcher picker
+  const fetchPage = vietnamOnly ? fetchVietnameseCatalog : fetchCatalogPage
+
   try {
     // 1. Determine page range
-    const firstPage = await fetchCatalogPage(startPage)
+    const firstPage = await fetchPage(startPage)
     const maxPage = endPage || startPage
     const actualEnd = Math.min(maxPage, firstPage.pagination.totalPages)
 
-    console.log(`${LOG_PREFIX} Syncing pages ${startPage} to ${actualEnd} (total: ${firstPage.pagination.totalItems} movies in catalog)`)
+    console.log(`${LOG_PREFIX} Syncing ${vietnamOnly ? 'VIETNAMESE' : 'GENERAL'} pages ${startPage} to ${actualEnd} (total: ${firstPage.pagination.totalItems} movies in catalog)`)
 
     // 2. Process pages
     for (let page = startPage; page <= actualEnd; page++) {
-      const catalog = page === startPage ? firstPage : await fetchCatalogPage(page)
+      const catalog = page === startPage ? firstPage : await fetchPage(page)
 
       for (const item of catalog.items) {
         stats.total++

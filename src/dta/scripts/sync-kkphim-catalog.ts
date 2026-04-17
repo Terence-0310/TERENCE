@@ -21,6 +21,7 @@ async function main() {
   const pages = parseInt(getArg('pages') || '1', 10)
   const endPage = parseInt(getArg('end') || String(startPage + pages - 1), 10)
   const delay = parseInt(getArg('delay') || '500', 10)
+  const vietnamOnly = args.includes('--vietnam')
 
   console.log('╔══════════════════════════════════════════╗')
   console.log('║   TERENCE — KKPhim Catalog Sync           ║')
@@ -32,7 +33,7 @@ async function main() {
   const startTime = Date.now()
 
   try {
-    const { jobId, results } = await syncCatalog(startPage, endPage, delay)
+    const { jobId, results } = await syncCatalog(startPage, endPage, delay, vietnamOnly)
 
     const created = results.filter((r: any) => r.action === 'create').length
     const updated = results.filter((r: any) => r.action === 'update').length

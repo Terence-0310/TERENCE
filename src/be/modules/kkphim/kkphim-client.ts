@@ -72,6 +72,30 @@ async function fetchWithRetry<T>(url: string, timeoutMs: number): Promise<T> {
 
 // ─── Public API ─────────────────────────────────────────────────
 
+export async function fetchVietnameseCatalog(page: number = 1): Promise<KKPhimCatalogResponse> {
+  const { baseUrl, timeout } = getConfig()
+  // PhimAPI supports list by country!
+  const url = `${baseUrl}/v1/api/quoc-gia/viet-nam?page=${page}`
+
+  console.log(`[KKPhim] Fetching VIETNAM page ${page}...`)
+  const data = await fetchWithRetry<any>(url, timeout)
+
+  if (!data.status || !data.data || !Array.isArray(data.data.items)) {
+    throw new Error(`[KKPhim] Invalid VN catalog response for page ${page}`)
+  }
+
+  return {
+    status: data.status,
+    items: data.data.items,
+    pagination: {
+      totalItems: data.data.params.pagination.totalItems,
+      totalItemsPerPage: data.data.params.pagination.totalItemsPerPage,
+      currentPage: data.data.params.pagination.currentPage,
+      totalPages: data.data.params.pagination.totalPages,
+    }
+  }
+}
+
 /**
  * Fetch a page of recently updated movies from KKPhim catalog.
  * @param page Page number (1-indexed)
