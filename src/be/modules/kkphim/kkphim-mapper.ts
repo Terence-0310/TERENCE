@@ -1,11 +1,11 @@
 // ============================================
-// OPhim → Prisma Data Mapper
+// KKPhim → Prisma Data Mapper
 // ============================================
-// Maps raw OPhim API responses to Prisma-compatible data structures.
+// Maps raw KKPhim API responses to Prisma-compatible data structures.
 
 import type {
-  OPhimMovieDetail,
-  OPhimEpisodeServer,
+  KKPhimMovieDetail,
+  KKPhimEpisodeServer,
   MappedMovie,
   MappedEpisode,
   MappedCategory,
@@ -115,9 +115,9 @@ function parseEpisodeNumber(name: string): number {
 // ═══════════════════════════════════════════════════════════════
 
 /**
- * Map OPhim movie detail → Prisma Movie upsert data
+ * Map KKPhim movie detail → Prisma Movie upsert data
  */
-export function mapMovie(raw: OPhimMovieDetail): MappedMovie {
+export function mapMovie(raw: KKPhimMovieDetail): MappedMovie {
   const tmdbId = raw.tmdb?.id ? parseInt(raw.tmdb.id, 10) : null
   const imdbId = raw.imdb?.id && raw.imdb.id.startsWith('tt') ? raw.imdb.id : null
 
@@ -148,9 +148,9 @@ export function mapMovie(raw: OPhimMovieDetail): MappedMovie {
 }
 
 /**
- * Map OPhim episode servers → flat list of Prisma Episode upsert data
+ * Map KKPhim episode servers → flat list of Prisma Episode upsert data
  */
-export function mapEpisodes(servers: OPhimEpisodeServer[]): MappedEpisode[] {
+export function mapEpisodes(servers: KKPhimEpisodeServer[]): MappedEpisode[] {
   const episodes: MappedEpisode[] = []
   let globalOrder = 0
 
@@ -166,7 +166,7 @@ export function mapEpisodes(servers: OPhimEpisodeServer[]): MappedEpisode[] {
       const sourceUrl = ep.link_embed || null
 
       episodes.push({
-        sourceName: 'OPhim',
+        sourceName: 'KKPhim',
         serverName: server.server_name || 'Server #1',
         episodeName: ep.filename || `Tập ${ep.name}`,
         episodeSlug: `tap-${ep.slug}`,
@@ -185,21 +185,21 @@ export function mapEpisodes(servers: OPhimEpisodeServer[]): MappedEpisode[] {
 }
 
 /**
- * Map OPhim categories → Prisma Category upsert data
+ * Map KKPhim categories → Prisma Category upsert data
  */
-export function mapCategories(raw: OPhimMovieDetail): MappedCategory[] {
+export function mapCategories(raw: KKPhimMovieDetail): Array<{ name: string; slug: string }> {
   if (!raw.category || !Array.isArray(raw.category)) return []
   return raw.category
-    .filter(c => c.name && c.slug)
-    .map(c => ({ name: c.name.trim(), slug: c.slug.trim() }))
+    .filter((c: { name: string; slug: string }) => c.name && c.slug)
+    .map((c: { name: string; slug: string }) => ({ name: c.name.trim(), slug: c.slug.trim() }))
 }
 
 /**
- * Map OPhim countries → Prisma Country upsert data
+ * Map KKPhim countries → Prisma Country upsert data
  */
-export function mapCountries(raw: OPhimMovieDetail): MappedCountry[] {
+export function mapCountries(raw: KKPhimMovieDetail): Array<{ name: string; slug: string }> {
   if (!raw.country || !Array.isArray(raw.country)) return []
   return raw.country
-    .filter(c => c.name && c.slug)
-    .map(c => ({ name: c.name.trim(), slug: c.slug.trim() }))
+    .filter((c: { name: string; slug: string }) => c.name && c.slug)
+    .map((c: { name: string; slug: string }) => ({ name: c.name.trim(), slug: c.slug.trim() }))
 }

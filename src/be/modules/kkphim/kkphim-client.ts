@@ -87,6 +87,7 @@ export async function fetchVietnameseCatalog(page: number = 1): Promise<KKPhimCa
   return {
     status: data.status,
     items: data.data.items,
+    pathImage: data.pathImage || data.data.APP_DOMAIN_CDN_IMAGE || '',
     pagination: {
       totalItems: data.data.params.pagination.totalItems,
       totalItemsPerPage: data.data.params.pagination.totalItemsPerPage,

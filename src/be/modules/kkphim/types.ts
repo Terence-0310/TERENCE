@@ -1,9 +1,9 @@
 // ============================================
-// OPhim API Response Types
+// KKPhim API Response Types
 // ============================================
 
 /** Catalog list item (from /danh-sach/phim-moi-cap-nhat) */
-export interface OPhimCatalogItem {
+export interface KKPhimCatalogItem {
   _id: string
   name: string
   slug: string
@@ -28,9 +28,9 @@ export interface OPhimCatalogItem {
   }
 }
 
-export interface OPhimCatalogResponse {
+export interface KKPhimCatalogResponse {
   status: boolean
-  items: OPhimCatalogItem[]
+  items: KKPhimCatalogItem[]
   pathImage: string
   pagination: {
     totalItems: number
@@ -41,7 +41,7 @@ export interface OPhimCatalogResponse {
 }
 
 /** Movie detail (from /phim/{slug}) */
-export interface OPhimMovieDetail {
+export interface KKPhimMovieDetail {
   _id: string
   name: string
   slug: string
@@ -86,7 +86,7 @@ export interface OPhimMovieDetail {
   modified?: { time: string }
 }
 
-export interface OPhimEpisodeData {
+export interface KKPhimEpisodeData {
   name: string          // "1", "2", "Full"
   slug: string          // "1", "2", "full"
   filename: string      // "Movie Name - Tập 1"
@@ -94,21 +94,21 @@ export interface OPhimEpisodeData {
   link_m3u8: string     // m3u8 stream URL
 }
 
-export interface OPhimEpisodeServer {
+export interface KKPhimEpisodeServer {
   server_name: string   // "Vietsub #1", "Thuyết Minh #1"
   is_ai: boolean
-  server_data: OPhimEpisodeData[]
+  server_data: KKPhimEpisodeData[]
 }
 
-export interface OPhimDetailResponse {
+export interface KKPhimDetailResponse {
   status: boolean
   msg: string
-  movie: OPhimMovieDetail
-  episodes: OPhimEpisodeServer[]
+  movie: KKPhimMovieDetail
+  episodes: KKPhimEpisodeServer[]
 }
 
 // ─── Shared Mapped Types (re-exported from sync-types.ts) ───────
-// Sprint 4B: Single source of truth for mapped types shared with OPhim18.
+// Sprint 4B: Single source of truth for mapped types shared with KKPhim18.
 export type {
   MappedMovie,
   MappedEpisode,
