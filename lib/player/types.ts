@@ -30,6 +30,7 @@ export interface PlayableEpisode {
   thumbnailUrl: string | null
   duration: number | null
   isActive: boolean
+  serverName?: string | null
 }
 
 export interface PlayableSource {

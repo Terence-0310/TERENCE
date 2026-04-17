@@ -64,6 +64,7 @@ function mapEpisode(ep: any): PlayableEpisode {
     thumbnailUrl: ep.thumbnailUrl,
     duration: ep.duration,
     isActive: ep.isActive,
+    serverName: ep.serverName,
   }
 }
 

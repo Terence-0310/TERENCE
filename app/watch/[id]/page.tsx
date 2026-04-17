@@ -4,6 +4,7 @@ import Image from 'next/image'
 import { ArrowLeft, Play, Film, Share2, Heart, Users, Star, Clock, Tv } from 'lucide-react'
 import { WatchPageClient } from '@/src/fe/components/player/WatchPageClient'
 import { WatchPageContainer } from '@/src/fe/components/player/WatchPageContainer'
+import { ServerEpisodeList } from '@/src/fe/components/watch/ServerEpisodeList'
 
 import { getMovieDetail } from '@/src/be/services/tmdb/movie-service'
 import { getTvDetail } from '@/src/be/services/tmdb/tv-service'
@@ -292,70 +293,15 @@ export default async function WatchPage({ params, searchParams }: PageProps) {
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><line x1="9" x2="9" y1="3" y2="21"/></svg>
               Danh sách tập
             </h3>
-            <div className="flex overflow-x-auto gap-3 pb-4 custom-scrollbar">
-              {episodeList.length > 0
-                ? episodeList.map((ep) => {
-                    const slug = ep.episodeSlug || `tap-${ep.episodeNumber}`
-                    const isCurrent = episodeData?.episode?.id === ep.id
-                    return (
-                      <Link
-                        key={ep.id}
-                        href={`/watch/${movieSlug}?ep=${slug}`}
-                        className={`group relative flex-shrink-0 flex flex-col gap-2 rounded-xl p-2 transition-all ${
-                          isCurrent
-                            ? 'bg-[#31CDB8]/10 border border-[#31CDB8]/30 max-w-[200px]'
-                            : 'hover:bg-white/5 border border-transparent max-w-[200px]'
-                        }`}
-                      >
-                        <div className="relative h-[80px] w-[142px] overflow-hidden rounded-lg bg-[#0A0E17]">
-                          {ep.thumbnailUrl || backdropUrl ? (
-                            <Image 
-                              src={ep.thumbnailUrl || backdropUrl} 
-                              alt="" 
-                              fill 
-                              className={`object-cover transition duration-300 ${isCurrent ? 'opacity-100 scale-105' : 'opacity-70 group-hover:opacity-100 group-hover:scale-105'}`} 
-                            />
-                          ) : (
-                            <div className="flex h-full w-full items-center justify-center">
-                              <Play className="h-6 w-6 text-white/10" />
-                            </div>
-                          )}
-                          <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors" />
-                        </div>
-                        <span className={`text-[13px] font-medium px-1 truncate ${isCurrent ? 'text-[#31CDB8]' : 'text-white/90'}`}>
-                          {ep.episodeName || `Tập ${ep.episodeNumber}`}
-                        </span>
-                      </Link>
-                    )
-                  })
-                : providerEps.map((ep) => {
-                    const isCurrent = episodeSlug === ep.slug
-                    return (
-                      <Link
-                        key={ep.slug}
-                        href={`/watch/${id}?ep=${ep.slug}`}
-                        className={`group relative flex-shrink-0 flex flex-col gap-2 rounded-xl p-2 transition-all ${
-                          isCurrent
-                            ? 'bg-[#31CDB8]/10 border border-[#31CDB8]/30 max-w-[200px]'
-                            : 'hover:bg-white/5 border border-transparent max-w-[200px]'
-                        }`}
-                      >
-                        <div className="relative h-[80px] w-[142px] overflow-hidden rounded-lg bg-[#0A0E17]">
-                          <Image 
-                            src={backdropUrl} 
-                            alt="" 
-                            fill 
-                            className={`object-cover transition duration-300 ${isCurrent ? 'opacity-100 scale-105' : 'opacity-70 group-hover:opacity-100 group-hover:scale-105'}`} 
-                          />
-                          <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors" />
-                        </div>
-                        <span className={`text-[13px] font-medium px-1 truncate ${isCurrent ? 'text-[#31CDB8]' : 'text-white/90'}`}>
-                          Tập {ep.number}
-                        </span>
-                      </Link>
-                    )
-                  })}
-            </div>
+            <ServerEpisodeList 
+              episodeList={episodeList}
+              providerEps={providerEps}
+              movieSlug={movieSlug}
+              movieId={dbMovieId.toString()}
+              backdropUrl={backdropUrl}
+              currentEpisodeId={episodeData?.episode?.id}
+              currentEpisodeSlug={episodeSlug}
+            />
           </div>
         </section>
       )}
