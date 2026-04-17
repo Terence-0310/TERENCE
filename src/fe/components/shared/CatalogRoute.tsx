@@ -72,6 +72,7 @@ export async function CatalogRoute({ type, searchParams }: CatalogRouteProps) {
       query={query}
       genreId={genreId}
       category={category}
+      country={country}
       page={page}
       genres={genres}
       result={result}

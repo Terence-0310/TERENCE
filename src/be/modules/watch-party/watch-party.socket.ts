@@ -244,7 +244,7 @@ export function registerWatchPartyHandlers(io: Server, socket: Socket) {
   // ───────────────────────────────────
   // CHAT MESSAGE via socket
   // ───────────────────────────────────
-  socket.on('wp:chat', (data: { roomCode: string; userId: string; displayName: string; content: string }) => {
+  socket.on('wp:chat', async (data: { roomCode: string; userId: string; displayName: string; content: string }) => {
     const room = rooms.get(data.roomCode)
     if (!room) return
 
@@ -259,6 +259,32 @@ export function registerWatchPartyHandlers(io: Server, socket: Socket) {
 
     // Broadcast to entire room (including sender for confirmation)
     io.in(data.roomCode).emit('wp:chat-message', message)
+
+    // Background push to DB
+    try {
+      const dbRoom = await prisma.watchPartyRoom.findUnique({
+        where: { roomCode: data.roomCode },
+        select: { id: true }
+      })
+      if (dbRoom) {
+        // Find participant by userId or guest id
+        const participant = await prisma.watchPartyParticipant.findFirst({
+           where: { roomId: dbRoom.id, userId: data.userId }
+        });
+
+        await prisma.watchPartyMessage.create({
+          data: {
+            roomId: dbRoom.id,
+            participantId: participant?.id || null, 
+            senderName: data.displayName,
+            type: 'chat',
+            content: data.content,
+          }
+        })
+      }
+    } catch (err) {
+      console.error(`[WP:Socket] DB persist message error for room ${data.roomCode}:`, err)
+    }
   })
 
   // ───────────────────────────────────
