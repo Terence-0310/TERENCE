@@ -10,6 +10,7 @@ interface CatalogViewProps {
   query: string
   genreId: number | null
   category: string
+  country?: string
   page: number
   genres: { id: number; name: string }[]
   result: PaginatedResult<any>
@@ -27,6 +28,7 @@ export function CatalogView({
   query,
   genreId,
   category,
+  country,
   page,
   genres,
   result,
@@ -37,6 +39,7 @@ export function CatalogView({
     if (query) sp.set('q', query)
     if (genreId) sp.set('genre', String(genreId))
     if (category) sp.set('category', category)
+    if (country) sp.set('country', country)
     if (p > 1) sp.set('page', String(p))
     return `${basePath}?${sp.toString()}`
   }

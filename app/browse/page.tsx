@@ -125,6 +125,7 @@ export default async function BrowsePage({ searchParams }: PageProps) {
       query={query}
       genreId={genreId}
       category={category}
+      country={country}
       page={page}
       genres={genres}
       result={result}
