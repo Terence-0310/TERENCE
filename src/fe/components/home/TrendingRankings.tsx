@@ -1,3 +1,4 @@
+'use client'
 // ============================================
 // TrendingRankings — 3-column ranking section
 // ============================================
@@ -236,3 +237,4 @@ function RankingSkeleton() {
     </div>
   )
 }
+
