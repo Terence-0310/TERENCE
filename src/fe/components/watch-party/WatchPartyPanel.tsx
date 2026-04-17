@@ -10,7 +10,7 @@
 import { useState, useRef, useEffect } from 'react'
 import {
   Users, MessageCircle, Send, X, Copy, Check,
-  Crown,
+  Crown, Lock, Unlock, CheckCircle2, XCircle, ShieldBan
 } from 'lucide-react'
 import type { WatchRoom, WatchRoomMember, WatchRoomMessage } from '@/lib/watch-party/types'
 import type { UsePartyCallReturn } from '@/src/fe/features/watch-party/hooks/usePartyCall'
@@ -30,6 +30,13 @@ interface WatchPartyPanelProps {
   onLeave: () => void
   onClose: () => void
   call: UsePartyCallReturn
+
+  // New features
+  pendingRequests?: {userId: string; displayName: string; socketId: string}[]
+  onToggleLock?: (locked: boolean) => void
+  onApproveJoin?: (userId: string, targetSocketId: string) => void
+  onRejectJoin?: (userId: string, targetSocketId: string) => void
+  onKickMember?: (targetId: string) => void
 }
 
 // ── Component ──
@@ -45,6 +52,11 @@ export function WatchPartyPanel({
   onLeave,
   onClose,
   call,
+  pendingRequests = [],
+  onToggleLock,
+  onApproveJoin,
+  onRejectJoin,
+  onKickMember,
 }: WatchPartyPanelProps) {
   const [chatInput, setChatInput] = useState('')
   const [activeTab, setActiveTab] = useState<'chat' | 'members'>('chat')
@@ -110,9 +122,20 @@ export function WatchPartyPanel({
             </span>
           </div>
         </div>
+        
+        {isHost && (
+          <button
+            onClick={() => onToggleLock?.(!room.isLocked)}
+            className={`rounded-lg p-1.5 transition ${room.isLocked ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' : 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'}`}
+            title={room.isLocked ? "Mở khoá phòng" : "Khoá phòng (Cần phê duyệt)"}
+          >
+            {room.isLocked ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4" />}
+          </button>
+        )}
+
         <button
           onClick={onClose}
-          className="ml-2 rounded-lg p-1.5 text-white/40 transition hover:bg-white/10 hover:text-white"
+          className="ml-1 rounded-lg p-1.5 text-white/40 transition hover:bg-white/10 hover:text-white"
         >
           <X className="h-4 w-4" />
         </button>
@@ -173,6 +196,11 @@ export function WatchPartyPanel({
         >
           <Users className="mr-1.5 inline h-3.5 w-3.5" />
           Thành viên ({onlineCount})
+          {pendingRequests.length > 0 && isHost && (
+            <span className="ml-1.5 inline-flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white">
+              {pendingRequests.length}
+            </span>
+          )}
           {activeTab === 'members' && (
             <div className="absolute bottom-0 left-1/2 h-[2px] w-2/3 -translate-x-1/2 bg-[#2DD4BF] rounded-t-full" />
           )}
@@ -233,35 +261,66 @@ export function WatchPartyPanel({
           </div>
         ) : (
           /* Members tab */
-          <div className="overflow-y-auto px-4 py-3 space-y-1.5 scrollbar-hide">
-            {members.map((m) => (
-              <div
-                key={m.id}
-                className="flex items-center gap-3 rounded-xl border border-white/[0.04] bg-white/[0.02] px-3 py-2.5 transition hover:bg-white/[0.05] hover:border-white/10"
-              >
-                <div className="relative">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-[#2DD4BF]/20 to-[#2DD4BF]/5 text-xs font-bold text-[#2DD4BF] border border-[#2DD4BF]/20 shadow-inner">
-                    {(m.guestName || 'U').charAt(0).toUpperCase()}
+          <div className="overflow-y-auto px-4 py-3 space-y-4 scrollbar-hide">
+            {isHost && pendingRequests.length > 0 && (
+               <div className="space-y-2">
+                 <h4 className="text-[11px] font-bold uppercase tracking-wider text-white/40 mb-2">Yêu cầu tham gia</h4>
+                 {pendingRequests.map(req => (
+                   <div key={req.userId} className="flex items-center justify-between rounded-xl border border-primary/20 bg-primary/[0.05] px-3 py-2.5">
+                     <div className="flex items-center gap-2 max-w-[60%]">
+                       <span className="truncate text-[13px] font-medium text-white">{req.displayName}</span>
+                     </div>
+                     <div className="flex items-center gap-1.5 shrink-0">
+                       <button onClick={() => onApproveJoin?.(req.userId, req.socketId)} className="p-1 rounded-md bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/40 transition">
+                         <CheckCircle2 className="h-4 w-4" />
+                       </button>
+                       <button onClick={() => onRejectJoin?.(req.userId, req.socketId)} className="p-1 rounded-md bg-red-500/20 text-red-400 hover:bg-red-500/40 transition">
+                         <XCircle className="h-4 w-4" />
+                       </button>
+                     </div>
+                   </div>
+                 ))}
+               </div>
+            )}
+            
+            <div className="space-y-1.5">
+              {isHost && pendingRequests.length > 0 && <h4 className="text-[11px] font-bold uppercase tracking-wider text-white/40 mb-2 mt-4">Thành viên</h4>}
+              {members.map((m) => (
+                <div
+                  key={m.id}
+                  className="flex items-center justify-between rounded-xl border border-white/[0.04] bg-white/[0.02] px-3 py-2.5 transition hover:bg-white/[0.05] hover:border-white/10 group"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="relative shrink-0">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-[#2DD4BF]/20 to-[#2DD4BF]/5 text-xs font-bold text-[#2DD4BF] border border-[#2DD4BF]/20 shadow-inner">
+                        {(m.guestName || 'U').charAt(0).toUpperCase()}
+                      </div>
+                      <div className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[#0B1120] ${
+                        m.isOnline ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]' : 'bg-white/20'
+                      }`} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="truncate text-[13px] font-medium text-white/90">
+                          {m.userId === userId ? 'Bạn' : (m.guestName ?? 'Thành viên')}
+                        </span>
+                        {m.role === 'host' && (
+                          <Crown className="h-3.5 w-3.5 text-amber-400 drop-shadow-[0_0_5px_rgba(251,191,36,0.5)] shrink-0" />
+                        )}
+                      </div>
+                      <span className="text-[11px] text-white/40 font-medium tracking-wide">
+                        {m.isOnline ? 'Đang xem' : 'Offline'}
+                      </span>
+                    </div>
                   </div>
-                  <div className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[#0B1120] ${
-                    m.isOnline ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]' : 'bg-white/20'
-                  }`} />
+                  {isHost && m.userId !== userId && m.role !== 'host' && (
+                    <button onClick={() => onKickMember?.(m.id)} className="p-1.5 rounded-md text-red-400/0 group-hover:text-red-400/60 hover:!text-red-400 hover:bg-red-500/10 transition shrink-0" title="Mời khỏi phòng">
+                      <ShieldBan className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className="truncate text-[13px] font-medium text-white/90">
-                      {m.userId === userId ? 'Bạn' : (m.guestName ?? 'Thành viên')}
-                    </span>
-                    {m.role === 'host' && (
-                      <Crown className="h-3.5 w-3.5 text-amber-400 drop-shadow-[0_0_5px_rgba(251,191,36,0.5)]" />
-                    )}
-                  </div>
-                  <span className="text-[11px] text-white/40 font-medium tracking-wide">
-                    {m.isOnline ? 'Đang xem' : 'Offline'}
-                  </span>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         )}
       </div>

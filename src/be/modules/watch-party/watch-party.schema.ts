@@ -55,6 +55,7 @@ export const joinRoomSchema = z.object({
     .max(50)
     .transform((v) => v.trim()),
   userId: z.string().nullable().optional(),
+  isApproved: z.boolean().optional(),
 })
 
 export type JoinRoomBody = z.infer<typeof joinRoomSchema>

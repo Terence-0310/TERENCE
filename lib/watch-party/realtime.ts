@@ -26,6 +26,10 @@ export interface RealtimeChannel {
   offEvent: (handler: RealtimeEventHandler) => void
   /** Disconnect and cleanup */
   disconnect: () => void
+  /** Emit raw socket event for custom logic */
+  emitRaw: (event: string, payload: any) => void
+  /** Listen to raw socket events */
+  onRaw: (event: string, handler: (data: any) => void) => void
   /** Whether channel is connected */
   isConnected: boolean
 }
@@ -161,6 +165,12 @@ export function createRealtimeChannel(
   return {
     roomCode,
     send,
+    emitRaw: (event, payload) => {
+      if (socket) socket.emit(event, payload)
+    },
+    onRaw: (event, handler) => {
+      if (socket) socket.on(event, handler)
+    },
     onEvent: (handler) => handlers.add(handler),
     offEvent: (handler) => handlers.delete(handler),
     disconnect,

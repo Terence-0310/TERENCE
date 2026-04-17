@@ -296,6 +296,56 @@ export function registerWatchPartyHandlers(io: Server, socket: Socket) {
   })
 
   // ───────────────────────────────────
+  // ROOM LOCK & APPROVAL (Host Only)
+  // ───────────────────────────────────
+  socket.on('wp:toggle-lock', async (data: { roomCode: string; userId: string; isLocked: boolean }) => {
+    const room = rooms.get(data.roomCode)
+    if (!room || room.hostId !== data.userId) return
+
+    try {
+      await prisma.watchPartyRoom.update({
+        where: { roomCode: data.roomCode },
+        data: { isLocked: data.isLocked }
+      })
+      io.in(data.roomCode).emit('wp:lock-changed', { isLocked: data.isLocked })
+    } catch (e) {
+      console.error(e)
+    }
+  })
+
+  socket.on('wp:request-join', (data: { roomCode: string; userId: string; displayName: string; socketId: string }) => {
+    const room = rooms.get(data.roomCode)
+    if (!room || !room.hostSocketId) return
+    // Forward request to host
+    io.to(room.hostSocketId).emit('wp:join-request', data)
+  })
+
+  socket.on('wp:approve-join', (data: { roomCode: string; userId: string; hostId: string; targetSocketId: string }) => {
+    const room = rooms.get(data.roomCode)
+    if (!room || room.hostId !== data.hostId) return
+    // Temporarily whitelist the user in memory so they can call join API, or we can just emit approved
+    io.to(data.targetSocketId).emit('wp:join-approved', { roomCode: data.roomCode })
+  })
+
+  socket.on('wp:reject-join', (data: { roomCode: string; userId: string; hostId: string; targetSocketId: string }) => {
+    const room = rooms.get(data.roomCode)
+    if (!room || room.hostId !== data.hostId) return
+    io.to(data.targetSocketId).emit('wp:join-rejected', { roomCode: data.roomCode })
+  })
+
+  socket.on('wp:kick', async (data: { roomCode: string; hostId: string; targetId: string }) => {
+    const room = rooms.get(data.roomCode)
+    if (!room || room.hostId !== data.hostId) return
+
+    const target = room.participants.get(data.targetId)
+    if (target) {
+      io.to(target.socketId).emit('wp:kicked', { message: 'Bạn đã bị chủ phòng mời ra khỏi phòng.' })
+      // Disconnect them gracefully
+      handleLeave(data.roomCode, data.targetId)
+    }
+  })
+
+  // ───────────────────────────────────
   // HOST TRANSFER
   // ───────────────────────────────────
   socket.on('wp:transfer-host', (data: { roomCode: string; userId: string; newHostId: string }) => {

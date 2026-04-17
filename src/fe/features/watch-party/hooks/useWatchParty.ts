@@ -17,6 +17,8 @@ import { createRealtimeChannel } from '@/lib/watch-party/realtime'
 import type { RealtimeChannel } from '@/lib/watch-party/realtime'
 import { PlayerSyncService } from '@/lib/watch-party/sync-service'
 
+import { io, Socket } from 'socket.io-client'
+
 // ── Types ──
 
 export interface UseWatchPartyOptions {
@@ -41,8 +43,10 @@ export interface UseWatchPartyReturn {
   room: WatchRoom | null
   members: WatchRoomMember[]
   messages: WatchRoomMessage[]
+  pendingRequests: {userId: string; displayName: string; socketId: string}[]
   isConnected: boolean
   isLoading: boolean
+  isLockedOut: boolean
 
   // Actions
   sendChat: (text: string) => void
@@ -53,6 +57,11 @@ export interface UseWatchPartyReturn {
   localChangeServer: (index: number) => void
   leaveRoom: () => void
   refresh: () => void
+  requestJoin: () => void
+  toggleLock: (locked: boolean) => void
+  approveJoin: (userId: string, targetSocketId: string) => void
+  rejectJoin: (userId: string, targetSocketId: string) => void
+  kickMember: (targetId: string) => void
 }
 
 export function useWatchParty(options: UseWatchPartyOptions): UseWatchPartyReturn {
@@ -73,9 +82,13 @@ export function useWatchParty(options: UseWatchPartyOptions): UseWatchPartyRetur
   const [messages, setMessages] = useState<WatchRoomMessage[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [memberId, setMemberId] = useState<string>('')
+  const [isLockedOut, setIsLockedOut] = useState(false)
+  const [isWaitlistApproved, setIsWaitlistApproved] = useState(false)
+  const [pendingRequests, setPendingRequests] = useState<{userId: string; displayName: string; socketId: string}[]>([])
 
   const channelRef = useRef<RealtimeChannel | null>(null)
   const syncRef = useRef<PlayerSyncService | null>(null)
+  const lobbySocketRef = useRef<Socket | null>(null)
 
   // ── Join room + setup channel ──
   useEffect(() => {
@@ -97,11 +110,17 @@ export function useWatchParty(options: UseWatchPartyOptions): UseWatchPartyRetur
             roomCode: code,
             userId: user.id,
             displayName: user.name,
+            isApproved: isWaitlistApproved,
           }),
         })
 
         if (!joinRes.ok) {
-          console.error('[useWatchParty] Failed to join room')
+          const errData = await joinRes.json().catch(() => null)
+          if (errData?.code === 'ROOM_LOCKED') {
+            setIsLockedOut(true)
+          } else {
+            console.error('[useWatchParty] Failed to join room')
+          }
           setIsLoading(false)
           return
         }
@@ -173,6 +192,25 @@ export function useWatchParty(options: UseWatchPartyOptions): UseWatchPartyRetur
               }
             })
           }
+        })
+
+        // Listen for raw events (Lock state, join requests)
+        channel.onRaw('wp:lock-changed', (data: { isLocked: boolean }) => {
+          setRoom((prev) => prev ? { ...prev, isLocked: data.isLocked } : prev)
+        })
+
+        if (isHost) {
+          channel.onRaw('wp:join-request', (data: { userId: string; displayName: string; socketId: string }) => {
+            setPendingRequests((prev) => {
+              if (prev.some(p => p.userId === data.userId)) return prev
+              return [...prev, data]
+            })
+          })
+        }
+
+        channel.onRaw('wp:kicked', (data: { message: string }) => {
+          alert(`Thông báo: ${data.message}`)
+          window.location.href = '/' // Kick user entirely to home
         })
 
         setIsLoading(false)
@@ -272,12 +310,69 @@ export function useWatchParty(options: UseWatchPartyOptions): UseWatchPartyRetur
     }
   }, [roomCode])
 
+  const requestJoin = useCallback(() => {
+    if (!roomCode || !user.id || !isLockedOut) return
+
+    // Create a temporary lobby socket to ask host
+    const socket = io({
+      path: '/api/socketio',
+      transports: ['websocket', 'polling'],
+      reconnectionAttempts: 5,
+    })
+
+    lobbySocketRef.current = socket
+
+    socket.on('connect', () => {
+      socket.emit('wp:request-join', {
+        roomCode,
+        userId: user.id,
+        displayName: user.name,
+        socketId: socket.id,
+      })
+    })
+
+    socket.on('wp:join-approved', () => {
+      setIsWaitlistApproved(true)
+      setIsLockedOut(false)
+      socket.disconnect()
+    })
+
+    socket.on('wp:join-rejected', () => {
+      alert('Chủ phòng đã từ chối yêu cầu tham gia của bạn.')
+      socket.disconnect()
+    })
+  }, [roomCode, user.id, user.name, isLockedOut])
+
+  const toggleLock = useCallback((locked: boolean) => {
+    if (!roomCode || !memberId) return
+    channelRef.current?.emitRaw('wp:toggle-lock', { roomCode, userId: user.id, isLocked: locked })
+  }, [roomCode, memberId, user.id])
+
+  const approveJoin = useCallback((targetUserId: string, targetSocketId: string) => {
+    if (!roomCode || !memberId) return
+    channelRef.current?.emitRaw('wp:approve-join', { roomCode, userId: targetUserId, hostId: user.id, targetSocketId })
+    setPendingRequests((prev) => prev.filter(p => p.userId !== targetUserId))
+  }, [roomCode, memberId, user.id])
+
+  const rejectJoin = useCallback((targetUserId: string, targetSocketId: string) => {
+    if (!roomCode || !memberId) return
+    channelRef.current?.emitRaw('wp:reject-join', { roomCode, userId: targetUserId, hostId: user.id, targetSocketId })
+    setPendingRequests((prev) => prev.filter(p => p.userId !== targetUserId))
+  }, [roomCode, memberId, user.id])
+
+  const kickMember = useCallback((targetId: string) => {
+    if (!roomCode || !memberId) return
+    channelRef.current?.emitRaw('wp:kick', { roomCode, hostId: user.id, targetId })
+  }, [roomCode, memberId, user.id])
+
   return {
     room,
     members,
     messages,
+    pendingRequests,
     isConnected: channelRef.current?.isConnected ?? false,
     isLoading,
+    isLockedOut,
     sendChat,
     localPlay,
     localPause,
@@ -286,5 +381,10 @@ export function useWatchParty(options: UseWatchPartyOptions): UseWatchPartyRetur
     localChangeServer,
     leaveRoom,
     refresh,
+    requestJoin,
+    toggleLock,
+    approveJoin,
+    rejectJoin,
+    kickMember,
   }
 }

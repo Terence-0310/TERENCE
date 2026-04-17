@@ -33,6 +33,7 @@ export interface WatchRoom {
   visibility: WatchRoomVisibility
   passwordHash?: string
   maxMembers: number
+  isLocked?: boolean
   allowMemberControl: boolean
   chatEnabled: boolean
   reactionsEnabled: boolean

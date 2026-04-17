@@ -15,7 +15,7 @@ import { usePartyCall } from '@/src/fe/features/watch-party/hooks/usePartyCall'
 import { WatchPartyPanel } from '@/src/fe/components/watch-party/WatchPartyPanel'
 import { CreateWatchPartyButton } from '@/src/fe/components/watch-party/CreateWatchPartyButton'
 import { WatchPartyContext } from '@/src/fe/components/watch-party/WatchPartyContext'
-import { Users, X } from 'lucide-react'
+import { Users, X, Lock } from 'lucide-react'
 
 // ── Types ──
 
@@ -230,20 +230,38 @@ export function WatchPartyOverlay({
           )}
         </div>
 
-        {/* Watch Party Panel (Flex sibling for true split layout) */}
-        {showPanel && party.room && (
+        {party.isLockedOut ? (
+          <div className="w-full lg:w-[420px] shrink-0 border-t lg:border-t-0 lg:border-l border-white/[0.06] bg-[#0A0E17] flex flex-col items-center justify-center h-full z-10 p-8 text-center transition-all duration-300">
+             <div className="h-14 w-14 rounded-full bg-red-500/10 flex items-center justify-center mb-6 border border-red-500/20">
+               <Lock className="text-red-400 h-6 w-6" />
+             </div>
+             <h3 className="text-white font-bold text-lg mb-2">Phòng đã khoá</h3>
+             <p className="text-white/60 text-[13px] mb-8 leading-relaxed max-w-[280px]">Chủ phòng đã khoá phòng này. Bạn cần gửi yêu cầu và chờ chủ phòng phê duyệt để được tham gia.</p>
+             <button onClick={party.requestJoin} className="w-full rounded-xl bg-primary/20 text-primary py-3 font-semibold text-sm hover:bg-primary/30 transition-colors border border-primary/20">
+               Gửi yêu cầu tham gia
+             </button>
+             <button onClick={handleLeave} className="w-full rounded-xl mt-3 bg-white/5 text-white/50 py-3 font-semibold text-sm hover:bg-white/10 hover:text-white transition-colors">
+               Trở về trang trước
+             </button>
+          </div>
+        ) : showPanel && party.room && (
           <div className="w-full lg:w-[420px] shrink-0 border-t lg:border-t-0 lg:border-l border-white/[0.06] bg-[#0A0E17] flex flex-col h-full z-10 transition-all duration-300">
             <WatchPartyPanel
               room={party.room}
               members={party.members}
               messages={party.messages}
-              isHost={true}
+              isHost={party.room.host.id === user.id}
               userId={user.id}
               userName={user.name}
               onSendChat={party.sendChat}
               onLeave={handleLeave}
               onClose={() => setShowPanel(false)}
               call={call}
+              pendingRequests={party.pendingRequests}
+              onToggleLock={party.toggleLock}
+              onApproveJoin={party.approveJoin}
+              onRejectJoin={party.rejectJoin}
+              onKickMember={party.kickMember}
             />
           </div>
         )}

@@ -33,6 +33,7 @@ export async function POST(request: NextRequest) {
         movieId: result.room.movieId,
         episodeId: result.room.episodeId,
         maxMembers: result.room.maxMembers,
+        isLocked: (result.room as any).isLocked,
         roomType: result.room.maxMembers <= 2 ? 'duo' : result.room.maxMembers <= 4 ? 'small_group' : 'group_chat',
       },
       participant: {
@@ -55,6 +56,7 @@ export async function POST(request: NextRequest) {
       const statusMap: Record<string, number> = {
         ROOM_NOT_FOUND: 404,
         ROOM_ENDED: 410,
+        ROOM_LOCKED: 403,
       }
       return NextResponse.json(
         { error: err.message, code: err.code },

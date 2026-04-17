@@ -98,6 +98,7 @@ export interface JoinRoomInput {
   roomCode: string
   displayName: string
   userId?: string | null
+  isApproved?: boolean
 }
 
 export async function joinRoom(input: JoinRoomInput) {
@@ -120,6 +121,11 @@ export async function joinRoom(input: JoinRoomInput) {
     userId: validUserId ?? undefined,
     displayName: input.displayName,
   })
+
+  // NEW: Room lock check 
+  if ((room as any).isLocked && !existing && !input.isApproved) {
+    throw new WatchPartyError('ROOM_LOCKED', 'Phòng đang được khoá. Cần sự phê duyệt của chủ phòng.')
+  }
 
   if (existing) {
     const participant = await repo.markParticipantOnline(existing.id)

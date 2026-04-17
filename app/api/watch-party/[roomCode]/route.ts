@@ -33,6 +33,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
         hostUserId: room.hostUserId,
         host: room.host,
         maxMembers: room.maxMembers,
+        isLocked: (room as any).isLocked,
         roomType: room.maxMembers <= 2 ? 'duo' : room.maxMembers <= 4 ? 'small_group' : 'group_chat',
         createdAt: room.createdAt,
         lastSyncedAt: room.lastSyncedAt,
