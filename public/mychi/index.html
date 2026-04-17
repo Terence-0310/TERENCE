@@ -153,13 +153,17 @@
             var offset = canvas.offset(), x, y;
             x = e.pageX - offset.left;
             y = e.pageY - offset.top;
-            if (seed.hover(x, y)) {
+            
+            // Auto bypass coordinate check if scaled/rotated for mobile (so any tap starts it!)
+            var isMobile = window.innerWidth < 1100;
+
+            if (isMobile || seed.hover(x, y)) {
                 hold = 0;
                 canvas.unbind("click");
                 canvas.unbind("mousemove");
                 canvas.removeClass('hand');
                 var music = document.getElementById("loveMusic");
-                if (music.paused) {
+                if (music && music.paused) {
                     music.play().catch(err => console.log("Autoplay blocked:", err));
                 }
             }
@@ -167,7 +171,8 @@
             var offset = canvas.offset(), x, y;
             x = e.pageX - offset.left;
             y = e.pageY - offset.top;
-            canvas.toggleClass('hand', seed.hover(x, y));
+            var isMobile = window.innerWidth < 1100;
+            canvas.toggleClass('hand', isMobile || seed.hover(x, y));
         });
 
         var seedAnimate = eval(Jscex.compile("async", function () {
