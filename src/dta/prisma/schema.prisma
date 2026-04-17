@@ -864,7 +864,7 @@ model AdminLog {
   id             String   @id @default(cuid())
   actorId        String
   action         String
-  resource       String
+  resource       String   @default("unknown")
   resourceId     String?
   targetUserId   String?
   metadataJson   String?
@@ -1014,4 +1014,24 @@ model SyncLog {
   @@index([action])
   @@index([level])
   @@index([createdAt])
+}
+
+// ─────────────────────────────────────────────────────────────────
+// SYSTEM SETTINGS
+// ─────────────────────────────────────────────────────────────────
+
+model SystemSetting {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String   @db.Text
+  type        String   @default("string") // string, boolean, number, json
+  group       String   @default("general") // general, seo, tmdb, vultr, smtp
+  isPublic    Boolean  @default(false)
+  description String?
+  updatedBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([group])
+  @@index([isPublic])
 }

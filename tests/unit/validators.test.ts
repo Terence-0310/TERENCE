@@ -152,14 +152,14 @@ describe('Admin Validators', () => {
 
     it('should default role to user', () => {
       const data = { name: 'Test', email: 'test@test.com', password: '12345678' }
-      expect(userCreateSchema.parse(data).role).toBe('user')
+      expect(userCreateSchema.parse(data).role).toBe('USER')
     })
   })
 
   describe('userUpdateSchema', () => {
     it('should accept partial updates', () => {
       expect(userUpdateSchema.safeParse({ name: 'New Name' }).success).toBe(true)
-      expect(userUpdateSchema.safeParse({ role: 'admin' }).success).toBe(true)
+      expect(userUpdateSchema.safeParse({ role: 'ADMIN' }).success).toBe(true)
     })
 
     it('should reject invalid role', () => {

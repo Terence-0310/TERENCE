@@ -14,6 +14,7 @@ import {
   RefreshCw,
   TrendingUp,
   Users,
+  AlertTriangle,
 } from 'lucide-react'
 import { WalletsTab } from './_components/WalletsTab'
 import { PaymentsTab } from './_components/PaymentsTab'
@@ -56,10 +57,10 @@ const MOCK_WALLETS: WalletSummary[] = [
 ]
 
 const MOCK_PAYMENTS: PaymentOrderItem[] = [
-  { id: 'ORD-89472', userId: 'u4', userName: 'Phú Nhị Đại', amount: 500000, currency: 'VND', tcoins: 50000000, provider: 'momo', providerTxnId: 'MOMO123456', status: 'completed', paidAt: new Date(Date.now() - 3600000).toISOString(), createdAt: new Date(Date.now() - 3610000).toISOString() },
+  { id: 'ORD-89472', userId: 'u4', userName: 'Phú Nhị Đại', amount: 500000, currency: 'VND', tcoins: 50000000, provider: 'vietqr', providerTxnId: 'SEPAY123456', status: 'completed', paidAt: new Date(Date.now() - 3600000).toISOString(), createdAt: new Date(Date.now() - 3610000).toISOString() },
   { id: 'ORD-89473', userId: 'u2', userName: 'VVIP Đam Mê', amount: 100000, currency: 'VND', tcoins: 10000000, provider: 'vnpay', providerTxnId: 'VNP789012', status: 'completed', paidAt: new Date(Date.now() - 7200000).toISOString(), createdAt: new Date(Date.now() - 7210000).toISOString() },
   { id: 'ORD-89474', userId: 'u5', userName: 'Dân Cày Cuốc', amount: 20000, currency: 'VND', tcoins: 2000000, provider: 'zalopay', providerTxnId: null, status: 'pending', paidAt: null, createdAt: new Date(Date.now() - 14400000).toISOString() },
-  { id: 'ORD-89475', userId: 'u3', userName: 'Thích Xem Chùa', amount: 50000, currency: 'VND', tcoins: 5000000, provider: 'momo', providerTxnId: null, status: 'failed', paidAt: null, createdAt: new Date(Date.now() - 86400000).toISOString() },
+  { id: 'ORD-89475', userId: 'u3', userName: 'Thích Xem Chùa', amount: 50000, currency: 'VND', tcoins: 5000000, provider: 'vietqr', providerTxnId: null, status: 'failed', paidAt: null, createdAt: new Date(Date.now() - 86400000).toISOString() },
 ]
 
 const MOCK_TCOIN_STATS = {
@@ -95,6 +96,8 @@ export default function TCoinDashboardPage() {
   const [adjustReason, setAdjustReason] = useState('')
   const [adjusting, setAdjusting] = useState(false)
 
+  const [isMockData, setIsMockData] = useState(false)
+
   const PER_PAGE = 15
 
   const loadWallets = useCallback(async (page: number) => {
@@ -104,6 +107,7 @@ export default function TCoinDashboardPage() {
       if (res.ok) {
         const data = await res.json()
         const isFallback = !data.items || data.items.length === 0;
+        setIsMockData(isFallback);
         const currentWallets = isFallback ? MOCK_WALLETS : data.items;
         
         setWallets(currentWallets)
@@ -116,10 +120,12 @@ export default function TCoinDashboardPage() {
           activeWallets: isFallback ? MOCK_TCOIN_STATS.activeWallets : data.total,
         }))
       } else {
+        setIsMockData(true);
         setWallets(MOCK_WALLETS); setWalletsTotal(12450);
         setStats(prev => ({ ...prev, totalCirculating: MOCK_TCOIN_STATS.totalCirculating, activeWallets: MOCK_TCOIN_STATS.activeWallets }))
       }
     } catch {
+        setIsMockData(true);
         setWallets(MOCK_WALLETS); setWalletsTotal(12450);
         setStats(prev => ({ ...prev, totalCirculating: MOCK_TCOIN_STATS.totalCirculating, activeWallets: MOCK_TCOIN_STATS.activeWallets }))
     } finally {
@@ -136,6 +142,7 @@ export default function TCoinDashboardPage() {
       if (res.ok) {
         const data = await res.json()
         const isFallback = !data.items || data.items.length === 0;
+        setIsMockData(isFallback);
         const currentPayments = isFallback ? MOCK_PAYMENTS : data.items;
         
         setPayments(currentPayments)
@@ -146,10 +153,12 @@ export default function TCoinDashboardPage() {
           completedOrders: isFallback ? MOCK_TCOIN_STATS.completedOrders : data.items.filter((o: PaymentOrderItem) => o.status === 'completed').length,
         }))
       } else {
+        setIsMockData(true);
         setPayments(MOCK_PAYMENTS); setPaymentsTotal(15420);
         setStats(prev => ({ ...prev, totalOrders: MOCK_TCOIN_STATS.totalOrders, completedOrders: MOCK_TCOIN_STATS.completedOrders }))
       }
     } catch {
+        setIsMockData(true);
         setPayments(MOCK_PAYMENTS); setPaymentsTotal(15420);
         setStats(prev => ({ ...prev, totalOrders: MOCK_TCOIN_STATS.totalOrders, completedOrders: MOCK_TCOIN_STATS.completedOrders }))
     } finally {
@@ -273,6 +282,18 @@ export default function TCoinDashboardPage() {
 
   return (
     <div className="space-y-6">
+      {isMockData && (
+        <div className="bg-amber-500/10 border border-amber-500/30 text-amber-500 rounded-lg p-4 flex items-center justify-between shadow-sm animate-pulse">
+          <div className="flex items-center gap-3">
+             <AlertTriangle className="h-5 w-5" />
+             <div>
+               <p className="font-bold text-sm">Chế độ Mô Phỏng (Demo Mode)</p>
+               <p className="text-xs mt-0.5 opacity-90">Dữ liệu ví TCoin hoặc Cơ sở dữ liệu Payment Gateway hiện chưa được khởi tạo. Hệ thống đang hiển thị dữ liệu giả định để xem trước luồng giao diện.</p>
+             </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>

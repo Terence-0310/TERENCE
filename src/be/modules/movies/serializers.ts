@@ -196,10 +196,11 @@ export interface PaginationDto {
   perPage: number
   total: number
   totalPages: number
+  nextCursor?: string | null
 }
 
-export function serializePagination(page: number, perPage: number, total: number): PaginationDto {
-  return { page, perPage, total, totalPages: Math.ceil(total / perPage) }
+export function serializePagination(page: number, perPage: number, total: number, nextCursor?: string | null): PaginationDto {
+  return { page, perPage, total, totalPages: Math.ceil(total / perPage), nextCursor }
 }
 
 // ─── Helpers ────────────────────────────────────────────────────

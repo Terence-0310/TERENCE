@@ -9,6 +9,7 @@
 // - Syncs player events to the party
 
 import { useState, useCallback, useRef, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { useWatchParty } from '@/src/fe/features/watch-party/hooks/useWatchParty'
 import { usePartyCall } from '@/src/fe/features/watch-party/hooks/usePartyCall'
 import { WatchPartyPanel } from '@/src/fe/components/watch-party/WatchPartyPanel'
@@ -66,8 +67,10 @@ export function WatchPartyOverlay({
   posterUrl,
   videoRef,
 }: WatchPartyOverlayProps) {
-  const [roomCode, setRoomCode] = useState<string | null>(null)
-  const [showPanel, setShowPanel] = useState(false)
+  const searchParams = useSearchParams()
+  const initialRoom = searchParams.get('room')
+  const [roomCode, setRoomCode] = useState<string | null>(initialRoom || null)
+  const [showPanel, setShowPanel] = useState(!!initialRoom)
   const [joinInput, setJoinInput] = useState('')
   const [showJoinInput, setShowJoinInput] = useState(false)
   const user = useRef(getGuestUser()).current

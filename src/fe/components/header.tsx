@@ -161,16 +161,18 @@ function HeaderInner() {
 
   return (
     <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${headerBg}`}>
-      <div className="flex h-[68px] items-center gap-4 px-4 md:px-6 lg:px-8 w-full max-w-[1920px] mx-auto">
-        {/* L: Logo */}
-        <Link href="/" className="flex items-center gap-2 shrink-0 mr-2 xl:mr-8 hover:opacity-80 transition-opacity">
+      <div className="flex h-[68px] items-center justify-between px-4 md:px-6 lg:px-8 w-full max-w-[1920px] mx-auto">
+        {/* LEFT GROUP */}
+        <div className="flex items-center gap-2 xl:gap-4 shrink-0">
+          {/* L: Logo */}
+          <Link href="/" className="flex items-center gap-1.5 2xl:gap-2 shrink-0 hover:opacity-80 transition-opacity">
           <TerenceLogo size={34} />
           <span className="text-[22px] font-extrabold tracking-tight text-white hidden md:inline mt-0.5">TERENCE</span>
         </Link>
 
         {/* M-L: Search Bar */}
         {pathname !== '/browse' ? (
-          <form ref={searchContainerRef} onSubmit={handleSearch} className="hidden md:flex relative flex-1 min-w-[140px] max-w-[280px] xl:max-w-[200px] 2xl:max-w-[340px] z-[70]">
+          <form ref={searchContainerRef} onSubmit={handleSearch} className="hidden md:flex relative w-[160px] xl:w-[180px] 2xl:w-[280px] shrink-0 z-[70]">
             <Search className="absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-white/50" />
             <input
               type="text"
@@ -260,27 +262,30 @@ function HeaderInner() {
             )}
           </form>
         ) : (
-          <div className="hidden md:flex flex-1 min-w-[140px] max-w-[340px] xl:max-w-[200px] 2xl:max-w-[340px] mr-auto" />
+          <div className="hidden md:flex w-[180px] xl:w-[180px] 2xl:w-[280px] shrink-0" />
         )}
+        </div>
 
+        {/* RIGHT GROUP */}
+        <div className="flex items-center justify-end flex-1 gap-2 xl:gap-4 shrink-0 min-w-0">
         {/* M: Desktop Nav */}
-        <nav className="hidden xl:flex flex-1 items-center gap-0.5 2xl:gap-2 mr-2 2xl:mr-8 h-full overflow-x-auto scrollbar-hide justify-end">
+        <nav className="hidden xl:flex items-center lg:gap-1 2xl:gap-3 h-full overflow-visible shrink-0">
           {/* Quốc gia */}
-          <div ref={countryRef} className="relative h-full flex items-center" onMouseEnter={handleCountryEnter} onMouseLeave={handleCountryLeave}>
+          <div ref={countryRef} className="relative h-full flex items-center shrink-0" onMouseEnter={handleCountryEnter} onMouseLeave={handleCountryLeave}>
             <button
               onClick={() => { setCountryOpen(!countryOpen); setGenreOpen(false) }}
-              className={`flex items-center gap-1 2xl:gap-1.5 px-2 2xl:px-3 py-2 text-[13px] 2xl:text-[14px] font-semibold whitespace-nowrap transition-colors rounded-lg hover:text-white ${isCountryActive || countryOpen ? 'text-white' : 'text-white/60'}`}
+              className={`flex items-center gap-0.5 2xl:gap-1.5 px-1.5 2xl:px-3 py-2 text-[13px] 2xl:text-[14px] font-medium whitespace-nowrap transition-colors rounded-lg hover:text-white ${isCountryActive || countryOpen ? 'text-white' : 'text-white/60'}`}
             >
               Quốc gia
               <ChevronDown className={`w-[14px] h-[14px] text-white/40 transition-transform duration-200 ${(countryOpen || isCountryActive) ? 'text-white/100' : ''} ${countryOpen ? 'rotate-180' : ''}`} />
             </button>
             {countryOpen && (
               <div
-                className="absolute left-0 lg:left-[-20px] top-[calc(100%-10px)] w-[680px] rounded-[18px] border border-white/[0.08] bg-[#0A0D15]/98 shadow-[0_20px_50px_rgba(0,0,0,0.8)] backdrop-blur-xl p-6 z-[60] animate-dropdown-in"
+                className="absolute left-1/2 -translate-x-1/2 top-[calc(100%+5px)] w-[480px] xl:w-[680px] max-w-[90vw] rounded-[18px] border border-white/[0.08] bg-[#0A0D15]/98 shadow-[0_20px_50px_rgba(0,0,0,0.8)] backdrop-blur-xl p-4 xl:p-6 z-[60] animate-dropdown-in"
                 onMouseEnter={handleCountryEnter}
                 onMouseLeave={handleCountryLeave}
               >
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-3 xl:grid-cols-4 gap-2">
                   {COUNTRIES.map((c) => (
                     <Link
                       key={c.code}
@@ -300,21 +305,21 @@ function HeaderInner() {
           </div>
 
           {/* Thể loại */}
-          <div ref={genreRef} className="relative h-full flex items-center" onMouseEnter={handleGenreEnter} onMouseLeave={handleGenreLeave}>
+          <div ref={genreRef} className="relative h-full flex items-center shrink-0" onMouseEnter={handleGenreEnter} onMouseLeave={handleGenreLeave}>
             <button
               onClick={() => { setGenreOpen(!genreOpen); setCountryOpen(false) }}
-              className={`flex items-center gap-1 2xl:gap-1.5 px-2 2xl:px-3 py-2 text-[13px] 2xl:text-[14px] font-semibold whitespace-nowrap transition-colors rounded-lg hover:text-white ${isGenreActive || genreOpen ? 'text-white' : 'text-white/60'}`}
+              className={`flex items-center gap-0.5 2xl:gap-1.5 px-1.5 2xl:px-3 py-2 text-[13px] 2xl:text-[14px] font-medium whitespace-nowrap transition-colors rounded-lg hover:text-white ${isGenreActive || genreOpen ? 'text-white' : 'text-white/60'}`}
             >
               Thể loại
               <ChevronDown className={`w-[14px] h-[14px] text-white/40 transition-transform duration-200 ${(genreOpen || isGenreActive) ? 'text-white/100' : ''} ${genreOpen ? 'rotate-180' : ''}`} />
             </button>
             {genreOpen && (
               <div
-                className="absolute left-0 lg:left-[-20px] xl:left-[-140px] top-[calc(100%-10px)] w-[680px] rounded-[18px] border border-white/[0.08] bg-[#0A0D15]/98 shadow-[0_20px_50px_rgba(0,0,0,0.8)] backdrop-blur-xl p-6 z-[60] animate-dropdown-in"
+                className="absolute left-1/2 -translate-x-1/2 top-[calc(100%+5px)] w-[480px] xl:w-[680px] max-w-[90vw] rounded-[18px] border border-white/[0.08] bg-[#0A0D15]/98 shadow-[0_20px_50px_rgba(0,0,0,0.8)] backdrop-blur-xl p-4 xl:p-6 z-[60] animate-dropdown-in"
                 onMouseEnter={handleGenreEnter}
                 onMouseLeave={handleGenreLeave}
               >
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-3 xl:grid-cols-4 gap-2">
                   {GENRES.map((g) => (
                     <Link
                       key={g.id}
@@ -342,7 +347,7 @@ function HeaderInner() {
               <Link 
                 key={item.href} 
                 href={item.href} 
-                className={`px-2 2xl:px-3 py-2 text-[13px] 2xl:text-[14px] font-semibold transition-colors hover:text-white whitespace-nowrap ${finalIsActive ? 'text-white' : 'text-white/60'}`}
+                className={`shrink-0 px-1.5 2xl:px-3 py-2 text-[13px] 2xl:text-[14px] font-medium transition-colors hover:text-white whitespace-nowrap ${finalIsActive ? 'text-white' : 'text-white/60'}`}
               >
                 {item.label}
               </Link>
@@ -366,13 +371,13 @@ function HeaderInner() {
           )}
 
           {user ? (
-            <div className="flex items-center gap-1 xl:gap-2">
+            <div className="flex items-center gap-1 xl:gap-1.5 2xl:gap-2">
               <DropdownMenu>
-                <DropdownMenuTrigger className="flex items-center gap-1.5 xl:gap-2 rounded-full bg-[#2DD4BF] px-2.5 py-1 xl:px-4 xl:py-1.5 hover:bg-[#14B8A6] transition shadow-[0_0_15px_rgba(45,212,191,0.2)] cursor-pointer outline-none border-transparent">
-                  <div className="flex h-6 w-6 xl:h-7 xl:w-7 items-center justify-center rounded-full bg-black/10 shrink-0">
-                    <User className="h-3.5 w-3.5 xl:h-4 xl:w-4 text-black" />
+                <DropdownMenuTrigger className="flex items-center gap-1 2xl:gap-2 rounded-full bg-[#2DD4BF] px-2 py-1 xl:px-2.5 2xl:px-4 2xl:py-1.5 hover:bg-[#14B8A6] transition shadow-[0_0_15px_rgba(45,212,191,0.2)] cursor-pointer outline-none border-transparent">
+                  <div className="flex h-5 w-5 xl:h-6 xl:w-6 2xl:h-7 2xl:w-7 items-center justify-center rounded-full bg-black/10 shrink-0">
+                    <User className="h-3 w-3 xl:h-3.5 xl:w-3.5 2xl:h-4 2xl:w-4 text-black" />
                   </div>
-                  <span className="text-[12px] xl:text-[14px] font-bold text-black xl:border-l xl:border-black/10 xl:pl-3 xl:ml-0.5 py-0.5 xl:py-1 max-w-[80px] xl:max-w-[120px] truncate">{user.name}</span>
+                  <span className="text-[11px] xl:text-[12px] 2xl:text-[14px] font-bold text-black border-l border-black/10 pl-2 xl:pl-2 2xl:pl-3 ml-0.5 py-0.5 max-w-[60px] xl:max-w-[70px] 2xl:max-w-[120px] truncate">{user.name}</span>
                   <ChevronDown className="h-3.5 w-3.5 text-black/60 hidden md:block" />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56 bg-[#0A0D15]/98 backdrop-blur-xl border border-white/[0.08] shadow-[0_20px_50px_rgba(0,0,0,0.8)] rounded-xl p-2 font-nunito animate-dropdown-in mt-2 z-[100]">
@@ -410,9 +415,10 @@ function HeaderInner() {
             </button>
           )}
 
-          <button onClick={() => setMobileOpen(!mobileOpen)} className="rounded-lg p-2 text-white/60 transition hover:bg-white/10 xl:hidden mr-1">
+          <button onClick={() => setMobileOpen(!mobileOpen)} className="rounded-lg p-2 text-white/60 transition hover:bg-white/10 xl:hidden">
             {mobileOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
           </button>
+        </div>
         </div>
       </div>
 
@@ -458,9 +464,9 @@ function HeaderInner() {
             {/* Genre section */}
             <div className="my-1 border-t border-white/[0.06]" />
             <p className="px-3 pt-1 pb-0.5 text-[10px] uppercase tracking-widest text-white/30 font-semibold">Thể loại</p>
-            <div className="grid grid-cols-2 gap-1 px-1">
+            <div className="flex flex-wrap gap-1 px-2">
               {GENRES.map((g) => (
-                <Link key={g.id} href={genreBrowseUrl(g.id)} onClick={() => setMobileOpen(false)} className="rounded-lg px-2 py-2 text-sm text-white/60 hover:bg-white/5 hover:text-white transition">
+                <Link key={g.id} href={genreBrowseUrl(g.id)} onClick={() => setMobileOpen(false)} className="rounded-lg px-3 py-2 text-[13px] font-medium text-white/60 hover:bg-white/10 hover:text-white transition whitespace-nowrap">
                   {g.name}
                 </Link>
               ))}
@@ -469,9 +475,9 @@ function HeaderInner() {
             {/* Country section */}
             <div className="my-1 border-t border-white/[0.06]" />
             <p className="px-3 pt-1 pb-0.5 text-[10px] uppercase tracking-widest text-white/30 font-semibold">Quốc gia</p>
-            <div className="grid grid-cols-2 gap-1 px-1">
+            <div className="flex flex-wrap gap-1 px-2">
               {COUNTRIES.map((c) => (
-                <Link key={c.code} href={countryBrowseUrl(c.code)} onClick={() => setMobileOpen(false)} className="rounded-lg px-2 py-2 text-sm text-white/60 hover:bg-white/5 hover:text-white transition">
+                <Link key={c.code} href={countryBrowseUrl(c.code)} onClick={() => setMobileOpen(false)} className="rounded-lg px-3 py-2 text-[13px] font-medium text-white/60 hover:bg-white/10 hover:text-white transition whitespace-nowrap">
                   {c.name}
                 </Link>
               ))}

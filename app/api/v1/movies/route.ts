@@ -22,6 +22,8 @@ export async function GET(req: NextRequest) {
     const params: MovieListParams = {
       page: parseIntParam(sp.get('page'), 1, 1, 1000),
       perPage: parseIntParam(sp.get('perPage'), 24, 1, 100),
+      cursor: parseStringParam(sp.get('cursor')),
+      noCount: parseBoolParam(sp.get('noCount')),
       category: parseStringParam(sp.get('category')),
       country: parseStringParam(sp.get('country')),
       year: sp.get('year') ? parseIntParam(sp.get('year'), 0, 1900, 2100) || undefined : undefined,
@@ -31,11 +33,11 @@ export async function GET(req: NextRequest) {
       sort: (parseStringParam(sp.get('sort'), ALLOWED_SORTS) as MovieListParams['sort']) || 'newest',
     }
 
-    const { movies, total, page, perPage } = await getMovieList(params)
+    const { movies, total, page, perPage, nextCursor } = await getMovieList(params)
 
     return jsonPaginated(
       movies.map((m: any) => serializeMovieCard(m as unknown as Record<string, unknown>)),
-      serializePagination(page, perPage, total),
+      serializePagination(page, perPage, total, nextCursor),
     )
   } catch (error) {
     console.error('[API] /v1/movies error:', error)

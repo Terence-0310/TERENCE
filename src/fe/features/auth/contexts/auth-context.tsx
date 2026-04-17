@@ -9,6 +9,7 @@ export interface User {
   name: string
   role: 'super_admin' | 'admin' | 'staff' | 'editor' | 'user'
   avatar?: string | null
+  isEmailVerified: boolean
 }
 
 interface AuthContextType {
@@ -40,6 +41,7 @@ function AuthContextInner({ children }: { children: ReactNode }) {
     name: session.user.name || '',
     role: ((session as any).user?.role as any) || 'user',
     avatar: session.user.image,
+    isEmailVerified: (session as any).user?.isEmailVerified ?? false,
   } : null
 
   const isLoading = status === 'loading'

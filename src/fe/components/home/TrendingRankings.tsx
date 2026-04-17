@@ -1,15 +1,12 @@
-'use client'
-
 // ============================================
 // TrendingRankings — 3-column ranking section
 // ============================================
-// RoPhim-style: "Sôi nổi nhất" | "Yêu thích nhất" | "Bình luận mới"
-// Fetches 3 API endpoints in parallel.
-// Handles: loading, error, empty states (Frontend Rule #5)
+// Fetches data via Server Component (SSR) for optimal LCP.
+// Sôi nổi nhất | Yêu thích nhất | Bình luận mới
 
-import { useState, useEffect } from 'react'
 import { TrendingUp, Play } from 'lucide-react'
 import Link from 'next/link'
+import { prisma } from '@/src/be/shared/db/prisma'
 
 interface RankedMovie {
   rank: number
@@ -22,42 +19,57 @@ interface RecentReview {
   id: string
   content: string | null
   rating: number
-  createdAt: string
+  createdAt: Date
   user: { id: string; name: string; avatar: string | null }
   movie: { id: string; title: string; slug: string }
 }
 
-export function TrendingRankings() {
-  const [trending, setTrending] = useState<RankedMovie[]>([])
-  const [mostLiked, setMostLiked] = useState<RankedMovie[]>([])
-  const [recentReviews, setRecentReviews] = useState<RecentReview[]>([])
-  const [loading, setLoading] = useState(true)
+export async function TrendingRankings() {
+  let trending: RankedMovie[] = []
+  let mostLiked: RankedMovie[] = []
+  let recentReviews: RecentReview[] = []
 
-  useEffect(() => {
-    Promise.allSettled([
-      fetch('/api/v1/movies/trending-stats').then((r) => r.json()),
-      fetch('/api/v1/movies/most-liked').then((r) => r.json()),
-      fetch('/api/v1/reviews/recent').then((r) => r.json()),
-    ])
-      .then(([t, l, r]) => {
-        if (t.status === 'fulfilled' && t.value.success) setTrending(t.value.data || [])
-        if (l.status === 'fulfilled' && l.value.success) setMostLiked(l.value.data || [])
-        if (r.status === 'fulfilled' && r.value.success) setRecentReviews(r.value.data || [])
+  try {
+    const [tMovies, lMovies, rReviews] = await Promise.all([
+      prisma.movie.findMany({
+        where: { isActive: true, isPublished: true },
+        orderBy: { viewCount: 'desc' },
+        take: 5,
+        select: { id: true, title: true, slug: true, posterUrl: true, thumbUrl: true, viewCount: true }
+      }),
+      prisma.movie.findMany({
+        where: { isActive: true, isPublished: true },
+        orderBy: {
+          favorites: { _count: 'desc' }
+        },
+        take: 5,
+        select: { id: true, title: true, slug: true, posterUrl: true, thumbUrl: true, _count: { select: { favorites: true } } }
+      }),
+      prisma.review.findMany({
+        where: { status: 'approved' },
+        include: {
+          user: { select: { id: true, name: true, avatar: true } },
+          movie: { select: { id: true, title: true, slug: true } }
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
       })
-      .finally(() => setLoading(false))
-  }, [])
+    ])
 
-  // Don't render if all empty and not loading
+    trending = tMovies.map((m, i) => ({ rank: i + 1, movie: { id: m.id, title: m.title, slug: m.slug, posterUrl: m.posterUrl || m.thumbUrl }, viewCount: m.viewCount }))
+    mostLiked = lMovies.map((m, i) => ({ rank: i + 1, movie: { id: m.id, title: m.title, slug: m.slug, posterUrl: m.posterUrl || m.thumbUrl }, favoriteCount: m._count?.favorites || 0 }))
+    recentReviews = rReviews as any[]
+  } catch (err) {
+    console.error('TrendingRankings fetch error:', err)
+  }
+
   const hasData = trending.length > 0 || mostLiked.length > 0 || recentReviews.length > 0
-  if (!loading && !hasData) return null
+  if (!hasData) return null
 
   return (
     <section className="py-4">
       <div className="bg-[var(--surface-elevated)] rounded-none md:rounded-2xl mx-0 md:mx-5 lg:mx-8 py-8 px-5 md:px-8">
-        {loading ? (
-          <RankingSkeleton />
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-0 md:divide-x md:divide-white/[0.06]">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-0 md:divide-x md:divide-white/[0.06]">
             {/* Col 1: Sôi nổi nhất */}
             <RankingColumn
               title="SÔI NỔI NHẤT"
@@ -88,7 +100,6 @@ export function TrendingRankings() {
               </div>
             </div>
           </div>
-        )}
       </div>
     </section>
   )

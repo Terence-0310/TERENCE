@@ -86,6 +86,8 @@ function buildOrderBy(sort: SortField) {
 export interface MovieListParams {
   page?: number
   perPage?: number
+  cursor?: string       // Dùng cho infinite scroll (id)
+  noCount?: boolean     // Bỏ qua lấy total record, hữu ích tăng tốc khi lazy-load
   category?: string     // slug
   country?: string      // slug
   year?: number
@@ -102,6 +104,8 @@ export async function getMovieList(params: MovieListParams = {}) {
   const {
     page = 1,
     perPage = 24,
+    cursor,
+    noCount = false,
     category,
     country,
     year,
@@ -115,10 +119,9 @@ export async function getMovieList(params: MovieListParams = {}) {
   const cached = await getCache<any>(cacheKey)
   if (cached) return cached
 
-  const skip = (page - 1) * perPage
+  // Nếu dùng cursor, bỏ qua tính toán skip truyền thống
+  const skip = cursor ? 1 : (page - 1) * perPage
 
-  // Build where clause
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const where: any = { ...PUBLISHED_FILTER }
 
   if (contentType) where.contentType = contentType
@@ -133,18 +136,37 @@ export async function getMovieList(params: MovieListParams = {}) {
     where.countries = { some: { country: { slug: country } } }
   }
 
-  const [movies, total] = await Promise.all([
+  // Tối ưu để lấy thừa 1 item nhằm xác định hasNextPage mà không cần Count()
+  const takeAmount = perPage + 1
+  
+  const queryTasks: Promise<any>[] = [
     prisma.movie.findMany({
       where,
       select: CARD_SELECT,
       orderBy: buildOrderBy(sort),
+      cursor: cursor ? { id: cursor } : undefined,
       skip,
-      take: perPage,
-    }),
-    prisma.movie.count({ where }),
-  ])
+      take: takeAmount,
+    })
+  ]
+  
+  // Dùng count() khi client bắt buộc cần Total Pages (ví dụ: giao diện List trang 1, 2, 3...)
+  // Đối với infinite scroll, truyền noCount=true để tốc độ query nhanh nhất
+  if (!noCount) {
+    queryTasks.push(prisma.movie.count({ where }))
+  }
 
-  const result = { movies, total, page, perPage }
+  const [rawMovies, rawTotal] = await Promise.all(queryTasks)
+  
+  const hasMore = rawMovies.length > perPage
+  const movies = hasMore ? rawMovies.slice(0, perPage) : rawMovies
+
+  // Tính total ảo nếu không query count
+  const total = rawTotal ?? (hasMore ? (page * perPage) + 1 : (page - 1) * perPage + movies.length)
+
+  const nextCursor = hasMore ? movies[movies.length - 1].id : null
+
+  const result = { movies, total, page, perPage, nextCursor }
   await setCache(cacheKey, result, CACHE_TTL.LIST)
   return result
 }

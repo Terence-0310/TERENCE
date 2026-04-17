@@ -118,13 +118,13 @@ export function UserTable({
                 {user.deletedAt || currentUserRole === 'USER' ? (
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${roleColor(user.role)}`}>{roleLabel(user.role)}</span>
                 ) : (
-                  <select className={`px-2 py-1 rounded-full text-xs font-medium border-0 cursor-pointer ${roleColor(user.role)}`}
+                  <select className={`px-2 py-1 rounded-full text-xs font-medium border-0 cursor-pointer outline-none bg-black/40 ${roleColor(user.role)}`}
                     value={user.role} onChange={(e) => onRoleChange(user.id, e.target.value)}>
-                    {currentUserRole === 'SUPER_ADMIN' && <option value="super_admin">Super Admin</option>}
-                    {['SUPER_ADMIN', 'ADMIN'].includes(currentUserRole) && <option value="admin">Admin</option>}
-                    {['SUPER_ADMIN', 'ADMIN', 'STAFF'].includes(currentUserRole) && <option value="staff">Staff</option>}
-                    {['SUPER_ADMIN', 'ADMIN', 'STAFF'].includes(currentUserRole) && <option value="editor">Editor</option>}
-                    <option value="user">User</option>
+                    {currentUserRole === 'SUPER_ADMIN' && <option value="SUPER_ADMIN" className="bg-[#0A0E17] text-white">Super Admin</option>}
+                    {['SUPER_ADMIN', 'ADMIN'].includes(currentUserRole) && <option value="ADMIN" className="bg-[#0A0E17] text-white">Admin</option>}
+                    {['SUPER_ADMIN', 'ADMIN', 'STAFF'].includes(currentUserRole) && <option value="STAFF" className="bg-[#0A0E17] text-white">Staff</option>}
+                    {['SUPER_ADMIN', 'ADMIN', 'STAFF'].includes(currentUserRole) && <option value="EDITOR" className="bg-[#0A0E17] text-white">Editor</option>}
+                    <option value="USER" className="bg-[#0A0E17] text-white">User</option>
                   </select>
                 )}
               </td>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/src/be/shared/db/prisma";
 import { AuthService } from "@/src/be/modules/auth";
+import { generateToken, sendVerificationEmail } from "@/lib/mail";
 import { z } from "zod";
 
 const registerSchema = z.object({
@@ -53,13 +54,45 @@ export async function POST(req: NextRequest) {
         passwordHash: hashedPassword,
         role: "USER",
         isActive: true,
+        isEmailVerified: false,
       },
       select: { id: true, name: true, email: true, role: true },
     });
 
-    return NextResponse.json({ user });
+    // ── Send verification email (non-blocking) ──
+    let emailSent = false;
+    try {
+      // Clean up any stale tokens for this email
+      await prisma.verificationToken.deleteMany({
+        where: { identifier: email.toLowerCase() },
+      });
+
+      const token = generateToken();
+      await prisma.verificationToken.create({
+        data: {
+          identifier: email.toLowerCase(),
+          token,
+          expires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24h
+        },
+      });
+
+      await sendVerificationEmail(email.toLowerCase(), token, name);
+      emailSent = true;
+    } catch (mailError) {
+      // Log but don't block registration
+      console.error("Failed to send verification email during registration:", mailError);
+    }
+
+    return NextResponse.json({
+      user,
+      message: emailSent
+        ? "Đăng ký thành công! Vui lòng kiểm tra email để xác thực tài khoản."
+        : "Đăng ký thành công! Bạn có thể yêu cầu gửi lại email xác thực sau.",
+      emailSent,
+    });
   } catch (error) {
     console.error("Register Error:", error);
     return NextResponse.json({ error: "Lỗi hệ thống" }, { status: 500 });
   }
 }
+

@@ -93,6 +93,7 @@ export const authOptions: NextAuthOptions = {
         token.id = user.id;
         token.role = (user as any).role || "USER";
         token.isActive = (user as any).isActive ?? true;
+        token.isEmailVerified = (user as any).isEmailVerified ?? false;
         
         try {
           const { getUserEffectivePermissions } = await import('@/src/lib/permissions/access-control');
@@ -113,6 +114,7 @@ export const authOptions: NextAuthOptions = {
         (session.user as any).id = token.id;
         (session.user as any).role = token.role;
         (session.user as any).isActive = token.isActive;
+        (session.user as any).isEmailVerified = token.isEmailVerified;
         (session.user as any).permissions = token.permissions || [];
       }
       return session;

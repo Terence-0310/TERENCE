@@ -25,19 +25,9 @@ interface UserItem {
 
 interface Pagination { page: number; limit: number; total: number; totalPages: number }
 
-const MOCK_USERS: UserItem[] = [
-  { id: 'u1', name: 'Nguyễn Văn Admin', email: 'admin@terence.com', role: 'super_admin', status: 'active', isActive: true, avatar: null, lastLoginAt: new Date().toISOString(), lastLoginIp: '192.168.1.1', loginCount: 154, blockedReason: null, createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(), deletedAt: null },
-  { id: 'u2', name: 'Trần Thị Biên Tập', email: 'editor@terence.com', role: 'editor', status: 'active', isActive: true, avatar: null, lastLoginAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), lastLoginIp: '10.0.0.15', loginCount: 42, blockedReason: null, createdAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(), deletedAt: null },
-  { id: 'u3', name: 'Lê Hoàng Member', email: 'member@terence.com', role: 'user', status: 'active', isActive: true, avatar: null, lastLoginAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), lastLoginIp: '172.16.0.5', loginCount: 12, blockedReason: null, createdAt: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(), deletedAt: null },
-  { id: 'u4', name: 'Phạm Minh Banned', email: 'spammer@gmail.com', role: 'user', status: 'banned', isActive: false, avatar: null, lastLoginAt: null, lastLoginIp: null, loginCount: 0, blockedReason: 'Spam comment', createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), deletedAt: null },
-  { id: 'u5', name: 'Hoàng Thái User', email: 'hoangthai@yahoo.com', role: 'user', status: 'active', isActive: true, avatar: null, lastLoginAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(), lastLoginIp: '14.232.10.5', loginCount: 5, blockedReason: null, createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(), deletedAt: null },
-]
-
-const MOCK_PAGINATION: Pagination = { page: 1, limit: 20, total: 42560, totalPages: 2128 }
-
 export default function UsersPage() {
-  const [users, setUsers] = useState<UserItem[]>(MOCK_USERS)
-  const [pagination, setPagination] = useState<Pagination>(MOCK_PAGINATION)
+  const [users, setUsers] = useState<UserItem[]>([])
+  const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 20, total: 0, totalPages: 0 })
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -47,7 +37,7 @@ export default function UsersPage() {
   const [showAddModal, setShowAddModal] = useState(false)
   const [editUser, setEditUser] = useState<UserItem | null>(null)
   const [saving, setSaving] = useState(false)
-  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'user' })
+  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'USER' })
   const [editForm, setEditForm] = useState({ name: '', email: '', role: '', status: '' })
 
   const { user: currentUser } = useAuth()
@@ -56,31 +46,39 @@ export default function UsersPage() {
 
   const [openPermissionsUser, setOpenPermissionsUser] = useState<UserItem | null>(null)
 
+  const [debouncedSearch, setDebouncedSearch] = useState(search)
+
+  // Debounce search input
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(search)
+    }, 500)
+    return () => clearTimeout(handler)
+  }, [search])
+
   const fetchUsers = useCallback(async (page = 1) => {
     setLoading(true)
     const params = new URLSearchParams({ page: String(page), limit: '20', sortBy })
-    if (search) params.set('search', search)
+    if (debouncedSearch) params.set('search', debouncedSearch)
     if (roleFilter !== 'all') params.set('role', roleFilter)
     if (statusFilter !== 'all') params.set('status', statusFilter)
     if (specialFilter === 'deleted') params.set('deleted', 'true')
     try {
       const res = await fetch(`/api/admin/users?${params}`)
-      const json = await res.json()
-      if (json.data && json.data.length > 0) {
-        setUsers(json.data)
-        setPagination(json.pagination)
+      if (res.ok) {
+        const json = await res.json()
+        setUsers(json.data || [])
+        setPagination(json.pagination || { page: 1, limit: 20, total: 0, totalPages: 0 })
       } else {
-        const pagedUsers = page % 2 === 0 ? [...MOCK_USERS].reverse() : MOCK_USERS;
-        setUsers(pagedUsers)
-        setPagination({ ...MOCK_PAGINATION, page })
+        setUsers([])
+        setPagination({ page: 1, limit: 20, total: 0, totalPages: 0 })
       }
-    } catch { 
-        const pagedUsers = page % 2 === 0 ? [...MOCK_USERS].reverse() : MOCK_USERS;
-        setUsers(pagedUsers)
-        setPagination({ ...MOCK_PAGINATION, page })
+    } catch {
+      setUsers([])
+      setPagination({ page: 1, limit: 20, total: 0, totalPages: 0 })
     }
     setLoading(false)
-  }, [search, roleFilter, statusFilter, sortBy, specialFilter])
+  }, [debouncedSearch, roleFilter, statusFilter, sortBy, specialFilter])
 
   useEffect(() => { fetchUsers() }, [fetchUsers])
 
@@ -97,7 +95,7 @@ export default function UsersPage() {
     e.preventDefault(); setSaving(true)
     try {
       const res = await fetch('/api/admin/users', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
-      if (res.ok) { setShowAddModal(false); setForm({ name: '', email: '', password: '', role: 'user' }); fetchUsers() }
+      if (res.ok) { setShowAddModal(false); setForm({ name: '', email: '', password: '', role: 'USER' }); fetchUsers() }
       else { const d = await res.json(); alert(d.error || 'Lỗi') }
     } catch { alert('Lỗi kết nối') }
     setSaving(false)
@@ -162,10 +160,10 @@ export default function UsersPage() {
 
   // ── Format helpers ──
 
-  const roleLabel = (r: string) => ({ super_admin: 'Super Admin', admin: 'Admin', staff: 'Staff', editor: 'Editor', user: 'User' }[r] || r)
-  const roleColor = (r: string) => ({ super_admin: 'bg-red-500/10 text-red-500', admin: 'bg-purple-500/10 text-purple-500', staff: 'bg-blue-500/10 text-blue-500', editor: 'bg-cyan-500/10 text-cyan-500', user: 'bg-muted text-muted-foreground' }[r] || 'bg-muted text-muted-foreground')
-  const statusColor = (s: string) => ({ active: 'bg-green-500/10 text-green-500', suspended: 'bg-yellow-500/10 text-yellow-500', banned: 'bg-red-500/10 text-red-500' }[s] || 'bg-muted text-muted-foreground')
-  const statusLabel = (s: string) => ({ active: 'Hoạt động', suspended: 'Tạm ngưng', banned: 'Bị khóa' }[s] || s)
+  const roleLabel = (r: string) => ({ SUPER_ADMIN: 'Super Admin', ADMIN: 'Admin', STAFF: 'Staff', EDITOR: 'Editor', USER: 'User' }[r.toUpperCase()] || r)
+  const roleColor = (r: string) => ({ SUPER_ADMIN: 'bg-red-500/10 text-red-500 shadow-sm border border-red-500/20', ADMIN: 'bg-purple-500/10 text-purple-500 shadow-sm border border-purple-500/20', STAFF: 'bg-blue-500/10 text-blue-500', EDITOR: 'bg-cyan-500/10 text-cyan-500', USER: 'bg-muted text-muted-foreground' }[r.toUpperCase()] || 'bg-muted text-muted-foreground')
+  const statusColor = (s: string) => ({ ACTIVE: 'bg-green-500/10 text-green-500', SUSPENDED: 'bg-yellow-500/10 text-yellow-500', BANNED: 'bg-red-500/10 text-red-500' }[s.toUpperCase()] || 'bg-muted text-muted-foreground')
+  const statusLabel = (s: string) => ({ ACTIVE: 'Hoạt động', SUSPENDED: 'Tạm ngưng', BANNED: 'Bị khóa' }[s.toUpperCase()] || s)
   const fmtDate = (d: string | null) => d ? new Date(d).toLocaleDateString('vi') : '—'
   const fmtDateTime = (d: string | null) => d ? new Date(d).toLocaleString('vi') : 'Chưa đăng nhập'
 
@@ -206,13 +204,13 @@ export default function UsersPage() {
               </Button>
             </div>
             <div className="flex flex-wrap gap-2">
-              <select className="px-3 py-2 bg-muted border border-border rounded-lg text-sm" value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
-                <option value="all">Tất cả vai trò</option>
-                <option value="super_admin">Super Admin</option>
-                <option value="admin">Admin</option>
-                <option value="staff">Staff</option>
-                <option value="editor">Editor</option>
-                <option value="user">User</option>
+              <select className="px-3 py-2 bg-muted border border-border rounded-lg text-sm bg-black/40 outline-none" value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
+                <option value="all" className="bg-[#0A0E17] text-white">Tất cả vai trò</option>
+                <option value="SUPER_ADMIN" className="bg-[#0A0E17] text-white">Super Admin</option>
+                <option value="ADMIN" className="bg-[#0A0E17] text-white">Admin</option>
+                <option value="STAFF" className="bg-[#0A0E17] text-white">Staff</option>
+                <option value="EDITOR" className="bg-[#0A0E17] text-white">Editor</option>
+                <option value="USER" className="bg-[#0A0E17] text-white">User</option>
               </select>
               <select className="px-3 py-2 bg-muted border border-border rounded-lg text-sm" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
                 <option value="all">Tất cả trạng thái</option>
@@ -259,11 +257,29 @@ export default function UsersPage() {
             fmtDateTime={fmtDateTime}
           />
 
-          <div className="flex items-center justify-between mt-6 pt-4 border-t border-border">
-            <p className="text-sm text-muted-foreground">Trang {pagination.page}/{pagination.totalPages} — {pagination.total} người dùng</p>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" disabled={pagination.page <= 1} onClick={() => fetchUsers(pagination.page - 1)}>Trước</Button>
-              <Button variant="outline" size="sm" disabled={pagination.page >= pagination.totalPages} onClick={() => fetchUsers(pagination.page + 1)}>Sau</Button>
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-4 border-t border-border">
+            <p className="text-sm text-muted-foreground">
+              Trang {pagination.page}/{pagination.totalPages || 1} — {pagination.total} người dùng
+            </p>
+            <div className="flex items-center gap-1">
+              <Button variant="outline" size="icon" className="w-8 h-8" disabled={pagination.page <= 1} onClick={() => fetchUsers(1)}>
+                «
+              </Button>
+              <Button variant="outline" size="icon" className="w-8 h-8" disabled={pagination.page <= 1} onClick={() => fetchUsers(pagination.page - 1)}>
+                ‹
+              </Button>
+              
+              {/* Trang hiện tại */}
+              <div className="px-3 py-1 text-sm font-medium bg-primary text-white rounded-md mx-1 shadow-sm">
+                {pagination.page}
+              </div>
+
+              <Button variant="outline" size="icon" className="w-8 h-8" disabled={pagination.page >= pagination.totalPages} onClick={() => fetchUsers(pagination.page + 1)}>
+                ›
+              </Button>
+              <Button variant="outline" size="icon" className="w-8 h-8" disabled={pagination.page >= pagination.totalPages} onClick={() => fetchUsers(pagination.totalPages)}>
+                »
+              </Button>
             </div>
           </div>
         </CardContent>

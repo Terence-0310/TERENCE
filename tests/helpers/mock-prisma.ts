@@ -18,6 +18,7 @@ export function createMockPrisma() {
     deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
     count: vi.fn().mockResolvedValue(0),
     upsert: vi.fn().mockResolvedValue({}),
+    aggregate: vi.fn().mockResolvedValue({ _sum: {}, _avg: {}, _min: {}, _max: {}, _count: {} }),
   })
 
   return {
@@ -37,7 +38,23 @@ export function createMockPrisma() {
     newsPost: mockCrud(),
     wallet: mockCrud(),
     walletTransaction: mockCrud(),
-    $transaction: vi.fn((fn: (tx: unknown) => unknown) => fn({})),
+    topupOrder: mockCrud(),
+    verificationToken: mockCrud(),
+    passwordResetToken: mockCrud(),
+    pageView: mockCrud(),
+    watchPartyRoom: mockCrud(),
+    watchPartyParticipant: mockCrud(),
+    rolePermission: mockCrud(),
+    userPermission: mockCrud(),
+    bankWebhookLog: mockCrud(),
+    favorite: mockCrud(),
+    $transaction: vi.fn((arg: unknown) => {
+      // Support both callback and array forms
+      if (typeof arg === 'function') return (arg as (tx: unknown) => unknown)({})
+      if (Array.isArray(arg)) return Promise.all(arg)
+      return Promise.resolve()
+    }),
+    $queryRaw: vi.fn().mockResolvedValue([]),
   }
 }
 

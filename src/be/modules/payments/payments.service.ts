@@ -1,9 +1,10 @@
 // ============================================
 // Payments Module — Service (Stub)
 // ============================================
-// TODO [FUTURE] Implement payment processing when TCoin goes live.
+// TODO [FUTURE] Implement additional payment gateways.
+// Currently active: VietQR + SePay webhook.
 
 export function placeholder() {
   // This module is a placeholder for future payment integration.
-  // It will support VNPay, MoMo, ZaloPay, etc.
+  // Currently supports VietQR with SePay webhook auto-confirmation.
 }

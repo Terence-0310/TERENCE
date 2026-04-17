@@ -66,7 +66,7 @@ export default async function HomePage() {
       <HeroBanner movies={trending.items.slice(0, 6)} />
 
       {/* Content Sections */}
-      <div className="-mt-8 relative z-10 space-y-2 pb-16">
+      <div className="-mt-8 relative z-10 space-y-8 pb-16">
         {/* 2. Continue Watching — client component, auto-hides when empty */}
         <ContinueWatchingRow />
 

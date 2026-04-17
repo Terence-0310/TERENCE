@@ -5,6 +5,7 @@ import { AuthProvider } from '@/src/fe/features/auth/contexts/auth-context'
 import { LayoutWrapper } from '@/src/fe/components/layout-wrapper'
 import { ThemeProvider } from '@/src/fe/components/theme-provider'
 import { Toaster } from 'sonner'
+import { EmailVerificationBanner } from '@/src/fe/components/auth/EmailVerificationBanner'
 import './globals.css'
 
 const inter = Inter({
@@ -49,6 +50,7 @@ export default function RootLayout({
             <LayoutWrapper>
               {children}
             </LayoutWrapper>
+            <EmailVerificationBanner />
           </AuthProvider>
           <Analytics />
           <Toaster theme="dark" position="bottom-right" />

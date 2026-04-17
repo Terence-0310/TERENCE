@@ -13,9 +13,15 @@ interface MovieCardProps {
 
 export function MovieCard({ movie, priority = false, showRank, landscape = false }: MovieCardProps) {
   // Determine image source: landscape prefers backdrop, portrait prefers poster
-  const imageUrl = landscape
+  const rawImageUrl = landscape
     ? (movie.backdropUrl || movie.posterUrl || '/placeholder.jpg')
     : (movie.posterUrl || '/placeholder.jpg')
+
+  // Proxy the image if it's from TMDB to avoid 404s/slow loads due to network blocks
+  const isTmdbImage = rawImageUrl.includes('tmdb.org') || rawImageUrl.includes('themoviedb.org')
+  const imageUrl = isTmdbImage 
+    ? `/api/tmdb-image/${movie.id}?url=${encodeURIComponent(rawImageUrl)}&isTv=${movie.mediaType === 'tv'}`
+    : rawImageUrl
 
   const aspectClass = landscape ? 'aspect-video' : 'aspect-[2/3]'
   const hoverClass = landscape ? 'card-neon-hover' : 'card-hover'
