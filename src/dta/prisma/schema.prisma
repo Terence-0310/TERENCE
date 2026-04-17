@@ -175,7 +175,7 @@ model User {
   deletedAt       DateTime?
 
   sessions               Session[]
-  adminLogs              AdminLog[] @relation("AdminActor")
+  adminLogs              AdminLog[]              @relation("AdminActor")
   userPermissions        UserPermission[]
   watchHistories         WatchHistory[]
   favorites              Favorite[]
@@ -357,7 +357,7 @@ model Episode {
   subtitleTracks  SubtitleTrack[]
   watchPartyRooms WatchPartyRoom[]
 
-  @@unique([movieId, episodeNumber])
+  @@unique([movieId, episodeNumber, serverName])
   @@unique([movieId, slug])
   @@index([movieId])
   @@index([episodeSlug])
@@ -693,11 +693,11 @@ model WalletTransaction {
   walletId      String
   userId        String
   type          String // TOPUP, REWARD, REDEEM, ADJUSTMENT, REFUND
-  direction     String @default("CREDIT") // CREDIT, DEBIT
+  direction     String   @default("CREDIT") // CREDIT, DEBIT
   amount        Int
   balanceBefore Int
   balanceAfter  Int
-  status        String @default("SUCCESS") // SUCCESS, PENDING, FAILED, CANCELED
+  status        String   @default("SUCCESS") // SUCCESS, PENDING, FAILED, CANCELED
   provider      String? // VIETQR, SEPAY
   referenceType String?
   referenceId   String?
@@ -861,18 +861,18 @@ model WatchPartyState {
 // ─────────────────────────────────────────────────────────────────
 
 model AdminLog {
-  id             String   @id @default(cuid())
-  actorId        String
-  action         String
-  resource       String   @default("unknown")
-  resourceId     String?
-  targetUserId   String?
-  metadataJson   String?
-  ipAddress      String?
-  userAgent      String?
-  createdAt      DateTime @default(now())
+  id           String   @id @default(cuid())
+  actorId      String
+  action       String
+  resource     String   @default("unknown")
+  resourceId   String?
+  targetUserId String?
+  metadataJson String?
+  ipAddress    String?
+  userAgent    String?
+  createdAt    DateTime @default(now())
 
-  actor          User     @relation("AdminActor", fields: [actorId], references: [id], onDelete: Cascade)
+  actor User @relation("AdminActor", fields: [actorId], references: [id], onDelete: Cascade)
 
   @@index([actorId, createdAt])
   @@index([resource, createdAt])
@@ -896,13 +896,13 @@ model Permission {
 }
 
 model RolePermission {
-  id           String     @id @default(cuid())
+  id           String   @id @default(cuid())
   role         Role
   permissionId String
-  scope        String?    // own | team | all
-  createdAt    DateTime   @default(now())
+  scope        String? // own | team | all
+  createdAt    DateTime @default(now())
 
-  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
 
   @@unique([role, permissionId, scope])
   @@index([role])
@@ -910,15 +910,15 @@ model RolePermission {
 }
 
 model UserPermission {
-  id           String     @id @default(cuid())
+  id           String   @id @default(cuid())
   userId       String
   permissionId String
   scope        String?
-  allowed      Boolean    @default(true)
-  createdAt    DateTime   @default(now())
+  allowed      Boolean  @default(true)
+  createdAt    DateTime @default(now())
 
-  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
 
   @@unique([userId, permissionId, scope])
   @@index([userId])
