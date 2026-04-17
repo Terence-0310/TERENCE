@@ -15,24 +15,21 @@
     <script  type="text/javascript" src="./functions.js" charset="utf-8"></script>
     <script  type="text/javascript" src="./love.js" charset="utf-8"></script>
     <style>
-        /* Base Responsive: Scale fit container */
-        @media screen and (max-width: 1100px) {
-            html, body { overflow: hidden; width: 100vw; height: 100vh; margin: 0; padding: 0; }
-            #main {
-                display: flex; justify-content: center; align-items: center; width: 100vw; height: 100vh;
-            }
-            #wrap {
-                transform: scale(min(calc(100vw / 1100), calc(100vh / 680)));
-                transform-origin: center center;
-                margin: 0 !important;
-            }
+        /* Base Responsive Framework for Mobile */
+        html, body { 
+            margin: 0; padding: 0; width: 100%; height: 100%; 
+            background: #ffe; overflow: hidden; display: flex; 
+            justify-content: center; align-items: center; 
         }
-        
-        /* Magic Portrait Mode: Auto rotate 90 degrees instead of error block */
-        @media screen and (orientation: portrait) and (max-width: 900px) {
-            #wrap {
-                transform: rotate(90deg) scale(min(calc(100vw / 680), calc(100vh / 1100)));
-            }
+        #main {
+            width: 100%; height: 100%; display: flex; 
+            justify-content: center; align-items: center;
+        }
+        #wrap {
+            position: absolute;
+            width: 1100px; height: 680px;
+            margin: 0 !important;
+            transform-origin: center center;
         }
     </style>
     <title>Love Tree 🌳❤️</title>
@@ -62,6 +59,45 @@
         </div>
     <script>
     (function(){
+        // Auto scale function for mobile wrapper
+        function resizeTree() {
+            var $wrap = $('#wrap');
+            var winW = $(window).width();
+            var winH = $(window).height();
+            var scale = 1;
+            
+            // Fixed dimensions of the canvas
+            var refW = 1100;
+            var refH = 680;
+            
+            // If the screen is too small, we need to scale down
+            if (winW < refW || winH < refH) {
+                // If it's portrait mode
+                if (winH > winW) {
+                    // Turn it 90 degrees
+                    scale = Math.min(winW / refH, winH / refW);
+                    $wrap.css({
+                        'transform': 'rotate(90deg) scale(' + scale + ')',
+                        'transform-origin': 'center center'
+                    });
+                } else {
+                    // Landscape mode
+                    scale = Math.min(winW / refW, winH / refH);
+                    $wrap.css({
+                        'transform': 'scale(' + scale + ')',
+                        'transform-origin': 'center center'
+                    });
+                }
+            } else {
+                $wrap.css({ 'transform': 'none' });
+            }
+        }
+        
+        // Listen to resize and orientation changes
+        $(window).on('resize orientationchange', resizeTree);
+        // Initial setup
+        resizeTree();
+        
         var canvas = $('#canvas');
 
         if (!canvas[0].getContext) {
