@@ -14,6 +14,11 @@ async function filterValidPlayable(movies: Movie[]): Promise<Movie[]> {
   // 1. Pre-filter by poster
   const posterMovies = movies.filter(m => m.posterUrl && m.posterUrl !== '/placeholder.jpg')
 
+  // If deployed on Vultr/Cloud, OPhim may block the IP. We can bypass it if env is set.
+  if (process.env.DISABLE_OPHIM_CHECK === 'true') {
+    return posterMovies;
+  }
+
   // Process in small batches to respect rate limits
   for (let i = 0; i < posterMovies.length; i += 4) {
     const batch = posterMovies.slice(i, i + 4)
