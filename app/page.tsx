@@ -7,17 +7,25 @@ import { TopCommentsCarousel } from '@/src/fe/components/home/TopCommentsCarouse
 import { TrendingRankings } from '@/src/fe/components/home/TrendingRankings'
 import { MovieNewsSection } from '@/src/fe/components/news/MovieNewsSection'
 import { UpcomingMoviesSection } from '@/src/fe/components/news/UpcomingMoviesSection'
-import { getTrending, getPopular, getTopRated, getNowPlaying, getUpcoming } from '@/src/be/services/tmdb/movie-service'
+import { getTrending, getPopular, getTopRated, getNowPlaying, getUpcoming, getMoviesByCountry } from '@/src/be/services/tmdb/movie-service'
 import { Film } from 'lucide-react'
 
 export default async function HomePage() {
   // Use allSettled so ONE failed call doesn't crash the entire page
-  const [trendingR, popularR, topRatedR, nowPlayingR, upcomingR] = await Promise.allSettled([
+  const [
+    trendingR, popularR, topRatedR, nowPlayingR, upcomingR,
+    krR, cnR, usR, topSeriesR, topMoviesR
+  ] = await Promise.allSettled([
     getTrending(),
     getPopular(),
     getTopRated(),
     getNowPlaying(),
     getUpcoming(),
+    getMoviesByCountry('KR'),
+    getMoviesByCountry('CN'),
+    getMoviesByCountry('US'),
+    getTrending(2), // Simulate Top 30 Phim Bộ
+    getPopular(2),  // Simulate Top 30 Phim Lẻ
   ])
 
   const emptyPage = { items: [], page: 1, totalPages: 0, totalResults: 0 }
@@ -26,6 +34,11 @@ export default async function HomePage() {
   const topRated = topRatedR.status === 'fulfilled' ? topRatedR.value : emptyPage
   const nowPlaying = nowPlayingR.status === 'fulfilled' ? nowPlayingR.value : emptyPage
   const upcoming = upcomingR.status === 'fulfilled' ? upcomingR.value : emptyPage
+  const krMovies = krR.status === 'fulfilled' ? krR.value : emptyPage
+  const cnMovies = cnR.status === 'fulfilled' ? cnR.value : emptyPage
+  const usMovies = usR.status === 'fulfilled' ? usR.value : emptyPage
+  const topSeries = topSeriesR.status === 'fulfilled' ? topSeriesR.value : emptyPage
+  const topMoviesData = topMoviesR.status === 'fulfilled' ? topMoviesR.value : emptyPage
 
   // Only show welcome screen if ALL calls failed (no data at all)
   const hasAnyData = trending.items.length > 0 || popular.items.length > 0 ||
@@ -108,7 +121,37 @@ export default async function HomePage() {
           />
         </div>
 
+        {/* Phim Hàn Quốc */}
         <div className="animate-row-in" style={{ '--row': 5 } as React.CSSProperties}>
+          <MovieRow
+            title="Phim Hàn Quốc tập mới"
+            accent="Hàn Quốc"
+            movies={krMovies.items}
+            href="/browse?country=KR"
+          />
+        </div>
+
+        {/* Phim Trung Quốc */}
+        <div className="animate-row-in" style={{ '--row': 6 } as React.CSSProperties}>
+          <MovieRow
+            title="Phim Trung Quốc tập mới"
+            accent="Trung Quốc"
+            movies={cnMovies.items}
+            href="/browse?country=CN"
+          />
+        </div>
+
+        {/* Phim US-UK */}
+        <div className="animate-row-in" style={{ '--row': 7 } as React.CSSProperties}>
+          <MovieRow
+            title="Phim US-UK tập mới"
+            accent="US-UK"
+            movies={usMovies.items}
+            href="/browse?country=US"
+          />
+        </div>
+
+        <div className="animate-row-in" style={{ '--row': 8 } as React.CSSProperties}>
           <MovieRow
             title="Sắp ra mắt"
             accent="ra mắt"
@@ -118,18 +161,36 @@ export default async function HomePage() {
         </div>
 
         {/* 5. Top Bình Luận Carousel — community section */}
-        <div className="animate-row-in" style={{ '--row': 6 } as React.CSSProperties}>
+        <div className="animate-row-in" style={{ '--row': 9 } as React.CSSProperties}>
           <TopCommentsCarousel />
         </div>
 
-        {/* 6. Trending Rankings — Sôi nổi / Yêu thích / Bình luận mới */}
-        <div className="animate-row-in" style={{ '--row': 7 } as React.CSSProperties}>
+        {/* 6. Trending Rankings — Sôi nổi / Yêu thích / Bình luận mới (Match style rophim1) */}
+        <div className="animate-row-in" style={{ '--row': 10 } as React.CSSProperties}>
           <TrendingRankings />
         </div>
 
+        <div className="animate-row-in" style={{ '--row': 11 } as React.CSSProperties}>
+          <MovieRow
+            title="Top 30 phim bộ hôm nay"
+            accent="phim bộ"
+            movies={topSeries.items}
+            href="/browse?category=trending"
+            showRank
+            landscape={false}
+          />
+        </div>
 
-
-        {/* 8. Upcoming Movies feed */}
+        <div className="animate-row-in" style={{ '--row': 12 } as React.CSSProperties}>
+          <MovieRow
+            title="Top 30 Phim Lẻ Hôm Nay"
+            accent="Phim Lẻ"
+            movies={topMoviesData.items}
+            href="/browse?category=popular"
+            showRank
+            landscape={false}
+          />
+        </div>        {/* 8. Upcoming Movies feed */}
         <div className="animate-row-in" style={{ '--row': 9 } as React.CSSProperties}>
           <UpcomingMoviesSection />
         </div>

@@ -37,8 +37,8 @@ export function PhimHayRow({ movies }: PhimHayRowProps) {
       <div className="mx-0 md:mx-5 lg:mx-8">
         <div className="flex items-center px-5 md:px-8 mb-4">
           <h2 className="text-xl font-black leading-tight tracking-tight text-white uppercase flex items-center gap-2">
-            Phim
-            <span className="text-primary italic">hay</span>
+            Rổ Phim
+            <span className="text-[var(--primary)] italic">Đề Cử</span>
           </h2>
         </div>
 
