@@ -10,10 +10,8 @@ import { signIn } from 'next-auth/react'
 
 export function RegisterForm() {
   const { setView } = useAuthModal()
-  const [authMethod, setAuthMethod] = useState<'email' | 'phone'>('email')
   const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
-  const [phone, setPhone] = useState('')
+  const [accountKey, setAccountKey] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPass, setShowPass] = useState(false)
@@ -37,7 +35,8 @@ export function RegisterForm() {
       return
     }
     try {
-      const signupId = authMethod === 'phone' ? `${phone}@phone.terence.vn` : email
+      // Auto-append system domain if not an email format
+      const signupId = accountKey.includes('@') ? accountKey : `${accountKey}@terence.vn`
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -92,31 +91,6 @@ export function RegisterForm() {
         <p className="text-[13px] text-white/50">Tạo tài khoản để xem phim không giới hạn</p>
       </div>
 
-      {/* Tabs */}
-      <div className="flex w-full bg-[#1A1D2D] rounded-[10px] p-1 mb-6 border border-white/5">
-        <button 
-          type="button" 
-          onClick={() => setAuthMethod('email')}
-          className={`flex-1 py-2 text-[13px] font-semibold transition-all capitalize ${authMethod === 'email' ? 'text-white bg-[#0B0F19] rounded-[8px] shadow border border-white/5' : 'text-white/40 hover:text-white'}`}
-        >
-          Email
-        </button>
-        <button 
-          type="button" 
-          onClick={() => setAuthMethod('phone')}
-          className={`flex-1 py-2 text-[13px] font-semibold transition-all ${authMethod === 'phone' ? 'text-white bg-[#0B0F19] rounded-[8px] shadow capitalize border border-white/5' : 'text-white/40 hover:text-white'}`}
-        >
-          Số điện thoại
-        </button>
-      </div>
-
-      {error && (
-        <div className="mb-4 text-xs font-semibold text-red-300 bg-red-500/10 py-2 px-3 rounded-lg border border-red-500/20">
-          {error}
-        </div>
-      )}
-
-      {/* Adjust max-height and add custom scrollbar if it gets too long */}
       <form onSubmit={handleSubmit} className="w-full space-y-4 max-h-[60vh] overflow-y-auto pr-1">
         {/* Name Field */}
         <div className="space-y-1.5 flex flex-col items-start">
@@ -125,41 +99,26 @@ export function RegisterForm() {
             <User className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-white/40" />
             <Input 
               value={name} onChange={e=>setName(e.target.value)}
-              placeholder="Nhập tên của bạn" 
+              placeholder="Nhập tên hiển thị" 
               className="h-12 w-full pl-11 pr-4 bg-[#0B0F19] border-white/10 text-white text-[14px] rounded-[8px] focus:border-teal-400/50 focus:bg-[#12182b] transition-all placeholder:text-white/30" 
               required 
             />
           </div>
         </div>
 
-        {/* Email or Phone Field Group */}
-        {authMethod === 'email' ? (
-          <div className="space-y-1.5 flex flex-col items-start animate-fade-in-up">
-            <label className="text-[12px] font-bold text-white tracking-wide">Email</label>
-            <div className="relative w-full">
-              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-white/40" />
-              <Input 
-                value={email} onChange={e=>setEmail(e.target.value)}
-                placeholder="email@example.com" 
-                className="h-12 w-full pl-11 pr-4 bg-[#0B0F19] border-white/10 text-white text-[14px] rounded-[8px] focus:border-teal-400/50 focus:bg-[#12182b] transition-all placeholder:text-white/30" 
-                required 
-              />
-            </div>
+        {/* Account Key Field */}
+        <div className="space-y-1.5 flex flex-col items-start animate-fade-in-up">
+          <label className="text-[12px] font-bold text-white tracking-wide">Tên tài khoản (hoặc Email)</label>
+          <div className="relative w-full">
+            <User className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-white/40" />
+            <Input 
+              value={accountKey} onChange={e=>setAccountKey(e.target.value)}
+              placeholder="Nhập tài khoản hoặc email của bạn" 
+              className="h-12 w-full pl-11 pr-4 bg-[#0B0F19] border-white/10 text-white text-[14px] rounded-[8px] focus:border-teal-400/50 focus:bg-[#12182b] transition-all placeholder:text-white/30" 
+              required 
+            />
           </div>
-        ) : (
-          <div className="space-y-1.5 flex flex-col items-start animate-fade-in-up">
-            <label className="text-[12px] font-bold text-white tracking-wide">Số điện thoại</label>
-            <div className="relative w-full">
-              <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-white/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
-              <Input 
-                value={phone} onChange={e=>setPhone(e.target.value.replace(/\D/g, '').substring(0, 15))}
-                placeholder="Nhập số điện thoại" 
-                className="h-12 w-full pl-11 pr-4 bg-[#0B0F19] border-white/10 text-white text-[14px] rounded-[8px] focus:border-teal-400/50 focus:bg-[#12182b] transition-all placeholder:text-white/30" 
-                required 
-              />
-            </div>
-          </div>
-        )}
+        </div>
         
         {/* Password */}
         <div className="space-y-1.5">

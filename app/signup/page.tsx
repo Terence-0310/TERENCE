@@ -18,7 +18,7 @@ export default function SignupPage() {
   const [error, setError] = useState('')
   const [formData, setFormData] = useState({
     name: '',
-    email: '',
+    accountKey: '',
     password: '',
     confirmPassword: '',
   })
@@ -35,8 +35,18 @@ export default function SignupPage() {
     setIsLoading(true)
     
     try {
-      const success = await signup(formData.name, formData.email, formData.password)
-      if (success) {
+      const signupId = formData.accountKey.includes('@') ? formData.accountKey : `${formData.accountKey}@terence.vn`
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: formData.name,
+          email: signupId,
+          password: formData.password
+        })
+      })
+      
+      if (res.ok) {
         router.push('/')
       } else {
         setError('Thông tin không hợp lệ. Vui lòng kiểm tra lại.')
@@ -85,15 +95,15 @@ export default function SignupPage() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-4">
             {/* Name */}
             <div className="space-y-2">
-              <label className="text-sm font-medium">Họ và tên</label>
+              <label className="text-sm font-medium">Tên hiển thị</label>
               <div className="relative">
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                 <Input
                   type="text"
-                  placeholder="Nguyễn Văn A"
+                  placeholder="Nhập tên của bạn"
                   className="pl-10 h-12 bg-card border-border"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -102,17 +112,17 @@ export default function SignupPage() {
               </div>
             </div>
 
-            {/* Email */}
+            {/* Account Key Input */}
             <div className="space-y-2">
-              <label className="text-sm font-medium">Email</label>
+              <label className="text-sm font-medium">Tên tài khoản (hoặc Email)</label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
                 <Input
-                  type="email"
-                  placeholder="email@example.com"
+                  type="text"
+                  placeholder="Nhập tài khoản hoặc email của bạn"
                   className="pl-10 h-12 bg-card border-border"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  value={formData.accountKey}
+                  onChange={(e) => setFormData({ ...formData, accountKey: e.target.value })}
                   required
                 />
               </div>

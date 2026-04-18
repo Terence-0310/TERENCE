@@ -11,9 +11,7 @@ import { Mail, Lock, Eye, EyeOff } from 'lucide-react'
 export function LoginForm() {
   const { setView, closeModal } = useAuthModal()
   const { login } = useAuth()
-  const [authMethod, setAuthMethod] = useState<'email' | 'phone'>('email')
-  const [email, setEmail] = useState('')
-  const [phone, setPhone] = useState('')
+  const [accountKey, setAccountKey] = useState('')
   const [password, setPassword] = useState('')
   const [showPass, setShowPass] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -24,7 +22,7 @@ export function LoginForm() {
     setLoading(true)
     setError('')
     try {
-      const loginId = authMethod === 'phone' ? `${phone}@phone.terence.vn` : email
+      const loginId = accountKey.includes('@') ? accountKey : `${accountKey}@terence.vn`
       const ok = await login(loginId, password)
       if (ok) closeModal()
       else setError('Thông tin đăng nhập không chính xác')
@@ -42,24 +40,6 @@ export function LoginForm() {
         <p className="text-[13px] text-white/50">Đăng nhập để xem phim và quản lý tài khoản</p>
       </div>
 
-      {/* Tabs */}
-      <div className="flex w-full bg-[#1A1D2D] rounded-[10px] p-1 mb-6 border border-white/5">
-        <button 
-          type="button" 
-          onClick={() => setAuthMethod('email')}
-          className={`flex-1 py-2 text-[13px] font-semibold transition-all capitalize ${authMethod === 'email' ? 'text-white bg-[#0B0F19] rounded-[8px] shadow border border-white/5' : 'text-white/40 hover:text-white'}`}
-        >
-          Email
-        </button>
-        <button 
-          type="button" 
-          onClick={() => setAuthMethod('phone')}
-          className={`flex-1 py-2 text-[13px] font-semibold transition-all ${authMethod === 'phone' ? 'text-white bg-[#0B0F19] rounded-[8px] shadow capitalize border border-white/5' : 'text-white/40 hover:text-white'}`}
-        >
-          Số điện thoại
-        </button>
-      </div>
-
       {error && (
         <div className="mb-4 text-xs font-semibold text-red-300 bg-red-500/10 py-2 px-3 rounded-lg border border-red-500/20">
           {error}
@@ -67,34 +47,19 @@ export function LoginForm() {
       )}
 
       <form onSubmit={handleSubmit} className="w-full space-y-4">
-        {/* Email or Phone Field Group */}
-        {authMethod === 'email' ? (
-          <div className="space-y-1.5 flex flex-col items-start animate-fade-in-up">
-            <label className="text-[12px] font-bold text-white tracking-wide">Email</label>
-            <div className="relative w-full">
-              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-white/40" />
-              <Input 
-                value={email} onChange={e=>setEmail(e.target.value)}
-                placeholder="email@example.com" 
-                className="h-12 w-full pl-11 pr-4 bg-[#0B0F19] border-white/10 text-white text-[14px] rounded-[8px] focus:border-teal-400/50 focus:bg-[#12182b] transition-all placeholder:text-white/30" 
-                required 
-              />
-            </div>
+        {/* Account Key Field Group */}
+        <div className="space-y-1.5 flex flex-col items-start animate-fade-in-up">
+          <label className="text-[12px] font-bold text-white tracking-wide">Tên tài khoản (hoặc Email)</label>
+          <div className="relative w-full">
+            <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-white/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+            <Input 
+              value={accountKey} onChange={e=>setAccountKey(e.target.value)}
+              placeholder="Nhập tài khoản hoặc email của bạn" 
+              className="h-12 w-full pl-11 pr-4 bg-[#0B0F19] border-white/10 text-white text-[14px] rounded-[8px] focus:border-teal-400/50 focus:bg-[#12182b] transition-all placeholder:text-white/30" 
+              required 
+            />
           </div>
-        ) : (
-          <div className="space-y-1.5 flex flex-col items-start animate-fade-in-up">
-            <label className="text-[12px] font-bold text-white tracking-wide">Số điện thoại</label>
-            <div className="relative w-full">
-              <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-white/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
-              <Input 
-                value={phone} onChange={e=>setPhone(e.target.value.replace(/\D/g, '').substring(0, 15))}
-                placeholder="Nhập số điện thoại" 
-                className="h-12 w-full pl-11 pr-4 bg-[#0B0F19] border-white/10 text-white text-[14px] rounded-[8px] focus:border-teal-400/50 focus:bg-[#12182b] transition-all placeholder:text-white/30" 
-                required 
-              />
-            </div>
-          </div>
-        )}
+        </div>
         
         {/* Password Field Group */}
         <div className="space-y-1.5">

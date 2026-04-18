@@ -15,11 +15,9 @@ export default function LoginPage() {
   const { login } = useAuth()
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const [activeTab, setActiveTab] = useState<'email' | 'phone'>('email')
   const [error, setError] = useState('')
   const [formData, setFormData] = useState({
-    email: '',
-    phone: '',
+    accountKey: '',
     password: '',
   })
 
@@ -29,8 +27,8 @@ export default function LoginPage() {
     setError('')
     
     try {
-      const identifier = activeTab === 'email' ? formData.email : formData.phone
-      const success = await login(identifier, formData.password)
+      const loginId = formData.accountKey.includes('@') ? formData.accountKey : `${formData.accountKey}@terence.vn`
+      const success = await login(loginId, formData.password)
       
       if (success) {
         router.push('/')
@@ -64,32 +62,6 @@ export default function LoginPage() {
             </p>
           </div>
 
-          {/* Tab Switcher */}
-          <div className="flex bg-muted rounded-lg p-1 mb-6">
-            <button
-              type="button"
-              onClick={() => setActiveTab('email')}
-              className={`flex-1 py-2.5 text-sm font-medium rounded-md transition ${
-                activeTab === 'email'
-                  ? 'bg-card text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              Email
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('phone')}
-              className={`flex-1 py-2.5 text-sm font-medium rounded-md transition ${
-                activeTab === 'phone'
-                  ? 'bg-card text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              Số điện thoại
-            </button>
-          </div>
-
           {/* Error message */}
           {error && (
             <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-500 text-sm">
@@ -98,39 +70,21 @@ export default function LoginPage() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Email/Phone Input */}
-            {activeTab === 'email' ? (
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Email</label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                  <Input
-                    type="email"
-                    placeholder="email@example.com"
-                    className="pl-10 h-12 bg-card border-border"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    required
-                  />
-                </div>
-
+            {/* Account Key Input */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Tên tài khoản (hoặc Email)</label>
+              <div className="relative">
+                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                <Input
+                  type="text"
+                  placeholder="Nhập tài khoản hoặc email của bạn"
+                  className="pl-10 h-12 bg-card border-border"
+                  value={formData.accountKey}
+                  onChange={(e) => setFormData({ ...formData, accountKey: e.target.value })}
+                  required
+                />
               </div>
-            ) : (
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Số điện thoại</label>
-                <div className="relative">
-                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                  <Input
-                    type="tel"
-                    placeholder="0912345678"
-                    className="pl-10 h-12 bg-card border-border"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    required
-                  />
-                </div>
-              </div>
-            )}
+            </div>
 
             {/* Password */}
             <div className="space-y-2">

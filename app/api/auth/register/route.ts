@@ -61,26 +61,30 @@ export async function POST(req: NextRequest) {
 
     // ── Send verification email (non-blocking) ──
     let emailSent = false;
-    try {
-      // Clean up any stale tokens for this email
-      await prisma.verificationToken.deleteMany({
-        where: { identifier: email.toLowerCase() },
-      });
+    const isSystemEmail = email.toLowerCase().endsWith("@terence.vn");
+    
+    if (!isSystemEmail) {
+      try {
+        // Clean up any stale tokens for this email
+        await prisma.verificationToken.deleteMany({
+          where: { identifier: email.toLowerCase() },
+        });
 
-      const token = generateToken();
-      await prisma.verificationToken.create({
-        data: {
-          identifier: email.toLowerCase(),
-          token,
-          expires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24h
-        },
-      });
+        const token = generateToken();
+        await prisma.verificationToken.create({
+          data: {
+            identifier: email.toLowerCase(),
+            token,
+            expires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24h
+          },
+        });
 
-      await sendVerificationEmail(email.toLowerCase(), token, name);
-      emailSent = true;
-    } catch (mailError) {
-      // Log but don't block registration
-      console.error("Failed to send verification email during registration:", mailError);
+        await sendVerificationEmail(email.toLowerCase(), token, name);
+        emailSent = true;
+      } catch (mailError) {
+        // Log but don't block registration
+        console.error("Failed to send verification email during registration:", mailError);
+      }
     }
 
     return NextResponse.json({
