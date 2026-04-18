@@ -54,14 +54,39 @@ export async function POST(req: NextRequest) {
         passwordHash: hashedPassword,
         role: "USER",
         isActive: true,
-        isEmailVerified: true, // Tự động verified luôn cho test user
+        isEmailVerified: false,
       },
       select: { id: true, name: true, email: true, role: true },
     });
 
+    // ── Send verification email (non-blocking) ──
+    let emailSent = false;
+    try {
+      // Clean up any stale tokens for this email
+      await prisma.verificationToken.deleteMany({
+        where: { identifier: email.toLowerCase() },
+      });
+
+      const token = generateToken();
+      await prisma.verificationToken.create({
+        data: {
+          identifier: email.toLowerCase(),
+          token,
+          expires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24h
+        },
+      });
+
+      await sendVerificationEmail(email.toLowerCase(), token, name);
+      emailSent = true;
+    } catch (mailError) {
+      // Log but don't block registration
+      console.error("Failed to send verification email during registration:", mailError);
+    }
+
     return NextResponse.json({
       user,
-      message: "Đăng ký thành công!",
+      message: "Tạo tài khoản thành công! Bạn có thể trải nghiệm ngay và xác thực Email sau từ màn hình trang cá nhân.",
+      emailSent,
     });
   } catch (error) {
     console.error("Register Error:", error);
