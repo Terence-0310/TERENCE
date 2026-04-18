@@ -29,7 +29,7 @@ export function MovieCard({ movie, priority = false, showRank, landscape = false
   const href = (movie as any).customUrl || (movie.mediaType === 'tv' ? `/tv/${movie.id}` : `/movie/${movie.id}`)
 
   return (
-    <Link href={href} className={`group relative block flex-shrink-0 focus-ring ${landscape ? 'rounded-xl' : 'rounded-[2.5rem] md:rounded-[3rem]'}`}>
+    <Link href={href} className={`group relative block flex-shrink-0 focus-ring hover:z-50 ${landscape ? 'rounded-xl' : 'rounded-[2.5rem] md:rounded-[3rem]'}`}>
       <div className={`relative ${aspectClass} w-full overflow-hidden ${landscape ? 'rounded-xl border border-white/[0.06] bg-card transition-all duration-300 group-hover:border-primary/20' : 'rounded-[2.5rem] md:rounded-[3rem] border border-white/5 bg-card transition-all duration-300 group-hover:-translate-y-2 group-hover:border-[2.5px] group-hover:border-primary group-hover:shadow-[0_0_25px_rgba(45,212,191,0.6)]'}`}>
         {/* Image */}
         <Image
@@ -137,6 +137,56 @@ export function MovieCard({ movie, priority = false, showRank, landscape = false
           )}
         </div>
       )}
+
+      {/* Rophim Netflix-like Hover Detail Card */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-[60%] w-[260px] md:w-[320px] 
+        bg-[#181824] border border-white/10 rounded-xl shadow-[0_30px_60px_rgba(0,0,0,0.9)]
+        opacity-0 pointer-events-none scale-90 group-hover:scale-100 xl:group-hover:opacity-100 group-hover:pointer-events-auto
+        transition-all duration-300 z-50 flex flex-col overflow-hidden origin-bottom
+        invisible group-hover:visible delay-300">
+        
+        {/* Backdrop Header */}
+        <div className="relative w-full aspect-video bg-black/50">
+          <Image
+            src={movie.backdropUrl && movie.backdropUrl !== '/placeholder.jpg' ? (movie.backdropUrl.includes('tmdb.org') ? `/api/tmdb-image/${movie.id}?url=${encodeURIComponent(movie.backdropUrl)}&isTv=${movie.mediaType === 'tv'}` : movie.backdropUrl) : imageUrl}
+            alt={movie.title}
+            fill
+            className="object-cover"
+            unoptimized={true}
+          />
+          {/* Vignette Overlay */}
+          <div className="absolute inset-0 bg-gradient-to-t from-[#181824] via-transparent to-transparent opacity-90" />
+        </div>
+
+        {/* Content Body */}
+        <div className="p-3 md:p-4 flex flex-col gap-3 -mt-4 relative z-10">
+          <div>
+            <h3 className="font-bold text-white text-[15px] md:text-[17px] leading-tight line-clamp-1">{movie.title}</h3>
+            {movie.originalTitle && <p className="text-[11px] md:text-xs text-white/50 line-clamp-1 mt-0.5">{movie.originalTitle}</p>}
+          </div>
+
+          {/* Action Buttons Row */}
+          <div className="flex items-center gap-2 mt-1">
+            <div className="flex-1 bg-[#FFC107] hover:bg-[#e0a800] text-black text-[12px] md:text-[13px] font-bold py-2 rounded-[6px] flex items-center justify-center gap-1.5 transition">
+              <Play className="w-3.5 h-3.5 fill-black" /> Xem ngay
+            </div>
+            <div className="px-3 bg-white/10 hover:bg-white/20 text-white rounded-[6px] py-2 transition text-[12px] md:text-[13px] flex items-center gap-1.5 font-medium">
+               Thích
+            </div>
+            <div className="px-3 bg-white/10 hover:bg-white/20 text-white rounded-[6px] py-2 transition text-[12px] md:text-[13px] flex items-center gap-1.5 font-medium">
+               Chi tiết
+            </div>
+          </div>
+
+          {/* Metadata Row */}
+          <div className="flex items-center gap-2.5 text-[11px] md:text-xs text-white/70 font-semibold mt-1">
+            {movie.voteAverage > 0 && <span className="border border-white/20 px-1.5 py-[1px] rounded text-[#FFC107] border-[#FFC107]/30 bg-[#FFC107]/10 flex items-center gap-1"><Star className="w-3 h-3 fill-[#FFC107]" /> {movie.voteAverage}</span>}
+            {movie.year > 0 && <span>{movie.year}</span>}
+            {movie.runtimeFormatted && <span>{movie.runtimeFormatted}</span>}
+            <span className="border border-white/20 px-1.5 py-[1px] rounded text-white/60 uppercase">{movie.mediaType === 'tv' ? 'Phim Bộ' : 'Phim Lẻ'}</span>
+          </div>
+        </div>
+      </div>
     </Link>
   )
 }
