@@ -1,4 +1,5 @@
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/src/be/shared/db/prisma'
 import { requireAdmin, parsePagination, paginatedResponse, errorResponse, successResponse, parseBody } from '@/src/be/modules/admin/api-helpers'
 import { userCreateSchema } from '@/src/be/modules/admin/validators'
 import { AuthService } from '@/src/be/modules/auth'
@@ -21,7 +22,24 @@ export async function GET(req: NextRequest) {
 
   const [data, total] = await UsersService.getPaginatedUsers(search, role, status, deleted, sortBy, skip, limit)
 
-  return paginatedResponse(data, total, page, limit)
+  // Get real global stats
+  const [globalTotal, globalActive, globalAdmins, globalBanned] = await Promise.all([
+    prisma.user.count(),
+    prisma.user.count({ where: { status: 'active', deletedAt: null } }),
+    prisma.user.count({ where: { role: { in: ['SUPER_ADMIN', 'ADMIN'] }, deletedAt: null } }),
+    prisma.user.count({ where: { status: 'banned', deletedAt: null } })
+  ])
+
+  return NextResponse.json({
+    data,
+    pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    globalStats: {
+      total: globalTotal,
+      active: globalActive,
+      admins: globalAdmins,
+      banned: globalBanned
+    }
+  })
 }
 
 // POST /api/admin/users — create user

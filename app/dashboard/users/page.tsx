@@ -57,6 +57,8 @@ export default function UsersPage() {
     return () => clearTimeout(handler)
   }, [search])
 
+  const [globalStats, setGlobalStats] = useState({ total: 0, active: 0, admins: 0, banned: 0 })
+
   const fetchUsers = useCallback(async (page?: number) => {
     const targetPage = page !== undefined ? page : currentPageRef.current
     if (page !== undefined) currentPageRef.current = page
@@ -75,6 +77,7 @@ export default function UsersPage() {
         const json = await res.json()
         setUsers(json.data || [])
         setPagination(json.pagination || { page: 1, limit: 20, total: 0, totalPages: 0 })
+        if (json.globalStats) setGlobalStats(json.globalStats)
       } else {
         setUsers([])
         setPagination({ page: 1, limit: 20, total: 0, totalPages: 0 })
@@ -98,12 +101,7 @@ export default function UsersPage() {
     return () => clearInterval(interval)
   }, [fetchUsers])
 
-  const stats = {
-    total: pagination.total,
-    active: users.filter(u => u.status === 'active' && !u.deletedAt).length,
-    admins: users.filter(u => ['SUPER_ADMIN', 'ADMIN'].includes(u.role)).length,
-    banned: users.filter(u => u.status === 'banned').length,
-  }
+  const stats = globalStats
 
   // ── Handlers ──
 
