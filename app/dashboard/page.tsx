@@ -75,16 +75,12 @@ export default function DashboardPage() {
         return res.json()
       })
       .then((d: DashboardData) => {
-        // If real DB is empty, retain MOCK_DATA
-        if (d.stats && d.stats[0]?.value === '0') {
-           setData(MOCK_DATA)
-        } else if (d.recentMovies?.length === 0) {
-           setData(MOCK_DATA)
-        } else {
-           setData(d)
-        }
+         setData(d)
       })
-      .catch(() => setData(MOCK_DATA))
+      .catch((err) => {
+         console.error('Lỗi lấy summary:', err)
+         setData(MOCK_DATA)
+      })
       .finally(() => setLoading(false))
   }, [])
 
