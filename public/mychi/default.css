@@ -27,11 +27,11 @@ a {
   margin-top: 10px;
 }
 #text {
-  width: 440px;
+  width: 420px;
   height: auto;
   min-height: 500px;
-  left: 100px;
-  top: 120px;
+  left: 140px;
+  top: 200px;
   position: absolute;
   z-index: 10;
   pointer-events: none;
