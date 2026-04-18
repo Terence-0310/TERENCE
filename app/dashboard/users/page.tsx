@@ -6,7 +6,7 @@
 // Sprint 4A: Extracted UserTable and UserModals into _components/
 // to reduce page complexity. Page retains state + API logic.
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Search, UserPlus, RefreshCw } from 'lucide-react'
 import { Button } from '@/src/fe/components/ui/button'
 import { Input } from '@/src/fe/components/ui/input'
@@ -47,6 +47,7 @@ export default function UsersPage() {
   const [openPermissionsUser, setOpenPermissionsUser] = useState<UserItem | null>(null)
 
   const [debouncedSearch, setDebouncedSearch] = useState(search)
+  const currentPageRef = useRef(1)
 
   // Debounce search input
   useEffect(() => {
@@ -56,13 +57,18 @@ export default function UsersPage() {
     return () => clearTimeout(handler)
   }, [search])
 
-  const fetchUsers = useCallback(async (page = 1) => {
+  const fetchUsers = useCallback(async (page?: number) => {
+    const targetPage = page !== undefined ? page : currentPageRef.current
+    if (page !== undefined) currentPageRef.current = page
+
+    // Đánh dấu loading mềm (không xoá mảng cũ để UserTable không chớp skeleton)
     setLoading(true)
-    const params = new URLSearchParams({ page: String(page), limit: '20', sortBy })
+    const params = new URLSearchParams({ page: String(targetPage), limit: '20', sortBy })
     if (debouncedSearch) params.set('search', debouncedSearch)
     if (roleFilter !== 'all') params.set('role', roleFilter)
     if (statusFilter !== 'all') params.set('status', statusFilter)
     if (specialFilter === 'deleted') params.set('deleted', 'true')
+    
     try {
       const res = await fetch(`/api/admin/users?${params}`)
       if (res.ok) {
@@ -80,7 +86,17 @@ export default function UsersPage() {
     setLoading(false)
   }, [debouncedSearch, roleFilter, statusFilter, sortBy, specialFilter])
 
-  useEffect(() => { fetchUsers() }, [fetchUsers])
+  useEffect(() => {
+    // Gọi tải dữ liệu khi deps thay đổi
+    fetchUsers()
+
+    // Bật Polling thời gian thực: Cứ mỗi 5 giây tự Refresh 1 phát dạng nền
+    const interval = setInterval(() => {
+      fetchUsers()
+    }, 5000)
+
+    return () => clearInterval(interval)
+  }, [fetchUsers])
 
   const stats = {
     total: pagination.total,
