@@ -51,11 +51,11 @@ async function main() {
   while (usersCreated < TARGET_USERS) {
     const batchSize = Math.min(BATCH_SIZE, TARGET_USERS - usersCreated)
     
-    const usersBatch = []
-    const walletsBatch = []
-    const transactionsBatch = []
-    const topupOrdersBatch = []
-    const adminLogsBatch = []
+    const usersBatch: any[] = []
+    const walletsBatch: any[] = []
+    const transactionsBatch: any[] = []
+    const topupOrdersBatch: any[] = []
+    const adminLogsBatch: any[] = []
 
     for (let i = 0; i < batchSize; i++) {
         const userId = crypto.randomUUID()
@@ -160,7 +160,7 @@ async function main() {
   console.log('Generating realistic Admin Logs...')
   const admins = await prisma.user.findMany({ where: { role: { in: ['SUPER_ADMIN', 'ADMIN'] } }, take: 5 })
   if (admins.length > 0) {
-    const adminLogs = []
+    const adminLogs: any[] = []
     for (let i = 0; i < 50; i++) {
         const admin = randomElement(admins)
         adminLogs.push({

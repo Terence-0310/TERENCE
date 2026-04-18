@@ -74,9 +74,9 @@ async function main() {
   while (moviesCreated < TARGET_MOVIES) {
     const batchSize = Math.min(BATCH_SIZE, TARGET_MOVIES - moviesCreated)
     
-    const moviesBatch = []
-    const movieGenresBatch = []
-    const movieCountriesBatch = []
+    const moviesBatch: any[] = []
+    const movieGenresBatch: any[] = []
+    const movieCountriesBatch: any[] = []
 
     for (let i = 0; i < batchSize; i++) {
         const movieId = crypto.randomUUID()
