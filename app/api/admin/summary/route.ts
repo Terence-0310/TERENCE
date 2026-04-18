@@ -69,59 +69,46 @@ export async function GET() {
     const totalMovieViews = await prisma.movie.aggregate({ _sum: { viewCount: true }, where: notDeleted })
 
 
-    // Ensure 4 stats exist for the dashboard
     const finalStats = [
       { 
         title: 'Tổng số phim', 
-        value: (totalMovies || 12480).toLocaleString(), 
-        change: `+${newMovies7d || 142} phim mới tuần này`, 
+        value: totalMovies.toLocaleString(), 
+        change: `+${newMovies7d} phim mới tuần này`, 
         trend: 'up' 
       },
       { 
         title: 'Người dùng', 
-        value: (totalUsers || 42560).toLocaleString(), 
-        change: `+${newUsers7d || 1250} tuần qua`, 
+        value: totalUsers.toLocaleString(), 
+        change: `+${newUsers7d} tuần qua`, 
         trend: 'up' 
       },
       { 
         title: 'Lượt xem hôm nay', 
-        value: (viewsToday || 325400).toLocaleString(), 
-        change: `Tăng 15% so với hôm qua`, 
+        value: viewsToday.toLocaleString(), 
+        change: `0% so với hôm qua`, 
         trend: 'up' 
       },
       { 
-        title: 'Doanh thu tháng', 
-        value: '145.5M TCoin', 
-        change: '+12% so với tháng trước', 
+        title: 'Doanh thu', 
+        value: '0 TCoin', 
+        change: '0% so với tháng trước', 
         trend: 'up' 
       },
     ]
 
-    const finalRecentMovies = topMovies.length > 0 ? topMovies.map((m, i) => ({
+    const finalRecentMovies = topMovies.map((m) => ({
       id: m.id, 
       title: m.title, 
       views: m.viewCount,
       status: m.status === 'published' ? 'Đang chiếu' : 'Chờ duyệt',
-    })) : [
-      { id: 1, title: 'Inception (Kẻ Đánh Cắp Giấc Mơ)', views: 1254300, status: 'Đang chiếu' },
-      { id: 2, title: 'Avengers: Endgame', views: 985000, status: 'Đang chiếu' },
-      { id: 3, title: 'Interstellar (Hố Đen Tử Thần)', views: 852000, status: 'Đang chiếu' },
-      { id: 4, title: 'Spider-Man: No Way Home', views: 741000, status: 'Đang chiếu' },
-      { id: 5, title: 'The Dark Knight', views: 654000, status: 'Đang chiếu' }
-    ]
+    }))
 
-    const finalTopUsers = recentUsers.length > 0 ? recentUsers.map((u) => ({
+    const finalTopUsers = recentUsers.map((u) => ({
       id: u.id, 
       name: u.name, 
       email: u.email, 
-      watched: Math.floor(Math.random() * 500) + 50 // Mocking watch count since it's not stored directly
-    })) : [
-      { id: 1, name: 'Nguyễn Văn A', email: 'nguyenvana@gmail.com', watched: 1250 },
-      { id: 2, name: 'Trần Thị B', email: 'tranthib@hotmail.com', watched: 980 },
-      { id: 3, name: 'Lê Hoàng C', email: 'lehoangc@yahoo.com', watched: 845 },
-      { id: 4, name: 'Phạm Minh D', email: 'phamminhd@admin.com', watched: 760 },
-      { id: 5, name: 'Hoàng Thái E', email: 'hoangthaie@test.com', watched: 620 }
-    ]
+      watched: 0 // placeholder cho lịch sử xem
+    }))
 
     return NextResponse.json({
       stats: finalStats,
