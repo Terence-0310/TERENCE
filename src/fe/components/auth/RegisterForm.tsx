@@ -5,7 +5,6 @@ import { useAuthModal } from './auth-modal-store'
 import { Input } from '@/src/fe/components/ui/input'
 import { Button } from '@/src/fe/components/ui/button'
 import { Mail, Lock, User, Eye, EyeOff, CheckCircle2 } from 'lucide-react'
-import Turnstile from 'react-turnstile'
 import { signIn } from 'next-auth/react'
 
 export function RegisterForm() {
@@ -153,14 +152,7 @@ export function RegisterForm() {
           </div>
         </div>
 
-        {/* Captcha */}
-        <div className="mt-4 mb-2 flex justify-center">
-          <Turnstile
-            sitekey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || '1x00000000000000000000AA'}
-            onVerify={(token) => setCaptchaToken(token)}
-            theme="dark"
-          />
-        </div>
+
 
         <Button disabled={loading} type="submit" className="w-full h-12 bg-[#2DD4BF] hover:bg-[#14B8A6] text-black font-semibold text-[15px] rounded-[8px] transition-colors mt-2 shadow-[0_0_20px_rgba(45,212,191,0.15)]">
           {loading ? 'Đang xử lý...' : 'Đăng ký ngay'}
