@@ -30,8 +30,8 @@ a {
   width: 440px;
   height: auto;
   min-height: 500px;
-  left: 30px;
-  top: 10px;
+  left: 100px;
+  top: 120px;
   position: absolute;
   z-index: 10;
   pointer-events: none;
