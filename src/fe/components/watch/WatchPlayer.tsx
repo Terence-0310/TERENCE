@@ -146,19 +146,28 @@ export const WatchPlayer = forwardRef<WatchPlayerRef, WatchPlayerProps>(function
         }
       })
 
+      let retryCount = 0
       hls.on(Hls.Events.ERROR, (_event, data) => {
         if (!data.fatal) return
 
         console.error('[WatchPlayer] Fatal HLS error:', data.type, data.details)
 
-        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-          // Try to recover
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR && retryCount < 5) {
+          retryCount++
+          console.log(`[WatchPlayer] Retrying network connection (${retryCount}/5)...`)
           hls.startLoad()
-        } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+        } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR && retryCount < 5) {
+          retryCount++
+          console.log(`[WatchPlayer] Recovering media error (${retryCount}/5)...`)
           hls.recoverMediaError()
         } else {
           setPlayerState('error')
-          setErrorMsg('Không thể phát video. Vui lòng thử lại.')
+          // Distinct error messages based on failure point
+          if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+             setErrorMsg('Lỗi mạng hoặc CORS từ máy chủ phim. Thử đổi server hoặc tải lại.')
+          } else {
+             setErrorMsg('Không thể phát video (Lỗi định dạng). Vui lòng thử đổi server.')
+          }
           hls.destroy()
         }
       })

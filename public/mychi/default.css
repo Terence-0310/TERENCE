@@ -7,7 +7,7 @@
 
 body {
   background: #ffe;
-  font-size: 17px;
+  font-size: 15px;
   color: #231f20;
   overflow: auto;
 }
@@ -27,15 +27,19 @@ a {
   margin-top: 10px;
 }
 #text {
-  width: 400px;
-  height: 425px;
-  left: 60px;
-  top: 80px;
+  width: 440px;
+  height: auto;
+  min-height: 500px;
+  left: 30px;
+  top: 10px;
   position: absolute;
+  z-index: 10;
+  pointer-events: none;
 }
 #code {
   display: none;
-  font-size: 17px;
+  font-size: 15px;
+  line-height: 1.4;
 }
 
 #canvas {

@@ -16,6 +16,7 @@ import type {
 import { createRealtimeChannel } from '@/lib/watch-party/realtime'
 import type { RealtimeChannel } from '@/lib/watch-party/realtime'
 import { PlayerSyncService } from '@/lib/watch-party/sync-service'
+import { toast } from 'sonner'
 
 import { io, Socket } from 'socket.io-client'
 
@@ -175,11 +176,18 @@ export function useWatchParty(options: UseWatchPartyOptions): UseWatchPartyRetur
           if (event.type === 'MEMBER_JOIN') {
             setMembers((prev) => {
               if (prev.some((m) => m.id === event.member.id)) return prev
+              toast.success(`${event.member.guestName || 'Một người xem'} đã tham gia phòng`)
               return [...prev, event.member]
             })
           }
           if (event.type === 'MEMBER_LEAVE') {
-            setMembers((prev) => prev.filter((m) => m.id !== event.memberId))
+            setMembers((prev) => {
+              const member = prev.find((m) => m.id === event.memberId)
+              if (member) {
+                toast.info(`${member.guestName || 'Một người xem'} đã rời phòng`)
+              }
+              return prev.filter((m) => m.id !== event.memberId)
+            })
           }
           // Update room state from STATE_SYNC
           if (event.type === 'STATE_SYNC' || event.type === 'PLAY' || event.type === 'PAUSE' || event.type === 'SEEK') {
@@ -196,7 +204,13 @@ export function useWatchParty(options: UseWatchPartyOptions): UseWatchPartyRetur
 
         // Listen for raw events (Lock state, join requests)
         channel.onRaw('wp:lock-changed', (data: { isLocked: boolean }) => {
-          setRoom((prev) => prev ? { ...prev, isLocked: data.isLocked } : prev)
+          setRoom((prev) => {
+            if (prev) {
+              if (data.isLocked && !prev.isLocked) toast.warning('Chủ phòng đã khoá phòng')
+              if (!data.isLocked && prev.isLocked) toast.success('Phòng đã được mở khoá')
+            }
+            return prev ? { ...prev, isLocked: data.isLocked } : prev
+          })
         })
 
         if (isHost) {

@@ -213,12 +213,12 @@ export class PlayerSyncService {
           break
       }
     } finally {
-      // Clear anti-loop flag after a microtask
-      // This ensures any synchronous state updates triggered by the
+      // Clear anti-loop flag after a short delay
+      // This ensures any synchronous or immediate async state updates triggered by the
       // callbacks above don't re-emit events
-      queueMicrotask(() => {
+      setTimeout(() => {
         this._isApplyingRemote = false
-      })
+      }, 500)
     }
   }
 }

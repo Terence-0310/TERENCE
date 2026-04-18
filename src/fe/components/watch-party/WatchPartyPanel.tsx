@@ -219,7 +219,11 @@ export function WatchPartyPanel({
               {messages.map((msg) => (
                 <div key={msg.id}>
                   {msg.type === 'system' ? (
-                    <p className="py-1 text-center text-[10px] text-white/25">— {msg.content} —</p>
+                    <div className="flex justify-center my-3">
+                       <span className="rounded-full bg-white/[0.03] border border-white/[0.08] px-3 py-1 text-[10px] font-medium text-white/50 backdrop-blur-sm">
+                         {msg.content}
+                       </span>
+                    </div>
                   ) : (
                     <div className={`rounded-lg px-3 py-2 ${
                       msg.senderId === userId

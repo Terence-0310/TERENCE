@@ -84,23 +84,29 @@ export function WatchPartyOverlay({
     onRemotePlay: (time) => {
       const video = videoRef?.current
       if (!video) return
-      if (Math.abs(video.currentTime - time) > 2) {
+      if (Math.abs(video.currentTime - time) > 3.5) {
         video.currentTime = time
       }
-      video.play().catch(() => {})
+      if (video.paused) {
+        video.play().catch(() => {})
+      }
     },
     onRemotePause: (time) => {
       const video = videoRef?.current
       if (!video) return
-      video.pause()
-      if (Math.abs(video.currentTime - time) > 2) {
+      if (!video.paused) {
+        video.pause()
+      }
+      if (Math.abs(video.currentTime - time) > 3.5) {
         video.currentTime = time
       }
     },
     onRemoteSeek: (time) => {
       const video = videoRef?.current
       if (!video) return
-      video.currentTime = time
+      if (Math.abs(video.currentTime - time) > 2) {
+        video.currentTime = time
+      }
     },
     onRemoteEpisodeChange: (slug) => {
       // Navigate to new episode
