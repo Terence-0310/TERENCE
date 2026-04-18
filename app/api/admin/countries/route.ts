@@ -1,5 +1,6 @@
 // GET /api/admin/countries — list all countries
 // POST /api/admin/countries — create country
+export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/src/be/shared/db/prisma'

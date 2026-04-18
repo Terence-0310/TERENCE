@@ -1,5 +1,6 @@
 // GET /api/admin/genres — list all genres
 // POST /api/admin/genres — create genre
+export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/src/be/shared/db/prisma'
