@@ -32,7 +32,7 @@ tsconfig.tsbuildinfo
 Thumbs.db
 
 # PM2 logs
-logs/
+/logs/
 
 # Editor
 .vscode/
