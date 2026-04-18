@@ -68,8 +68,8 @@ export function MovieCard({ movie, priority = false, showRank, landscape = false
           </div>
         )}
 
-        {/* Rank number */}
-        {showRank && (
+        {/* Rank number inside card for landscape only */}
+        {showRank && landscape && (
           <div className="absolute -left-1 bottom-2 flex h-10 w-10 items-center justify-center">
             <span className="text-4xl font-black text-white/20 drop-shadow-lg" style={{ WebkitTextStroke: '1px rgba(45,212,191,0.3)' }}>
               {showRank}
@@ -92,8 +92,8 @@ export function MovieCard({ movie, priority = false, showRank, landscape = false
           )}
         </div>
 
-        {/* Sync PhimHay: Title inside card for portrait */}
-        {!landscape && (
+        {/* Sync PhimHay: Title inside card for portrait without Rank */}
+        {!landscape && !showRank && (
           <div className="absolute inset-x-0 bottom-6 p-4 flex flex-col justify-end items-center text-center z-10 pointer-events-none">
             <h3 className="text-sm md:text-base font-black text-white/95 uppercase tracking-wide drop-shadow-md leading-tight transition-colors line-clamp-3">
               {movie.title}
@@ -101,6 +101,26 @@ export function MovieCard({ movie, priority = false, showRank, landscape = false
           </div>
         )}
       </div>
+
+      {/* Rophim style Top Rank numbers and Title BELOW the card (Portrait with Rank) */}
+      {!landscape && showRank && (
+        <div className="mt-3 flex items-start gap-3 px-1 md:px-2">
+          <div className="font-black italic text-[#FFC107] text-[36px] min-w-[28px] leading-[0.85] tracking-tighter drop-shadow-md">
+            {showRank}
+          </div>
+          <div className="flex flex-col gap-0.5 overflow-hidden pt-1">
+            <h3 className="text-[12px] font-bold text-white/95 line-clamp-1 group-hover:text-primary transition-colors">
+              {movie.title}
+            </h3>
+            {movie.originalTitle && movie.originalTitle !== movie.title && (
+              <p className="text-[10px] text-white/50 line-clamp-1">{movie.originalTitle}</p>
+            )}
+            <p className="text-[10px] text-white/70 mt-1">
+              {movie.mediaType === 'tv' ? 'Phần 1 • Tập 1' : 'Tập FULL'}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Title below card (Only for Landscape now) */}
       {landscape && (
