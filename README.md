@@ -1,4 +1,4 @@
-# ðŸŽ¬ TERENCE â€” Ná»n táº£ng xem phim trá»±c tuyáº¿n
+ï»¿# ðŸŽ¬ TERENCE â€” Ná»n táº£ng xem phim trá»±c tuyáº¿n
 
 > **Terence** lÃ  ná»n táº£ng khÃ¡m phÃ¡ vÃ  thÆ°á»Ÿng thá»©c phim trá»±c tuyáº¿n cháº¥t lÆ°á»£ng cao,
 > Ä‘Æ°á»£c xÃ¢y dá»±ng báº±ng **Next.js 16** (App Router), **Prisma ORM**, **Socket.IO**,
@@ -2531,11 +2531,11 @@ CÃ¡c quyáº¿t Ä‘á»‹nh kiáº¿n trÃºc chÃ­nh thá»©c Ä‘Æ°á»£c ghi nháº­n trong Sprint
 
 #### TODO Phase 2
 
-- [ ] Táº¡o Design System (colors, typography, spacing, card variants)
-- [ ] Build AppHeader má»›i (sticky, search bar, mega dropdown)
-- [ ] Build NavMenu + MegaMenu component
-- [ ] Apply global layout má»›i (dark cinema theme)
-- [ ] Build SearchBar vá»›i suggestions dropdown
+- [x] Táº¡o Design System (colors, typography, spacing, card variants)
+- [x] Build AppHeader má»›i (sticky, search bar, mega dropdown)
+- [x] Build NavMenu + MegaMenu component
+- [x] Apply global layout má»›i (dark cinema theme)
+- [x] Build SearchBar vá»›i suggestions dropdown
 
 ### PHASE 1.5 â€” Test Coverage Foundation âœ… (2026-04-08)
 
@@ -2594,9 +2594,9 @@ CÃ¡c quyáº¿t Ä‘á»‹nh kiáº¿n trÃºc chÃ­nh thá»©c Ä‘Æ°á»£c ghi nháº­n trong Sprint
 
 #### TODO Phase tiáº¿p theo (test)
 
-- [ ] Integration tests cho thÃªm API routes (GET /api/v1/movies, /api/admin/*)
-- [ ] TÄƒng function coverage lÃªn >= 70%
-- [ ] Test cho admin CRUD API routes vá»›i mock auth
+- [x] Integration tests cho thÃªm API routes (GET /api/v1/movies, /api/admin/*)
+- [x] TÄƒng function coverage lÃªn >= 70%
+- [x] Test cho admin CRUD API routes vá»›i mock auth
 
 ---
 
@@ -2633,40 +2633,40 @@ grapuco ingest --all
 ```
 
 ## ? Redis Cache (Safe Refactor)
-- **M?c tiêu:** Tang t?c d? ph?n h?i API danh sách phim, chi ti?t phim và trang ch?.
-- **C?u hình:** Thêm REDIS_URL=redis://localhost:6379 vào .env.
-- **Routes du?c cache:** Danh sách phim (300s), Chi ti?t phim (1800s), D? li?u trang ch? (180s), GetEpisodes (1800s).
-- **Invalidate:** T? d?ng xóa cache (b?ng DeleteByPrefix) khi Admin có thao tác thêm/s?a/xóa phim.
-- **Fallback:** T? d?ng query DB khi Redis ch?t (Không block API flow).
+- **M?c tiï¿½u:** Tang t?c d? ph?n h?i API danh sï¿½ch phim, chi ti?t phim vï¿½ trang ch?.
+- **C?u hï¿½nh:** Thï¿½m REDIS_URL=redis://localhost:6379 vï¿½o .env.
+- **Routes du?c cache:** Danh sï¿½ch phim (300s), Chi ti?t phim (1800s), D? li?u trang ch? (180s), GetEpisodes (1800s).
+- **Invalidate:** T? d?ng xï¿½a cache (b?ng DeleteByPrefix) khi Admin cï¿½ thao tï¿½c thï¿½m/s?a/xï¿½a phim.
+- **Fallback:** T? d?ng query DB khi Redis ch?t (Khï¿½ng block API flow).
 
 ## ??? RBAC & Permission System
 
-H? th?ng phân quy?n chu?n công ty h? tr?:
+H? th?ng phï¿½n quy?n chu?n cï¿½ng ty h? tr?:
 1. **Dynamic Permissions**: Map role qua Permission trong DB (RolePermission / UserPermission).
 2. **Scope-based Rule**: H? tr? scope (all, own, team).
-3. **Audit Log Hoàn ch?nh**: Ghi nh?n toàn b? thao tác thay d?i ? backend AdminLog.
-4. **Database-Safe Guard**: Các thay d?i DB s? migrate permission mà không làm s?p config cu.
+3. **Audit Log Hoï¿½n ch?nh**: Ghi nh?n toï¿½n b? thao tï¿½c thay d?i ? backend AdminLog.
+4. **Database-Safe Guard**: Cï¿½c thay d?i DB s? migrate permission mï¿½ khï¿½ng lï¿½m s?p config cu.
 
 ### Qu?n tr? Permission
-- Các Constant Permissions t?p trung t?i: `src/constants/permissions.ts`.
-- Các Matrix Role Policy n?i b? t?p trung t?i: `src/lib/permissions/role-permissions.ts`.
+- Cï¿½c Constant Permissions t?p trung t?i: `src/constants/permissions.ts`.
+- Cï¿½c Matrix Role Policy n?i b? t?p trung t?i: `src/lib/permissions/role-permissions.ts`.
 - Engine Logic: `src/lib/permissions/access-control.ts`.
 
-### Cài d?t Seed
-Ð? map data cho RolePermission m?i: ch?y file seed tuong ?ng thông qua l?nh Prisma dã update (du?c support s?n trên `src/lib/permissions/seed.ts`).
+### Cï¿½i d?t Seed
+ï¿½? map data cho RolePermission m?i: ch?y file seed tuong ?ng thï¿½ng qua l?nh Prisma dï¿½ update (du?c support s?n trï¿½n `src/lib/permissions/seed.ts`).
 
 ## ??? Security: RBAC Audit
 
-Toàn b? codebase dã du?c ki?m toán quy?n l?c sâu (RBAC Audit) d? ch?ng l?i phân quy?n leo thang (Privilege Escalation), IDOR và rò r? d? li?u (Overposting).
+Toï¿½n b? codebase dï¿½ du?c ki?m toï¿½n quy?n l?c sï¿½u (RBAC Audit) d? ch?ng l?i phï¿½n quy?n leo thang (Privilege Escalation), IDOR vï¿½ rï¿½ r? d? li?u (Overposting).
 
-### Cách test Role/Permission
-B?n có th? tham kh?o 3 file sinh ra trong folder `/docs/security/` d? hi?u tu?ng t?n quá trình b?o m?t:
-1. **rbac-permission-matrix.md**: C?u hình Permission chi ti?t.
+### Cï¿½ch test Role/Permission
+B?n cï¿½ th? tham kh?o 3 file sinh ra trong folder `/docs/security/` d? hi?u tu?ng t?n quï¿½ trï¿½nh b?o m?t:
+1. **rbac-permission-matrix.md**: C?u hï¿½nh Permission chi ti?t.
 2. **rbac-manual-test-checklist.md**: +50 Test cases hu?ng d?n Unit Test & e2e b?ng tay ho?c automation.
-3. **rbac-audit-report.md**: Báo cáo t?ng quan v? các l? h?ng dã fix.
-D? án s? d?ng \
+3. **rbac-audit-report.md**: Bï¿½o cï¿½o t?ng quan v? cï¿½c l? h?ng dï¿½ fix.
+D? ï¿½n s? d?ng \
 px vitest run tests/unit/security-rbac.test.ts\ d? verify Backend AccessControl Engine.
 
 ### Known Limitations
-- (Tuong lai) UserPermission overrides chua có UI giao di?n riêng d? modify/grant, c?n c?p nh?t UI Admin cho ph?n này d? phát huy t?i da 100% Fine-Grained Permissions.
+- (Tuong lai) UserPermission overrides chua cï¿½ UI giao di?n riï¿½ng d? modify/grant, c?n c?p nh?t UI Admin cho ph?n nï¿½y d? phï¿½t huy t?i da 100% Fine-Grained Permissions.
 

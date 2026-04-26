@@ -156,6 +156,138 @@ export async function joinRoom(input: JoinRoomInput) {
   return { room, participant, state: room.state, isRejoin: false }
 }
 
+// ── Request Join (Waiting Room) ──
+
+export interface RequestJoinInput {
+  roomCode: string
+  displayName: string
+  userId?: string | null
+}
+
+export async function requestJoin(input: RequestJoinInput) {
+  const room = await repo.findRoomByCode(input.roomCode)
+  if (!room) throw new WatchPartyError('ROOM_NOT_FOUND', 'Phòng không tồn tại')
+  if (room.status !== 'ACTIVE') throw new WatchPartyError('ROOM_ENDED', 'Phòng đã kết thúc')
+
+  let validUserId = null
+  if (input.userId && !input.userId.startsWith('g-')) {
+    const userExists = await prisma.user.findUnique({ where: { id: String(input.userId) } })
+    if (userExists) validUserId = String(input.userId)
+  }
+
+  // Create participant with PENDING status
+  const participant = await prisma.watchPartyParticipant.create({
+    data: {
+      roomId: room.id,
+      userId: validUserId,
+      displayName: input.displayName,
+      role: validUserId ? 'MEMBER' : 'GUEST',
+      status: 'PENDING',
+      isOnline: true,
+    },
+  })
+
+  // Notify host that a user requested to join
+  try {
+    const { sendLiveKitDataMessage } = await import('@/lib/livekit')
+    await sendLiveKitDataMessage(room.roomCode, {
+      type: 'JOIN_REQUEST',
+      participant: { id: participant.id, displayName: participant.displayName }
+    }).catch(console.error)
+  } catch (e) { /* ignore */ }
+
+  return { room, participant }
+}
+
+// ── Approve/Reject Participant ──
+
+export interface ApproveParticipantInput {
+  roomCode: string
+  hostParticipantId: string
+  targetParticipantId: string
+  action: 'APPROVE' | 'REJECT'
+}
+
+export async function approveParticipant(input: ApproveParticipantInput) {
+  const room = await repo.findRoomByCode(input.roomCode)
+  if (!room) throw new WatchPartyError('ROOM_NOT_FOUND', 'Phòng không tồn tại')
+
+  const participants = (room as any).participants as Array<{ id: string; role: string }> | undefined
+  const isHostOrCohost = participants?.some((p) => p.id === input.hostParticipantId && (p.role === 'HOST' || p.role === 'COHOST'))
+  if (!isHostOrCohost) {
+    throw new WatchPartyError('FORBIDDEN', 'Chỉ host hoặc co-host mới có quyền duyệt thành viên')
+  }
+
+  const target = participants?.find((p) => p.id === input.targetParticipantId)
+  if (!target) throw new WatchPartyError('PARTICIPANT_NOT_FOUND', 'Người dùng không tồn tại trong phòng')
+
+  const status = input.action === 'APPROVE' ? 'ACTIVE' : 'REJECTED'
+  
+  const updatedParticipant = await prisma.watchPartyParticipant.update({
+    where: { id: input.targetParticipantId },
+    data: { status },
+  })
+
+  if (input.action === 'APPROVE') {
+    await repo.createMessage({
+      roomId: room.id,
+      senderName: 'Hệ thống',
+      type: 'system',
+      content: `${updatedParticipant.displayName} đã được duyệt vào phòng`,
+    })
+  }
+
+  // Send LiveKit broadcast to notify everyone (including the waiting user if they are subscribed)
+  try {
+    const { sendLiveKitDataMessage } = await import('@/lib/livekit')
+    await sendLiveKitDataMessage(room.roomCode, {
+      type: input.action === 'APPROVE' ? 'JOIN_APPROVED' : 'JOIN_REJECTED',
+      participantId: updatedParticipant.id,
+      displayName: updatedParticipant.displayName
+    }).catch(console.error)
+  } catch (e) { /* ignore */ }
+
+  return updatedParticipant
+}
+
+// ── Update Participant Role ──
+
+export interface UpdateRoleInput {
+  roomCode: string
+  hostParticipantId: string
+  targetParticipantId: string
+  role: 'COHOST' | 'MEMBER'
+}
+
+export async function updateParticipantRole(input: UpdateRoleInput) {
+  const room = await repo.findRoomByCode(input.roomCode)
+  if (!room) throw new WatchPartyError('ROOM_NOT_FOUND', 'Phòng không tồn tại')
+
+  const participants = (room as any).participants as Array<{ id: string; role: string; displayName: string }> | undefined
+  const isHost = participants?.some((p) => p.id === input.hostParticipantId && p.role === 'HOST')
+  if (!isHost) {
+    throw new WatchPartyError('FORBIDDEN', 'Chỉ host mới có quyền phân quyền')
+  }
+
+  const target = participants?.find((p) => p.id === input.targetParticipantId)
+  if (!target) throw new WatchPartyError('PARTICIPANT_NOT_FOUND', 'Người dùng không tồn tại trong phòng')
+
+  if (target.role === 'HOST') {
+    throw new WatchPartyError('FORBIDDEN', 'Không thể thay đổi quyền của Host')
+  }
+
+  const updatedParticipant = await repo.updateParticipantRole(input.targetParticipantId, input.role)
+
+  await repo.createMessage({
+    roomId: room.id,
+    senderName: 'Hệ thống',
+    type: 'system',
+    content: `${target.displayName} đã được cấp quyền ${input.role === 'COHOST' ? 'Co-host' : 'Member'}`,
+  })
+
+  return updatedParticipant
+}
+
 // ── Leave Room (with host transfer) ──
 
 export interface LeaveRoomInput {
@@ -228,6 +360,54 @@ export async function getRoom(roomCode: string) {
     throw new WatchPartyError('ROOM_NOT_FOUND', 'Phòng không tồn tại')
   }
   return room
+}
+
+// ── Update Room ──
+
+export interface UpdateRoomInput {
+  roomCode: string
+  title?: string
+  isLocked?: boolean
+  participantId?: string // to check if host
+}
+
+export async function updateRoom(input: UpdateRoomInput) {
+  const room = await repo.findRoomByCode(input.roomCode)
+  if (!room) {
+    throw new WatchPartyError('ROOM_NOT_FOUND', 'Phòng không tồn tại')
+  }
+  if (room.status !== 'ACTIVE') {
+    throw new WatchPartyError('ROOM_ENDED', 'Phòng đã kết thúc')
+  }
+
+  // Check host permissions if participantId provided
+  if (input.participantId) {
+    const participants = (room as any).participants as Array<{ id: string; role: string }> | undefined
+    const isHostOrCohost = participants?.some((p) => p.id === input.participantId && (p.role === 'HOST' || p.role === 'COHOST'))
+    if (!isHostOrCohost) {
+      throw new WatchPartyError('FORBIDDEN', 'Chỉ host hoặc co-host mới có quyền sửa cài đặt phòng')
+    }
+  }
+
+  const updated = await prisma.watchPartyRoom.update({
+    where: { id: room.id },
+    data: {
+      ...(input.title !== undefined && { title: input.title }),
+      ...(input.isLocked !== undefined && { isLocked: input.isLocked }),
+    },
+  })
+
+  // System message
+  if (input.isLocked !== undefined) {
+    await repo.createMessage({
+      roomId: room.id,
+      senderName: 'Hệ thống',
+      type: 'system',
+      content: `Phòng đã ${input.isLocked ? 'bị khóa' : 'được mở khóa'}`,
+    })
+  }
+
+  return updated
 }
 
 // ── Chat Messages ──

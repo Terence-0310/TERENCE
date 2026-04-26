@@ -37,6 +37,8 @@ export interface UseWatchPartyOptions {
   onRemoteSeek?: (time: number) => void
   onRemoteEpisodeChange?: (slug: string) => void
   onRemoteServerChange?: (index: number) => void
+  /** LiveKit Room for SFU DataChannel transport */
+  livekitRoom?: any
 }
 
 export interface UseWatchPartyReturn {
@@ -63,6 +65,8 @@ export interface UseWatchPartyReturn {
   approveJoin: (userId: string, targetSocketId: string) => void
   rejectJoin: (userId: string, targetSocketId: string) => void
   kickMember: (targetId: string) => void
+  updateRole: (targetId: string, role: 'COHOST' | 'MEMBER') => void
+  setLiveKitRoom: (room: any) => void
 }
 
 export function useWatchParty(options: UseWatchPartyOptions): UseWatchPartyReturn {
@@ -76,6 +80,7 @@ export function useWatchParty(options: UseWatchPartyOptions): UseWatchPartyRetur
     onRemoteSeek,
     onRemoteEpisodeChange,
     onRemoteServerChange,
+    livekitRoom,
   } = options
 
   const [room, setRoom] = useState<WatchRoom | null>(null)
@@ -147,10 +152,11 @@ export function useWatchParty(options: UseWatchPartyOptions): UseWatchPartyRetur
         channelRef.current = channel
 
         // Create sync service
+        const canManage = joinData.participant?.role === 'HOST' || joinData.participant?.role === 'COHOST'
         const sync = new PlayerSyncService({
           channel,
           memberId: joinData.participant.id,
-          isHost,
+          isHost: canManage,
           allowMemberControl,
           onRemotePlay,
           onRemotePause,
@@ -165,7 +171,7 @@ export function useWatchParty(options: UseWatchPartyOptions): UseWatchPartyRetur
         syncRef.current = sync
 
         // Listen for chat messages and member updates via the channel
-        channel.onEvent((event: WatchPartySyncEvent) => {
+        channel.onEvent((event: any) => {
           if (event.type === 'CHAT_MESSAGE') {
             setMessages((prev) => {
               // Deduplicate by id
@@ -199,6 +205,14 @@ export function useWatchParty(options: UseWatchPartyOptions): UseWatchPartyRetur
                 playbackState: event.type === 'PLAY' ? 'playing' : event.type === 'PAUSE' ? 'paused' : prev.playbackState,
               }
             })
+          }
+          
+          if (isHost && event.type === 'JOIN_REQUEST') {
+            setPendingRequests((prev) => {
+              if (prev.some(p => p.userId === event.participant.id)) return prev
+              return [...prev, { userId: event.participant.id, displayName: event.participant.displayName, socketId: '' }]
+            })
+            toast.info(`${event.participant.displayName} muốn tham gia phòng`)
           }
         })
 
@@ -245,6 +259,12 @@ export function useWatchParty(options: UseWatchPartyOptions): UseWatchPartyRetur
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomCode, user.id])
+
+  const setLiveKitRoomAction = useCallback((room: any) => {
+    if (channelRef.current && typeof channelRef.current.setLiveKitRoom === 'function') {
+      channelRef.current.setLiveKitRoom(room || null)
+    }
+  }, [])
 
   // ── Actions ──
 
@@ -324,60 +344,124 @@ export function useWatchParty(options: UseWatchPartyOptions): UseWatchPartyRetur
     }
   }, [roomCode])
 
-  const requestJoin = useCallback(() => {
+  const [pendingParticipantId, setPendingParticipantId] = useState<string | null>(null)
+
+  const requestJoin = useCallback(async () => {
     if (!roomCode || !user.id || !isLockedOut) return
 
-    // Create a temporary lobby socket to ask host
-    const socket = io({
-      path: '/api/socketio',
-      transports: ['websocket', 'polling'],
-      reconnectionAttempts: 5,
-    })
-
-    lobbySocketRef.current = socket
-
-    socket.on('connect', () => {
-      socket.emit('wp:request-join', {
-        roomCode,
-        userId: user.id,
-        displayName: user.name,
-        socketId: socket.id,
+    try {
+      const res = await fetch(`/api/watch-party/${roomCode}/request`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ displayName: user.name, userId: user.id }),
       })
-    })
-
-    socket.on('wp:join-approved', () => {
-      setIsWaitlistApproved(true)
-      setIsLockedOut(false)
-      socket.disconnect()
-    })
-
-    socket.on('wp:join-rejected', () => {
-      alert('Chủ phòng đã từ chối yêu cầu tham gia của bạn.')
-      socket.disconnect()
-    })
+      if (res.ok) {
+        const data = await res.json()
+        setPendingParticipantId(data.participant?.id)
+        toast.success('Đã gửi yêu cầu tham gia. Vui lòng chờ chủ phòng duyệt.')
+      } else {
+        toast.error('Không thể gửi yêu cầu tham gia.')
+      }
+    } catch (e) {
+      toast.error('Lỗi khi gửi yêu cầu tham gia.')
+    }
   }, [roomCode, user.id, user.name, isLockedOut])
 
-  const toggleLock = useCallback((locked: boolean) => {
-    if (!roomCode || !memberId) return
-    channelRef.current?.emitRaw('wp:toggle-lock', { roomCode, userId: user.id, isLocked: locked })
-  }, [roomCode, memberId, user.id])
+  // Poll for approval status
+  useEffect(() => {
+    if (!isLockedOut || !roomCode || !pendingParticipantId) return
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/watch-party/${roomCode}`)
+        if (res.ok) {
+          const data = await res.json()
+          const me = data.participants?.find((p: any) => p.id === pendingParticipantId)
+          if (me?.status === 'ACTIVE') {
+            setIsWaitlistApproved(true)
+            setIsLockedOut(false)
+            setPendingParticipantId(null)
+          } else if (me?.status === 'REJECTED') {
+            alert('Chủ phòng đã từ chối yêu cầu tham gia của bạn.')
+            setPendingParticipantId(null)
+            setIsLockedOut(false)
+          }
+        }
+      } catch (e) {}
+    }, 3000)
+    return () => clearInterval(interval)
+  }, [isLockedOut, roomCode, pendingParticipantId])
 
-  const approveJoin = useCallback((targetUserId: string, targetSocketId: string) => {
+  const toggleLock = useCallback(async (locked: boolean) => {
     if (!roomCode || !memberId) return
-    channelRef.current?.emitRaw('wp:approve-join', { roomCode, userId: targetUserId, hostId: user.id, targetSocketId })
-    setPendingRequests((prev) => prev.filter(p => p.userId !== targetUserId))
-  }, [roomCode, memberId, user.id])
+    try {
+      await fetch(`/api/watch-party/${roomCode}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isLocked: locked, participantId: memberId }),
+      })
+      // The local room state will update via LiveKit or fallback polling, but we can optimistically set it
+      setRoom(prev => prev ? { ...prev, isLocked: locked } : prev)
+    } catch (e) {
+      toast.error('Lỗi khi thay đổi trạng thái khoá phòng')
+    }
+  }, [roomCode, memberId])
 
-  const rejectJoin = useCallback((targetUserId: string, targetSocketId: string) => {
+  const approveJoin = useCallback(async (targetUserId: string, _targetSocketId: string) => {
     if (!roomCode || !memberId) return
-    channelRef.current?.emitRaw('wp:reject-join', { roomCode, userId: targetUserId, hostId: user.id, targetSocketId })
-    setPendingRequests((prev) => prev.filter(p => p.userId !== targetUserId))
-  }, [roomCode, memberId, user.id])
+    try {
+      const res = await fetch(`/api/watch-party/${roomCode}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'APPROVE', hostParticipantId: memberId, targetParticipantId: targetUserId }),
+      })
+      if (res.ok) {
+        setPendingRequests((prev) => prev.filter(p => p.userId !== targetUserId))
+      }
+    } catch (e) {
+      toast.error('Lỗi khi duyệt người dùng')
+    }
+  }, [roomCode, memberId])
 
-  const kickMember = useCallback((targetId: string) => {
+  const rejectJoin = useCallback(async (targetUserId: string, _targetSocketId: string) => {
     if (!roomCode || !memberId) return
-    channelRef.current?.emitRaw('wp:kick', { roomCode, hostId: user.id, targetId })
-  }, [roomCode, memberId, user.id])
+    try {
+      const res = await fetch(`/api/watch-party/${roomCode}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'REJECT', hostParticipantId: memberId, targetParticipantId: targetUserId }),
+      })
+      if (res.ok) {
+        setPendingRequests((prev) => prev.filter(p => p.userId !== targetUserId))
+      }
+    } catch (e) {
+      toast.error('Lỗi khi từ chối người dùng')
+    }
+  }, [roomCode, memberId])
+
+  const kickMember = useCallback(async (targetId: string) => {
+    // If you have a kick endpoint, call it. For now, we simulate or you can implement it later.
+    if (!roomCode || !memberId) return
+    toast.info('Tính năng kick chưa được kết nối API đầy đủ')
+  }, [roomCode, memberId])
+
+  const updateRole = useCallback(async (targetUserId: string, role: 'COHOST' | 'MEMBER') => {
+    if (!roomCode || !memberId) return
+    try {
+      const res = await fetch(`/api/watch-party/${roomCode}/role`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hostParticipantId: memberId, targetParticipantId: targetUserId, role }),
+      })
+      if (res.ok) {
+        toast.success(`Đã cấp quyền ${role === 'COHOST' ? 'Co-host' : 'Member'} thành công`)
+        // The member's role will be updated via STATE_SYNC or polling
+      } else {
+        toast.error('Không thể thay đổi quyền')
+      }
+    } catch (e) {
+      toast.error('Lỗi khi thay đổi quyền')
+    }
+  }, [roomCode, memberId])
 
   return {
     room,
@@ -400,5 +484,8 @@ export function useWatchParty(options: UseWatchPartyOptions): UseWatchPartyRetur
     approveJoin,
     rejectJoin,
     kickMember,
+    updateRole,
+    setLiveKitRoom: setLiveKitRoomAction,
   }
 }
+

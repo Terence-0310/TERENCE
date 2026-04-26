@@ -1,7 +1,8 @@
 'use client'
 
-import { createContext, useContext, ReactNode } from 'react'
+import { createContext, useContext, ReactNode, useEffect } from 'react'
 import { useSession, signIn, signOut, SessionProvider } from 'next-auth/react'
+import { loadFromRemote, syncToRemote } from '@/lib/watch-history/service'
 
 export interface User {
   id?: string
@@ -44,7 +45,16 @@ function AuthContextInner({ children }: { children: ReactNode }) {
     isEmailVerified: (session as any).user?.isEmailVerified ?? false,
   } : null
 
+  useEffect(() => {
+    if (status === 'authenticated' && user?.id) {
+      loadFromRemote().then(() => {
+        syncToRemote().catch(() => {})
+      }).catch(() => {})
+    }
+  }, [status, user?.id])
+
   const isLoading = status === 'loading'
+
 
   const login = async (identifier: string, password: string): Promise<boolean> => {
     const res = await signIn('credentials', { email: identifier.trim(), password, redirect: false })

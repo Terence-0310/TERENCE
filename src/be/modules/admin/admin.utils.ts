@@ -7,40 +7,24 @@ import { prisma } from '@/src/be/shared/db/prisma'
 import { NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 
-// ── Role hierarchy (higher index = more power) ──
-const ROLE_LEVELS: Record<string, number> = {
-  user: 0,
-  moderator: 1,
-  editor: 2,
-  staff: 3,
-  admin: 4,
-  super_admin: 5,
-  SUPER_ADMIN: 5,
-  ADMIN: 4,
-  STAFF: 3,
-  EDITOR: 2,
-  MODERATOR: 1,
-  USER: 0,
-}
+import { requireAdmin as baseRequireAdmin } from '@/src/be/shared/guards/require-auth'
 
 /**
- * Verify admin session. Returns session or NextResponse error.
- * @param minRole minimum role required (default: 'editor')
+ * Verify admin session using 5-level RBAC. Returns session format or NextResponse error.
+ * @param minRole optional, not used anymore because baseRequireAdmin handles dashboard.access correctly.
  */
 export async function requireAdmin(minRole: string = 'editor') {
-  const session = await AuthService.getSession()
-  if (!session?.user) {
-    return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
+  const result = await baseRequireAdmin()
+  if (result instanceof Response) {
+    return { error: result as NextResponse }
   }
 
-  const userLevel = ROLE_LEVELS[session.user.role] ?? 0
-  const requiredLevel = ROLE_LEVELS[minRole] ?? 0
-
-  if (userLevel < requiredLevel) {
-    return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
+  // Format to match old interface
+  return { 
+    session: { user: result.user, userId: result.user.id }, 
+    userId: result.user.id, 
+    user: result.user 
   }
-
-  return { session, userId: session.userId, user: session.user }
 }
 
 /**

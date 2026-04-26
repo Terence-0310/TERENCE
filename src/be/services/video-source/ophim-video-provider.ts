@@ -48,7 +48,7 @@ export class OPhimVideoProvider implements VideoSourceProvider {
   }
 
   getSourceType(movie: MovieDetail): 'hls' | 'mp4' | 'youtube' | 'iframe' | 'none' {
-    return 'hls'
+    return 'hls' // Default assumption, actual type returned by getPlayback
   }
 
   async getPlayback(movie: MovieDetail, episodeSlug?: string): Promise<PlaybackSource | null> {
@@ -74,13 +74,22 @@ export class OPhimVideoProvider implements VideoSourceProvider {
       if (match) epData = match
     }
 
-    if (!epData.link_m3u8) return null
+    if (!epData.link_m3u8 && !epData.link_embed) return null
 
-    return {
-      type: 'hls',
-      url: epData.link_m3u8,
-      label: 'Auto (OPhim)',
-      subtitles: []
+    if (epData.link_m3u8) {
+      return {
+        type: 'hls',
+        url: epData.link_m3u8,
+        label: 'Auto (OPhim)',
+        subtitles: []
+      }
+    } else {
+      return {
+        type: 'iframe',
+        url: epData.link_embed,
+        label: 'Auto (OPhim Embed)',
+        subtitles: []
+      }
     }
   }
 

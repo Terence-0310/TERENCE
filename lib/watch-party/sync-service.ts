@@ -50,8 +50,9 @@ export class PlayerSyncService {
   private allowMemberControl: boolean
   private options: SyncServiceOptions
 
-  // Anti-loop: flag to suppress re-emitting events received from remote
-  private _isApplyingRemote = false
+  // Anti-loop: expected state tracking
+  private _expectedState: 'PLAY' | 'PAUSE' | null = null
+  private _lastSeekTime: number = -1
   // Throttle: last seek event timestamp
   private _lastSeekSent = 0
   private _seekThrottleTimer: ReturnType<typeof setTimeout> | null = null
@@ -76,9 +77,10 @@ export class PlayerSyncService {
 
   /** Call when the LOCAL user plays */
   localPlay(currentTime: number): void {
-    if (this._isApplyingRemote) return
     if (!this.canControl) return
+    if (this._expectedState === 'PLAY') return // Avoid echoing remote play
 
+    this._expectedState = 'PLAY'
     this.channel.send({
       type: 'PLAY',
       currentTime,
@@ -88,9 +90,10 @@ export class PlayerSyncService {
 
   /** Call when the LOCAL user pauses */
   localPause(currentTime: number): void {
-    if (this._isApplyingRemote) return
     if (!this.canControl) return
+    if (this._expectedState === 'PAUSE') return // Avoid echoing remote pause
 
+    this._expectedState = 'PAUSE'
     this.channel.send({
       type: 'PAUSE',
       currentTime,
@@ -100,8 +103,8 @@ export class PlayerSyncService {
 
   /** Call when the LOCAL user seeks */
   localSeek(currentTime: number): void {
-    if (this._isApplyingRemote) return
     if (!this.canControl) return
+    if (Math.abs(currentTime - this._lastSeekTime) < 1.5) return // Avoid echoing remote seek
 
     const now = Date.now()
     if (now - this._lastSeekSent < SEEK_THROTTLE_MS) {
@@ -109,6 +112,7 @@ export class PlayerSyncService {
       if (this._seekThrottleTimer) clearTimeout(this._seekThrottleTimer)
       this._seekThrottleTimer = setTimeout(() => {
         this._lastSeekSent = Date.now()
+        this._lastSeekTime = currentTime
         this.channel.send({
           type: 'SEEK',
           currentTime,
@@ -119,6 +123,7 @@ export class PlayerSyncService {
     }
 
     this._lastSeekSent = now
+    this._lastSeekTime = currentTime
     this.channel.send({
       type: 'SEEK',
       currentTime,
@@ -128,7 +133,6 @@ export class PlayerSyncService {
 
   /** Call when the LOCAL user changes episode */
   localChangeEpisode(slug: string, name?: string): void {
-    if (this._isApplyingRemote) return
     if (!this.canControl) return
 
     this.channel.send({
@@ -139,9 +143,7 @@ export class PlayerSyncService {
     })
   }
 
-  /** Call when the LOCAL user changes server */
   localChangeServer(index: number): void {
-    if (this._isApplyingRemote) return
     if (!this.canControl) return
 
     this.channel.send({
@@ -171,54 +173,47 @@ export class PlayerSyncService {
     // Never process our own events
     if ('senderId' in event && event.senderId === this.memberId) return
 
-    // Set anti-loop flag
-    this._isApplyingRemote = true
-
-    try {
-      switch (event.type) {
-        case 'PLAY':
+    switch (event.type) {
+      case 'PLAY':
+        this._expectedState = 'PLAY'
+        this.options.onRemotePlay?.(event.currentTime)
+        break
+      case 'PAUSE':
+        this._expectedState = 'PAUSE'
+        this.options.onRemotePause?.(event.currentTime)
+        break
+      case 'SEEK':
+        this._lastSeekTime = event.currentTime
+        this.options.onRemoteSeek?.(event.currentTime)
+        break
+      case 'CHANGE_EPISODE':
+        this.options.onRemoteEpisodeChange?.(event.episodeSlug)
+        break
+      case 'CHANGE_SERVER':
+        this.options.onRemoteServerChange?.(event.serverIndex)
+        break
+      case 'STATE_SYNC':
+        // Full state sync (e.g., when joining)
+        if (event.isPlaying) {
+          this._expectedState = 'PLAY'
           this.options.onRemotePlay?.(event.currentTime)
-          break
-        case 'PAUSE':
+        } else {
+          this._expectedState = 'PAUSE'
           this.options.onRemotePause?.(event.currentTime)
-          break
-        case 'SEEK':
-          this.options.onRemoteSeek?.(event.currentTime)
-          break
-        case 'CHANGE_EPISODE':
+        }
+        if (event.episodeSlug) {
           this.options.onRemoteEpisodeChange?.(event.episodeSlug)
-          break
-        case 'CHANGE_SERVER':
+        }
+        if (event.serverIndex !== undefined) {
           this.options.onRemoteServerChange?.(event.serverIndex)
-          break
-        case 'STATE_SYNC':
-          // Full state sync (e.g., when joining)
-          if (event.isPlaying) {
-            this.options.onRemotePlay?.(event.currentTime)
-          } else {
-            this.options.onRemotePause?.(event.currentTime)
-          }
-          if (event.episodeSlug) {
-            this.options.onRemoteEpisodeChange?.(event.episodeSlug)
-          }
-          if (event.serverIndex !== undefined) {
-            this.options.onRemoteServerChange?.(event.serverIndex)
-          }
-          break
-        case 'ROOM_CLOSED':
-          this.options.onRoomClosed?.(event.reason)
-          break
-        // MEMBER_JOIN, MEMBER_LEAVE, CHAT_MESSAGE handled elsewhere
-        default:
-          break
-      }
-    } finally {
-      // Clear anti-loop flag after a short delay
-      // This ensures any synchronous or immediate async state updates triggered by the
-      // callbacks above don't re-emit events
-      setTimeout(() => {
-        this._isApplyingRemote = false
-      }, 500)
+        }
+        break
+      case 'ROOM_CLOSED':
+        this.options.onRoomClosed?.(event.reason)
+        break
+      // MEMBER_JOIN, MEMBER_LEAVE, CHAT_MESSAGE handled elsewhere
+      default:
+        break
     }
   }
 }

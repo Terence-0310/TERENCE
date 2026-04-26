@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/db/prisma';
 import { buildVietQrImageUrl, buildTransferInstructions } from '@/src/be/modules/payments/vietqr';
 import { creditTopup } from './wallet.service';
+import { calculateTCoinBonus } from '@/src/be/modules/tcoin/tcoin.service';
 
 function generateShortCode(): string {
   const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -41,6 +42,9 @@ export async function createBankQrOrder(userId: string, packageId: string) {
     transferContent
   });
 
+  // Calculate dynamic bonus
+  const calculated = calculateTCoinBonus(pkg.coinAmount)
+
   const order = await prisma.topupOrder.create({
     data: {
       userId,
@@ -48,8 +52,8 @@ export async function createBankQrOrder(userId: string, packageId: string) {
       code,
       provider: 'BANK_QR',
       amountVnd: pkg.priceVnd,
-      coinAmount: pkg.coinAmount,
-      bonusAmount: pkg.bonusAmount,
+      coinAmount: calculated.base,
+      bonusAmount: calculated.bonus,
       transferContent,
       qrImageUrl,
       status: 'PENDING',

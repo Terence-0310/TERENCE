@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db/prisma';
 import { Prisma } from '@prisma/client';
+import { encryptMetadata } from '@/src/be/shared/utils/encryption';
 
 export async function ensureWallet(userId: string) {
   let wallet = await prisma.wallet.findUnique({
@@ -99,7 +100,7 @@ export async function creditTopup({ userId, orderId, amountCoin, provider, metad
         referenceId: orderId,
         title: `Nạp TCoin thành công`,
         description: `Nạp ${amountCoin} TCoin qua ${provider}`,
-        metadata: metadata || Prisma.JsonNull,
+        metadata: metadata ? encryptMetadata(metadata) : Prisma.JsonNull,
       }
     });
 

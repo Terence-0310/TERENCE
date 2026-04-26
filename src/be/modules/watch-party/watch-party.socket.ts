@@ -83,9 +83,42 @@ function getOrCreateRoom(roomCode: string): RoomState {
   return room
 }
 
+// ── Rate Limiter ──
+const rateLimitStore = new Map<string, { count: number; firstRequestTime: number }>()
+const RATE_LIMIT_WINDOW = 1000 // 1 second window
+const MAX_EVENTS_PER_WINDOW = 20 // 20 events per second max
+
+function checkRateLimit(socketId: string): boolean {
+  const now = Date.now()
+  let record = rateLimitStore.get(socketId)
+
+  if (!record || now - record.firstRequestTime > RATE_LIMIT_WINDOW) {
+    rateLimitStore.set(socketId, { count: 1, firstRequestTime: now })
+    return false
+  }
+
+  record.count += 1
+  if (record.count > MAX_EVENTS_PER_WINDOW) {
+    return true // Rate limited
+  }
+
+  return false
+}
+
 // ── Socket event handler ──
 
 export function registerWatchPartyHandlers(io: Server, socket: Socket) {
+  // Rate Limiter Middleware
+  socket.use((packet, next) => {
+    // We can exclude certain events from rate limiting if needed, e.g. disconnect
+    if (checkRateLimit(socket.id)) {
+      console.warn(`[WP:Socket] Rate limit exceeded for socket ${socket.id}, event: ${packet[0]}`)
+      socket.emit('wp:error', { message: 'Gửi quá nhiều yêu cầu, vui lòng chậm lại' })
+      return next(new Error('Rate limit exceeded'))
+    }
+    next()
+  })
+
   // ───────────────────────────────────
   // JOIN ROOM
   // ───────────────────────────────────
@@ -288,6 +321,39 @@ export function registerWatchPartyHandlers(io: Server, socket: Socket) {
   })
 
   // ───────────────────────────────────
+  // CHAT MESSAGE PERSIST ONLY (SFU Mode)
+  // ───────────────────────────────────
+  socket.on('wp:chat-persist', async (data: { roomCode: string; userId: string; displayName: string; content: string }) => {
+    const room = rooms.get(data.roomCode)
+    if (!room) return
+
+    // Background push to DB only, no broadcast
+    try {
+      const dbRoom = await prisma.watchPartyRoom.findUnique({
+        where: { roomCode: data.roomCode },
+        select: { id: true }
+      })
+      if (dbRoom) {
+        const participant = await prisma.watchPartyParticipant.findFirst({
+           where: { roomId: dbRoom.id, userId: data.userId }
+        });
+
+        await prisma.watchPartyMessage.create({
+          data: {
+            roomId: dbRoom.id,
+            participantId: participant?.id || null, 
+            senderName: data.displayName,
+            type: 'chat',
+            content: data.content,
+          }
+        })
+      }
+    } catch (err) {
+      console.error(`[WP:Socket] DB persist message error for room ${data.roomCode}:`, err)
+    }
+  })
+
+  // ───────────────────────────────────
   // CALL SIGNALING (WebRTC)
   // ───────────────────────────────────
   socket.on('wp:call-signal', (data: { roomCode: string; type: string; fromId: string; fromName: string; targetId?: string; payload?: any }) => {
@@ -386,8 +452,13 @@ export function registerWatchPartyHandlers(io: Server, socket: Socket) {
       participantCount: room.participants.size,
     })
 
-    // Host left — transfer to next participant
-    if (room.hostId === userId) {
+    if (room.participants.size === 0) {
+      // Room empty — full cleanup
+      rooms.delete(roomCode)
+      lastDbWrite.delete(roomCode)
+      console.log(`[WP:Socket] Room ${roomCode} deleted (empty)`)
+    } else if (room.hostId === userId) {
+      // Host left — transfer to next participant
       const nextParticipant = room.participants.values().next().value
       if (nextParticipant) {
         room.hostId = nextParticipant.userId
@@ -399,10 +470,6 @@ export function registerWatchPartyHandlers(io: Server, socket: Socket) {
         })
 
         console.log(`[WP:Socket] Host transferred to ${nextParticipant.displayName} in room ${roomCode}`)
-      } else {
-        // Room empty — cleanup
-        rooms.delete(roomCode)
-        console.log(`[WP:Socket] Room ${roomCode} deleted (empty)`)
       }
     }
 
@@ -414,6 +481,9 @@ export function registerWatchPartyHandlers(io: Server, socket: Socket) {
   })
 
   socket.on('disconnect', () => {
+    // Clear rate limit store
+    rateLimitStore.delete(socket.id)
+
     // Find which rooms this socket was in and clean up
     for (const [roomCode, room] of rooms.entries()) {
       for (const [userId, participant] of room.participants.entries()) {

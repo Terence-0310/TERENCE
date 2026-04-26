@@ -10,7 +10,7 @@
 import { useState, useRef, useEffect } from 'react'
 import {
   Users, MessageCircle, Send, X, Copy, Check,
-  Crown, Lock, Unlock, CheckCircle2, XCircle, ShieldBan
+  Crown, Lock, Unlock, CheckCircle2, XCircle, ShieldBan, MicOff
 } from 'lucide-react'
 import type { WatchRoom, WatchRoomMember, WatchRoomMessage } from '@/lib/watch-party/types'
 import type { UsePartyCallReturn } from '@/src/fe/features/watch-party/hooks/usePartyCall'
@@ -37,6 +37,7 @@ interface WatchPartyPanelProps {
   onApproveJoin?: (userId: string, targetSocketId: string) => void
   onRejectJoin?: (userId: string, targetSocketId: string) => void
   onKickMember?: (targetId: string) => void
+  onUpdateRole?: (targetId: string, role: 'COHOST' | 'MEMBER') => void
 }
 
 // ── Component ──
@@ -57,6 +58,7 @@ export function WatchPartyPanel({
   onApproveJoin,
   onRejectJoin,
   onKickMember,
+  onUpdateRole,
 }: WatchPartyPanelProps) {
   const [chatInput, setChatInput] = useState('')
   const [activeTab, setActiveTab] = useState<'chat' | 'members'>('chat')
@@ -288,7 +290,21 @@ export function WatchPartyPanel({
             )}
             
             <div className="space-y-1.5">
-              {isHost && pendingRequests.length > 0 && <h4 className="text-[11px] font-bold uppercase tracking-wider text-white/40 mb-2 mt-4">Thành viên</h4>}
+              <div className="flex items-center justify-between mb-2 mt-4">
+                <h4 className="text-[11px] font-bold uppercase tracking-wider text-white/40">
+                  Thành viên
+                </h4>
+                {isHost && (
+                  <button
+                    onClick={() => call.muteAll()}
+                    className="flex items-center gap-1.5 rounded-md bg-white/[0.05] border border-white/[0.05] px-2 py-1 text-[10px] font-medium text-white/60 transition hover:bg-white/10 hover:text-white"
+                    title="Tắt mic toàn bộ thành viên trong phòng"
+                  >
+                    <MicOff className="h-3 w-3" />
+                    Tắt mic tất cả
+                  </button>
+                )}
+              </div>
               {members.map((m) => (
                 <div
                   key={m.id}
@@ -308,8 +324,11 @@ export function WatchPartyPanel({
                         <span className="truncate text-[13px] font-medium text-white/90">
                           {m.userId === userId ? 'Bạn' : (m.guestName ?? 'Thành viên')}
                         </span>
-                        {m.role === 'host' && (
-                          <Crown className="h-3.5 w-3.5 text-amber-400 drop-shadow-[0_0_5px_rgba(251,191,36,0.5)] shrink-0" />
+                        {m.role?.toUpperCase() === 'HOST' && (
+                          <span title="Host"><Crown className="h-3.5 w-3.5 text-amber-400 drop-shadow-[0_0_5px_rgba(251,191,36,0.5)] shrink-0" /></span>
+                        )}
+                        {m.role?.toUpperCase() === 'COHOST' && (
+                          <span title="Co-host"><Crown className="h-3.5 w-3.5 text-blue-400 drop-shadow-[0_0_5px_rgba(96,165,250,0.5)] shrink-0" /></span>
                         )}
                       </div>
                       <span className="text-[11px] text-white/40 font-medium tracking-wide">
@@ -317,10 +336,21 @@ export function WatchPartyPanel({
                       </span>
                     </div>
                   </div>
-                  {isHost && m.userId !== userId && m.role !== 'host' && (
-                    <button onClick={() => onKickMember?.(m.id)} className="p-1.5 rounded-md text-red-400/0 group-hover:text-red-400/60 hover:!text-red-400 hover:bg-red-500/10 transition shrink-0" title="Mời khỏi phòng">
-                      <ShieldBan className="h-4 w-4" />
-                    </button>
+                  {isHost && m.userId !== userId && m.role?.toUpperCase() !== 'HOST' && (
+                    <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {m.role?.toUpperCase() === 'COHOST' ? (
+                        <button onClick={() => onUpdateRole?.(m.id, 'MEMBER')} className="p-1.5 rounded-md text-blue-400 hover:bg-blue-500/10 transition" title="Hạ xuống Member">
+                          <span className="text-[10px] font-bold">−</span>
+                        </button>
+                      ) : (
+                        <button onClick={() => onUpdateRole?.(m.id, 'COHOST')} className="p-1.5 rounded-md text-blue-400 hover:bg-blue-500/10 transition" title="Thăng cấp Co-host">
+                          <span className="text-[10px] font-bold">+</span>
+                        </button>
+                      )}
+                      <button onClick={() => onKickMember?.(m.id)} className="p-1.5 rounded-md text-red-400 hover:bg-red-500/10 transition" title="Mời khỏi phòng">
+                        <ShieldBan className="h-4 w-4" />
+                      </button>
+                    </div>
                   )}
                 </div>
               ))}

@@ -33,10 +33,10 @@ describe('lib/auth/password', () => {
 })
 
 describe('lib/auth/permissions', () => {
-  const admin: PublicUser = { email: 'admin@test.com', name: 'Admin', role: 'admin' }
-  const staff: PublicUser = { email: 'staff@test.com', name: 'Staff', role: 'staff' }
-  const editor: PublicUser = { email: 'editor@test.com', name: 'Editor', role: 'editor' }
-  const user: PublicUser = { email: 'user@test.com', name: 'User', role: 'user' }
+  const admin: PublicUser = { id: '1', email: 'admin@test.com', name: 'Admin', role: 'admin' }
+  const staff: PublicUser = { id: '2', email: 'staff@test.com', name: 'Staff', role: 'staff' }
+  const editor: PublicUser = { id: '3', email: 'editor@test.com', name: 'Editor', role: 'editor' }
+  const user: PublicUser = { id: '4', email: 'user@test.com', name: 'User', role: 'user' }
 
   describe('hasPermission()', () => {
     it('should return false for null user', async () => {

@@ -5,7 +5,9 @@
 import { UsersRepository } from './users.repository'
 import type { Prisma } from '@prisma/client'
 
-export const UsersService = {
+export class UsersService {
+  constructor(private readonly usersRepository: UsersRepository) {}
+
   async getPaginatedUsers(
     search: string,
     role: string,
@@ -43,31 +45,31 @@ export const UsersService = {
     }
     const orderBy = orderByMap[sortBy] || orderByMap.newest
 
-    return UsersRepository.findManyWithCount(where, orderBy, skip, limit)
-  },
+    return this.usersRepository.findManyWithCount(where, orderBy, skip, limit)
+  }
 
   async createUser(data: Prisma.UserUncheckedCreateInput) {
-    return UsersRepository.create(data)
-  },
+    return this.usersRepository.create(data)
+  }
 
   async getUserById(id: string) {
-    return UsersRepository.findById(id)
-  },
+    return this.usersRepository.findById(id)
+  }
 
   async getUserByEmail(email: string) {
-    return UsersRepository.findByEmail(email)
-  },
+    return this.usersRepository.findByEmail(email)
+  }
 
   async updateUser(id: string, data: Prisma.UserUncheckedUpdateInput) {
-    return UsersRepository.update(id, data)
-  },
+    return this.usersRepository.update(id, data)
+  }
 
   async softDeleteUser(id: string) {
-    await UsersRepository.deleteSessions(id)
-    return UsersRepository.softDelete(id)
-  },
+    await this.usersRepository.deleteSessions(id)
+    return this.usersRepository.softDelete(id)
+  }
 
   async deleteUser(id: string) {
-    return UsersRepository.delete(id)
+    return this.usersRepository.delete(id)
   }
 }

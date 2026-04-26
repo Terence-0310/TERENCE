@@ -3,6 +3,7 @@
 // ============================================
 
 import { prisma } from '@/src/be/shared/db/prisma'
+import { encryptMetadata, decryptMetadata } from '@/src/be/shared/utils/encryption'
 
 // ─── Wallet ─────────────────────────────────────────────────
 
@@ -31,18 +32,17 @@ export async function creditWallet(
   referenceType?: string,
 ) {
   return prisma.$transaction(async (tx) => {
-    const wallet = await tx.wallet.findUniqueOrThrow({ where: { id: walletId } })
-    const balanceBefore = wallet.balance
-    const balanceAfter = balanceBefore + amount
-
     const updated = await tx.wallet.update({
       where: { id: walletId },
-      data: { balance: balanceAfter },
+      data: { balance: { increment: amount } },
     })
+
+    const balanceAfter = updated.balance
+    const balanceBefore = balanceAfter - amount
 
     const txn = await tx.walletTransaction.create({
       data: {
-        userId: wallet.userId,
+        userId: updated.userId,
         walletId,
         direction: 'credit',
         type: category, // Map old category logic to new type concept
@@ -51,7 +51,7 @@ export async function creditWallet(
         balanceBefore,
         balanceAfter,
         referenceId: referenceId ?? null,
-        metadata: { description, referenceType: referenceType ?? null }
+        metadata: encryptMetadata({ description, referenceType: referenceType ?? null })
       },
     })
 
@@ -72,21 +72,21 @@ export async function debitWallet(
   referenceType?: string,
 ) {
   return prisma.$transaction(async (tx) => {
-    const wallet = await tx.wallet.findUniqueOrThrow({ where: { id: walletId } })
-    if (wallet.balance < amount) {
-      throw new Error('INSUFFICIENT_BALANCE')
-    }
-    const balanceBefore = wallet.balance
-    const balanceAfter = balanceBefore - amount
-
     const updated = await tx.wallet.update({
       where: { id: walletId },
-      data: { balance: balanceAfter },
+      data: { balance: { decrement: amount } },
     })
+
+    if (updated.balance < 0) {
+      throw new Error('INSUFFICIENT_BALANCE')
+    }
+
+    const balanceAfter = updated.balance
+    const balanceBefore = balanceAfter + amount
 
     const txn = await tx.walletTransaction.create({
       data: {
-        userId: wallet.userId,
+        userId: updated.userId,
         walletId,
         direction: 'debit',
         type: category,
@@ -95,11 +95,64 @@ export async function debitWallet(
         balanceBefore,
         balanceAfter,
         referenceId: referenceId ?? null,
-        metadata: { description, referenceType: referenceType ?? null }
+        metadata: encryptMetadata({ description, referenceType: referenceType ?? null })
       },
     })
 
     return { wallet: updated, transaction: txn }
+  })
+}
+
+/**
+ * Atomic refund: credit back a debit transaction and mark it as REFUND.
+ */
+export async function refundWalletTransaction(transactionId: string, reason: string, adminId: string) {
+  return prisma.$transaction(async (tx) => {
+    const originalTx = await tx.walletTransaction.findUnique({ where: { id: transactionId } })
+    if (!originalTx) throw new Error('TRANSACTION_NOT_FOUND')
+    
+    // Accept both 'debit' and 'DEBIT' (case-insensitive check)
+    if (originalTx.direction.toLowerCase() !== 'debit') {
+      throw new Error('ONLY_DEBIT_CAN_BE_REFUNDED')
+    }
+
+    // Check if already refunded
+    const existingRefund = await tx.walletTransaction.findFirst({
+      where: {
+        referenceId: originalTx.id,
+        type: 'REFUND'
+      }
+    })
+    if (existingRefund) throw new Error('ALREADY_REFUNDED')
+
+    // Credit back the wallet
+    const updatedWallet = await tx.wallet.update({
+      where: { id: originalTx.walletId },
+      data: { balance: { increment: originalTx.amount } }
+    })
+
+    const balanceAfter = updatedWallet.balance
+    const balanceBefore = balanceAfter - originalTx.amount
+
+    // Create REFUND transaction
+    const refundTx = await tx.walletTransaction.create({
+      data: {
+        userId: originalTx.userId,
+        walletId: originalTx.walletId,
+        direction: 'credit',
+        type: 'REFUND',
+        status: 'SUCCESS',
+        amount: originalTx.amount,
+        balanceBefore,
+        balanceAfter,
+        referenceId: originalTx.id,
+        title: 'Hoàn tiền',
+        description: `Hoàn tiền giao dịch ${originalTx.id}`,
+        metadata: encryptMetadata({ reason, refundedBy: adminId, originalType: originalTx.type })
+      }
+    })
+
+    return refundTx
   })
 }
 
@@ -124,7 +177,10 @@ export async function getTransactions(
     }),
     prisma.walletTransaction.count({ where }),
   ])
-  return { transactions, total }
+  return { 
+    transactions: transactions.map(tx => ({ ...tx, metadata: decryptMetadata(tx.metadata) })), 
+    total 
+  }
 }
 
 export async function getAggregates(walletId: string) {

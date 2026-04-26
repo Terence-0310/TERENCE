@@ -116,6 +116,6 @@ describe('GET /api/v1/movies', () => {
     
     expect(status).toBe(500)
     expect(body.success).toBe(false)
-    expect(body.error).toBe('Internal Server Error')
+    expect(body.error).toBe('Lỗi máy chủ nội bộ')
   })
 })

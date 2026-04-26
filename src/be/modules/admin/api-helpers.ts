@@ -1,22 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { AuthService, type PublicUser } from '@/src/be/modules/auth'
-import { hasPermission } from '@/src/lib/permissions/access-control'
-/**
- * Wraps an admin API handler with auth + permission checks.
- * Returns the current user or an error response.
- */
-export async function requireAdmin(
-  permission?: string
-): Promise<{ user: PublicUser } | NextResponse> {
-  const user = await AuthService.getCurrentUser()
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-  if (permission && !(await hasPermission(user as any, permission))) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
-  return { user }
-}
+export { requireAdmin, requireAuth } from '@/src/be/shared/guards/require-auth'
 
 /** Parse search params for pagination */
 export function parsePagination(searchParams: URLSearchParams) {

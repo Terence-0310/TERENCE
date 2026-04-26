@@ -103,3 +103,38 @@ export const sendMessageSchema = z.object({
 })
 
 export type SendMessageBody = z.infer<typeof sendMessageSchema>
+
+// ── Update Room ──
+
+export const updateRoomSchema = z.object({
+  title: z.string().min(1).max(200).optional(),
+  isLocked: z.boolean().optional(),
+  participantId: z.string().optional() // required if we want to enforce host-only check
+})
+
+export type UpdateRoomBody = z.infer<typeof updateRoomSchema>
+
+// ── Request Join / Approve ──
+
+export const requestJoinSchema = z.object({
+  displayName: z.string().min(1).max(50).transform((v) => v.trim()),
+  userId: z.string().nullable().optional(),
+})
+
+export const approveParticipantSchema = z.object({
+  hostParticipantId: z.string().min(1, 'hostParticipantId is required'),
+  targetParticipantId: z.string().min(1, 'targetParticipantId is required'),
+  action: z.enum(['APPROVE', 'REJECT']),
+})
+
+export type ApproveParticipantBody = z.infer<typeof approveParticipantSchema>
+
+// ── Update Role ──
+
+export const updateRoleSchema = z.object({
+  hostParticipantId: z.string().min(1, 'hostParticipantId is required'),
+  targetParticipantId: z.string().min(1, 'targetParticipantId is required'),
+  role: z.enum(['COHOST', 'MEMBER']),
+})
+
+export type UpdateRoleBody = z.infer<typeof updateRoleSchema>

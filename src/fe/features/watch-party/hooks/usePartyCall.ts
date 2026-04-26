@@ -8,11 +8,11 @@
 // For `small_group` rooms: mesh topology (each peer connects to all others)
 //
 // Signaling is done via the watch party API (POST signal messages).
-// 
-// TODO Phase 2: Replace API polling signaling with WebSocket/Socket.IO
-// TODO Phase 3: Use an SFU (LiveKit/Janus) for group_chat rooms
+// Signaling is executed gracefully via Watch Party WebSocket + LiveKit DataChannels.
+// Phase 2 & 3 Completed: Full SFU LiveKit integration for all group calls.
 
 import { useState, useMemo, useEffect } from 'react'
+import { type Room } from 'livekit-client'
 import { useLiveKitRoom } from './useLiveKitRoom'
 import type { CallParticipant } from '@/lib/watch-party/types'
 
@@ -25,6 +25,7 @@ export interface UsePartyCallOptions {
 }
 
 export interface UsePartyCallReturn {
+  room: Room | null
   isInCall: boolean
   isMuted: boolean
   isCameraOn: boolean
@@ -35,6 +36,7 @@ export interface UsePartyCallReturn {
   leaveCall: () => void
   toggleMic: () => void
   toggleCamera: () => void
+  muteAll: () => void
 }
 
 export function usePartyCall(options: UsePartyCallOptions): UsePartyCallReturn {
@@ -92,6 +94,7 @@ export function usePartyCall(options: UsePartyCallOptions): UsePartyCallReturn {
   }, [livekit.remoteParticipants])
 
   return {
+    room: livekit.room,
     isInCall,
     isMuted: livekit.isMuted,
     isCameraOn: livekit.isCameraOn,
@@ -102,6 +105,7 @@ export function usePartyCall(options: UsePartyCallOptions): UsePartyCallReturn {
     leaveCall: livekit.disconnect,
     toggleMic: livekit.toggleMic,
     toggleCamera: livekit.toggleCamera,
+    muteAll: livekit.muteAll,
   }
 }
 

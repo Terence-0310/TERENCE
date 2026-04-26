@@ -8,6 +8,7 @@
 // Wraps player with WatchPartyOverlay for watch party features.
 
 import { useState, useCallback, useEffect, useRef } from 'react'
+import { AlertTriangle, Loader2 } from 'lucide-react'
 import { HLSPlayer } from '@/src/fe/components/player/HLSPlayer'
 import { WatchPartyOverlay } from '@/src/fe/components/watch-party/WatchPartyOverlay'
 import type { EpisodePlaybackData } from '@/lib/player/types'
@@ -62,12 +63,69 @@ export function WatchPageClient({
     }
   }, [episodeData.nextEpisode, movieSlug])
 
-  if (!loaded || servers.length === 0) {
+  // Error State: No servers available but check if we have an iframe primary source
+  if (loaded && servers.length === 0) {
+    const primarySource = episodeData.primarySource
+    if (primarySource && (primarySource.sourceType === 'iframe' || primarySource.sourceType === 'youtube')) {
+      return (
+        <div className="relative flex h-full w-full bg-black">
+          <iframe
+            src={primarySource.url}
+            className="h-full w-full border-0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+          />
+        </div>
+      )
+    }
+
     return (
-      <div className="flex h-full items-center justify-center bg-black">
-        <div className="flex flex-col items-center gap-3">
-          <div className="h-10 w-10 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
-          <p className="text-xs text-white/40">Đang tải player...</p>
+      <div className="relative flex h-full w-full items-center justify-center bg-black">
+        <div className="relative z-10 flex flex-col items-center gap-4 text-center px-4">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red-500/10 border border-red-500/20 mb-2 shadow-[0_0_30px_rgba(239,68,68,0.2)]">
+            <AlertTriangle className="h-8 w-8 text-red-500 drop-shadow-md" />
+          </div>
+          <div>
+            <p className="text-lg font-bold text-white drop-shadow-md">Lỗi luồng phát</p>
+            <p className="mt-1.5 text-sm text-white/50 max-w-[300px]">
+              Không tìm thấy máy chủ khả dụng cho tập này. Vui lòng chọn tập khác hoặc thử lại sau.
+            </p>
+          </div>
+        </div>
+        {/* Dimmed backdrop */}
+        {posterUrl && (
+          <img src={posterUrl} className="absolute inset-0 h-full w-full object-cover opacity-10 blur-xl pointer-events-none" alt="" />
+        )}
+      </div>
+    )
+  }
+
+  // Cinematic Loading State
+  if (!loaded) {
+    return (
+      <div className="relative flex h-full w-full items-center justify-center bg-[#050505] overflow-hidden">
+        {/* Blurred Poster Background */}
+        {posterUrl && (
+          <img src={posterUrl} className="absolute inset-0 h-full w-full object-cover opacity-[0.15] blur-xl scale-105 pointer-events-none" alt="" />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-black/20 pointer-events-none" />
+        
+        {/* Loading UI */}
+        <div className="relative z-10 flex flex-col items-center gap-5">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white/5 border border-white/10 backdrop-blur-md shadow-2xl">
+            <Loader2 className="h-8 w-8 text-primary animate-spin" />
+          </div>
+          <div className="flex flex-col items-center gap-1.5">
+            <p className="text-sm font-semibold tracking-wider text-white drop-shadow-md">CHUẨN BỊ LUỒNG PHÁT</p>
+            <p className="text-[11px] text-white/40 uppercase tracking-widest">{movieTitle}</p>
+          </div>
+        </div>
+
+        {/* Mock Controls Bar (Bottom) */}
+        <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-black/90 to-transparent pointer-events-none flex items-end px-6 pb-4">
+          <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
+            <div className="h-full w-1/3 bg-white/20 animate-pulse rounded-full" />
+          </div>
         </div>
       </div>
     )

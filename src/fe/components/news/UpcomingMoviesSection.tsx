@@ -8,30 +8,13 @@
 
 import { useUpcomingMovies } from '@/src/fe/features/movies/hooks/useUpcomingMovies'
 import { formatReleaseDate } from '@/src/be/modules/news/format'
-import { Calendar, Star, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Calendar, Star, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
-import { useRef, useState, useCallback } from 'react'
+import { useState, useCallback } from 'react'
+import { Carousel } from '@/src/fe/components/shared/Carousel'
 
 export function UpcomingMoviesSection() {
   const { items, loading } = useUpcomingMovies({ region: 'VN' })
-  const scrollRef = useRef<HTMLDivElement>(null)
-  const [canScrollLeft, setCanScrollLeft] = useState(false)
-  const [canScrollRight, setCanScrollRight] = useState(true)
-
-  function checkScroll() {
-    const el = scrollRef.current
-    if (!el) return
-    setCanScrollLeft(el.scrollLeft > 10)
-    setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 10)
-  }
-
-  function scroll(direction: 'left' | 'right') {
-    const el = scrollRef.current
-    if (!el) return
-    const amount = el.clientWidth * 0.75
-    el.scrollBy({ left: direction === 'left' ? -amount : amount, behavior: 'smooth' })
-    setTimeout(checkScroll, 400)
-  }
 
   if (loading) {
     return (
@@ -73,44 +56,15 @@ export function UpcomingMoviesSection() {
           </Link>
         </div>
 
-        <div className="relative">
-          {/* Left scroll arrow */}
-          {canScrollLeft && (
-            <button
-              onClick={() => scroll('left')}
-              className="absolute left-0 top-1/2 -translate-y-1/2 z-10 flex h-16 w-12 items-center justify-center
-                bg-gradient-to-r from-background via-background/80 to-transparent"
-            >
-              <div className="rounded-full bg-white/10 p-2 backdrop-blur-sm border border-white/5 hover:bg-white/20 transition-all">
-                <ChevronLeft className="h-6 w-6 text-white" />
-              </div>
-            </button>
-          )}
-
-          {/* Scrollable row */}
-          <div
-            ref={scrollRef}
-            onScroll={checkScroll}
-            className="flex gap-4 md:gap-5 overflow-x-auto px-5 md:px-8 pb-4 pt-2 scrollbar-hide snap-x snap-mandatory"
-          >
-            {items.map((movie, i) => (
-              <UpcomingCard key={movie.id} movie={movie} index={i} />
-            ))}
-          </div>
-
-          {/* Right scroll arrow */}
-          {canScrollRight && (
-            <button
-              onClick={() => scroll('right')}
-              className="absolute right-0 top-1/2 -translate-y-1/2 z-10 flex h-16 w-12 items-center justify-center
-                bg-gradient-to-l from-background via-background/80 to-transparent"
-            >
-              <div className="rounded-full bg-white/10 p-2 backdrop-blur-sm border border-white/5 hover:bg-white/20 transition-all">
-                <ChevronRight className="h-6 w-6 text-white" />
-              </div>
-            </button>
-          )}
-        </div>
+        {/* Scrollable row using shared Carousel */}
+        <Carousel
+          containerClassName="flex gap-4 md:gap-5 overflow-x-auto px-5 md:px-8 pb-4 pt-2 snap-x snap-mandatory disabled-scrollbar"
+          arrowVisibility="hover"
+        >
+          {items.map((movie, i) => (
+            <UpcomingCard key={movie.id} movie={movie} index={i} />
+          ))}
+        </Carousel>
       </div>
     </section>
   )

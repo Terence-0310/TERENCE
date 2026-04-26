@@ -242,6 +242,15 @@ export default async function WatchPage({ params, searchParams }: PageProps) {
                     trailerUrl={tmdbMovie?.trailer?.embedUrl}
                     additionalServers={multiServerSources}
                   />
+                ) : legacySource?.available && legacySource.playback && (legacySource.playback.type === 'iframe' || legacySource.playback.type === 'youtube') ? (
+                  /* Legacy source has an unplayable iframe/youtube type, so just render it directly */
+                  <div className="relative flex h-full w-full bg-black">
+                    <iframe
+                      src={legacySource.playback.url}
+                      className="h-full w-full border-0"
+                      allowFullScreen
+                    />
+                  </div>
                 ) : tmdbMovie?.trailer?.embedUrl ? (
                   /* No source available but has trailer */
                   <div className="relative flex h-full w-full bg-black">
@@ -285,26 +294,7 @@ export default async function WatchPage({ params, searchParams }: PageProps) {
         </div>
       </div>
 
-      {/* ═══════ EPISODES LIST (BOTTOM) ═══════ */}
-      {(episodeList.length > 1 || providerEps.length > 0) && (
-        <section id="episode-list" className="mt-8 border-t border-white/[0.04]">
-          <div className="mx-auto max-w-[1400px] px-4 md:px-8 pt-8">
-            <h3 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white/60">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><line x1="9" x2="9" y1="3" y2="21"/></svg>
-              Danh sách tập
-            </h3>
-            <ServerEpisodeList 
-              episodeList={episodeList}
-              providerEps={providerEps}
-              movieSlug={movieSlug}
-              movieId={dbMovieId.toString()}
-              backdropUrl={backdropUrl}
-              currentEpisodeId={episodeData?.episode?.id}
-              currentEpisodeSlug={episodeSlug}
-            />
-          </div>
-        </section>
-      )}
+      {/* We moved Episode List below Info Bar */}
 
       {/* ═══════ INFO BAR ═══════ */}
       <section className="border-t border-white/[0.04] bg-background mt-8">
@@ -398,6 +388,27 @@ export default async function WatchPage({ params, searchParams }: PageProps) {
           </div>
         </div>
       </section>
+
+      {/* ═══════ EPISODES LIST (BOTTOM) ═══════ */}
+      {(episodeList.length > 1 || providerEps.length > 0) && (
+        <section id="episode-list" className="border-t border-white/[0.04] bg-[#0A0E17]/30">
+          <div className="mx-auto max-w-[1400px] px-4 md:px-8 py-8">
+            <h3 className="mb-6 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><line x1="9" x2="9" y1="3" y2="21"/></svg>
+              Danh sách tập
+            </h3>
+            <ServerEpisodeList 
+              episodeList={episodeList}
+              providerEps={providerEps}
+              movieSlug={movieSlug}
+              movieId={dbMovieId.toString()}
+              backdropUrl={backdropUrl}
+              currentEpisodeId={episodeData?.episode?.id}
+              currentEpisodeSlug={episodeSlug}
+            />
+          </div>
+        </section>
+      )}
 
       {/* ═══════ RELATED MOVIES ═══════ */}
       {movie?.relatedMovies && movie.relatedMovies.length > 0 && (

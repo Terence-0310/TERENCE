@@ -212,6 +212,9 @@ export function getErrorMessage(error: unknown, fallback = 'Lỗi không xác đ
 // API Handler Wrapper (catch-all error handler)
 // -------------------------------------------------------------------
 
+import { AppError, ValidationError } from '@/src/be/shared/errors/app-error'
+import { logger } from '@/src/be/shared/utils/logger'
+
 type ApiHandler = (req: NextRequest, context?: unknown) => Promise<NextResponse>
 
 export function withErrorHandler(handler: ApiHandler): ApiHandler {
@@ -219,7 +222,23 @@ export function withErrorHandler(handler: ApiHandler): ApiHandler {
     try {
       return await handler(req, context)
     } catch (error) {
-      console.error(`[API] ${req.method} ${req.nextUrl.pathname}:`, error)
+      if (error instanceof ValidationError) {
+        return NextResponse.json(
+          { success: false as const, error: error.message, code: error.code, validationErrors: error.errors },
+          { status: error.statusCode }
+        )
+      }
+      if (error instanceof AppError) {
+        if (!error.isOperational) {
+          logger.error({ err: error, method: req.method, path: req.nextUrl.pathname }, `[API FATAL ERROR]`)
+        }
+        return NextResponse.json(
+          { success: false as const, error: error.message, code: error.code },
+          { status: error.statusCode }
+        )
+      }
+      
+      logger.error({ err: error, method: req.method, path: req.nextUrl.pathname }, `[API UNHANDLED ERROR]`)
       return serverError(getErrorMessage(error))
     }
   }

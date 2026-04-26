@@ -270,6 +270,68 @@ export async function getHomeData() {
   return result
 }
 
+/**
+ * Get top 5 most liked/favorited movies
+ */
+export async function getMostLikedMovies() {
+  const favoriteGroups = await prisma.favorite.groupBy({
+    by: ['movieId'],
+    _count: { movieId: true },
+    orderBy: { _count: { movieId: 'desc' } },
+    take: 5,
+  })
+
+  if (favoriteGroups.length === 0) return []
+
+  const movieIds = favoriteGroups.map((g) => g.movieId)
+  const movies = await prisma.movie.findMany({
+    where: { id: { in: movieIds }, isActive: true },
+    select: { id: true, title: true, slug: true, posterUrl: true, thumbUrl: true },
+  })
+
+  const movieMap = new Map(movies.map((m) => [m.id, m]))
+  return favoriteGroups
+    .map((g, i) => {
+      const movie = movieMap.get(g.movieId)
+      if (!movie) return null
+      return {
+        rank: i + 1,
+        movie: {
+          id: movie.id,
+          title: movie.title,
+          slug: movie.slug,
+          posterUrl: movie.posterUrl || movie.thumbUrl,
+        },
+        favoriteCount: g._count.movieId,
+      }
+    })
+    .filter(Boolean)
+}
+
+/**
+ * Get top 5 trending movies by view count
+ */
+export async function getTrendingMovies() {
+  const movies = await prisma.movie.findMany({
+    where: { isActive: true, isPublished: true },
+    orderBy: { viewCount: 'desc' },
+    take: 5,
+    select: { id: true, title: true, slug: true, posterUrl: true, thumbUrl: true, viewCount: true },
+  })
+
+  return movies.map((m, i) => ({
+    rank: i + 1,
+    movie: {
+      id: m.id,
+      title: m.title,
+      slug: m.slug,
+      posterUrl: m.posterUrl || m.thumbUrl,
+    },
+    viewCount: m.viewCount,
+  }))
+}
+
+
 // ═══════════════════════════════════════════════════════════════
 // ADMIN MUTATION & QUERY FUNCTIONS
 // ═══════════════════════════════════════════════════════════════

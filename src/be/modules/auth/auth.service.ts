@@ -11,6 +11,7 @@ const SESSION_COOKIE = 'terence_session'
 const SESSION_MAX_AGE = 30 * 24 * 60 * 60 * 1000 // 30 days
 
 export interface PublicUser {
+  id: string
   email: string
   name: string
   role: string
@@ -101,6 +102,7 @@ export const AuthService = {
       const nextSession = await getServerSession(authOptions);
       if (nextSession?.user) {
         return {
+          id: (nextSession.user as any).id || '',
           email: nextSession.user.email || '',
           name: nextSession.user.name || '',
           role: (nextSession.user as any).role || 'USER',
@@ -116,6 +118,7 @@ export const AuthService = {
     if (!session || !session.user.isActive) return null
 
     return {
+      id: session.user.id,
       email: session.user.email,
       name: session.user.name,
       role: session.user.role,

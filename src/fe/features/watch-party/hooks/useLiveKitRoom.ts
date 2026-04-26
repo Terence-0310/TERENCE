@@ -43,6 +43,7 @@ export interface UseLiveKitRoomOptions {
 
 export interface UseLiveKitRoomReturn {
   // State
+  room: Room | null
   connectionState: 'disconnected' | 'connecting' | 'connected'
   localParticipant: LiveKitParticipant | null
   remoteParticipants: LiveKitParticipant[]
@@ -55,6 +56,7 @@ export interface UseLiveKitRoomReturn {
   disconnect: () => void
   toggleMic: () => void
   toggleCamera: () => void
+  muteAll: () => void
 }
 
 export function useLiveKitRoom(options: UseLiveKitRoomOptions): UseLiveKitRoomReturn {
@@ -208,8 +210,24 @@ export function useLiveKitRoom(options: UseLiveKitRoomOptions): UseLiveKitRoomRe
         roomRef.current = null
       })
 
+      room.on(RoomEvent.DataReceived, (payload, _participant, _kind, topic) => {
+        if (topic === 'wp-call-control') {
+          try {
+            const str = new TextDecoder().decode(payload)
+            const data = JSON.parse(str)
+            if (data.type === 'MUTE_ALL') {
+              room.localParticipant.setMicrophoneEnabled(false).then(() => {
+                setIsMuted(true)
+                updateLocalParticipant()
+              }).catch(() => {})
+            }
+          } catch {}
+        }
+      })
+
       // Connect
       await room.connect(wsUrl, token)
+
 
       // Publish local tracks
       try {
@@ -287,6 +305,14 @@ export function useLiveKitRoom(options: UseLiveKitRoomOptions): UseLiveKitRoomRe
     }
   }, [isCameraOn, updateLocalParticipant])
 
+  // Mute All (Host only)
+  const muteAll = useCallback(() => {
+    const room = roomRef.current
+    if (!room || !room.localParticipant) return
+    const payload = new TextEncoder().encode(JSON.stringify({ type: 'MUTE_ALL' }))
+    room.localParticipant.publishData(payload, { reliable: true, topic: 'wp-call-control' })
+  }, [])
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -298,6 +324,7 @@ export function useLiveKitRoom(options: UseLiveKitRoomOptions): UseLiveKitRoomRe
   }, [])
 
   return {
+    room: roomRef.current,
     connectionState,
     localParticipant,
     remoteParticipants,
@@ -308,5 +335,7 @@ export function useLiveKitRoom(options: UseLiveKitRoomOptions): UseLiveKitRoomRe
     disconnect,
     toggleMic,
     toggleCamera,
+    muteAll,
   }
 }
+

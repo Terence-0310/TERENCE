@@ -73,3 +73,26 @@ export function getLiveKitWsUrl(): string {
 export function isLiveKitConfigured(): boolean {
   return !!(process.env.LIVEKIT_API_KEY && process.env.LIVEKIT_API_SECRET && process.env.NEXT_PUBLIC_LIVEKIT_URL)
 }
+
+/**
+ * Send a server-side data message to a LiveKit room.
+ * Used for system notifications like APPROVE_JOIN, REJECT_JOIN.
+ */
+export async function sendLiveKitDataMessage(
+  roomName: string,
+  payload: any,
+  destinationIdentities?: string[]
+): Promise<void> {
+  if (!isLiveKitConfigured()) return
+
+  const { apiKey, apiSecret, wsUrl } = getConfig()
+  // Replace WebSocket protocol with HTTP for REST API
+  const httpUrl = wsUrl.replace(/^ws/, 'http')
+  
+  const { RoomServiceClient } = await import('livekit-server-sdk')
+  const svc = new RoomServiceClient(httpUrl, apiKey, apiSecret)
+  
+  const data = new TextEncoder().encode(JSON.stringify(payload))
+  // Send data as RELIABLE (0). 
+  await svc.sendData(roomName, data, 0, { destinationIdentities, topic: 'wp-sync' })
+}

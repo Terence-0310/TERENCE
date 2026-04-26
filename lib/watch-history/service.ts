@@ -238,36 +238,61 @@ export function getResumeTime(
   return item.currentTime
 }
 
-// ═══════════════════════════════════════════════════════════════
-// FUTURE: REMOTE SYNC INTEGRATION POINTS
-// ═══════════════════════════════════════════════════════════════
+export async function syncToRemote(): Promise<void> {
+  const localItems = getWatchHistoryFromStorage();
+  if (!localItems || localItems.length === 0) return;
 
-// TODO: When user authentication is integrated, implement:
-//
-// async function syncToRemote(userId: string): Promise<void> {
-//   const local = getWatchHistoryFromStorage()
-//   // POST to /api/v1/watch-history/sync with local items
-//   // Server merges with remote, returns merged list
-//   // Save merged list back to storage
-// }
-//
-// async function loadFromRemote(userId: string): Promise<WatchHistoryItem[]> {
-//   // GET from /api/v1/watch-history?userId=...
-//   // Return remote items
-// }
-//
-// function mergeLocalAndRemote(
-//   local: WatchHistoryItem[],
-//   remote: WatchHistoryItem[],
-// ): WatchHistoryItem[] {
-//   // For each (movieId, episodeId) pair:
-//   //   - Keep the record with the later lastWatchedAt
-//   //   - If same timestamp, prefer the one with higher currentTime
-//   // Return merged, deduplicated list
-// }
-//
-// The service functions above (saveWatchProgress, getContinueWatching, etc.)
-// should be updated to:
-// 1. Save to local storage (immediate, for responsiveness)
-// 2. Queue a debounced sync to remote (non-blocking)
-// 3. On app load, merge remote + local
+  try {
+    const response = await fetch('/api/v1/watch-history/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: localItems }),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      if (data && data.mergedItems) {
+        // Hydrate local storage with the authoritative merged list from the server
+        for (const item of data.mergedItems) {
+          upsertWatchHistoryItem(item);
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Failed to sync watch history to remote:', error);
+  }
+}
+
+export async function loadFromRemote(): Promise<WatchHistoryItem[]> {
+  try {
+    const response = await fetch('/api/v1/watch-history/sync', {
+      method: 'GET',
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      if (data && data.items) {
+        const localBefore = getWatchHistoryFromStorage();
+        for (const item of data.items) {
+           upsertWatchHistoryItem(item);
+        }
+        return getWatchHistoryFromStorage();
+      }
+    }
+  } catch (error) {
+    console.error('Failed to load watch history from remote:', error);
+  }
+  return getWatchHistoryFromStorage();
+}
+
+/**
+ * Perform a non-blocking background sync if authenticated
+ */
+export function triggerBackgroundSync() {
+  if (typeof window !== 'undefined') {
+    // Only fire if there is a session or let the backend reject auth automatically safely
+    setTimeout(() => {
+      syncToRemote().catch(() => {});
+    }, 2000);
+  }
+}

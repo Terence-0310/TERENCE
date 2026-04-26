@@ -11,6 +11,7 @@ import { createServer } from 'http'
 import next from 'next'
 import { Server as SocketIOServer } from 'socket.io'
 import { registerWatchPartyHandlers } from './src/be/modules/watch-party/watch-party.socket'
+import { expireStaleOrders } from './src/be/services/topup-order.service'
 
 const dev = process.env.NODE_ENV !== 'production'
 const hostname = process.env.HOSTNAME || '0.0.0.0'
@@ -70,6 +71,14 @@ app.prepare().then(() => {
       }
     })
   })
+
+  // ── Background Jobs ──
+  // Chạy ngầm mỗi 5 phút để dọn dẹp các đơn nạp tiền đã quá hạn (15 phút)
+  setInterval(() => {
+    expireStaleOrders().catch((err) => {
+      console.error('[Background Job] Lỗi huỷ đơn hết hạn:', err)
+    })
+  }, 5 * 60 * 1000)
 
   // ── Start server ──
   httpServer.listen(port, hostname === '0.0.0.0' ? undefined : hostname, () => {

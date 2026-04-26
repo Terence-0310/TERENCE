@@ -35,7 +35,7 @@ export interface PlayableEpisode {
 
 export interface PlayableSource {
   id: string
-  sourceType: 'hls' | 'mp4'
+  sourceType: 'hls' | 'mp4' | 'iframe' | 'youtube'
   url: string
   label: string
   isPrimary: boolean

@@ -88,11 +88,11 @@ export function mapGNewsArticles(raw: GNewsResponse | null | undefined): NewsArt
 
 export function mapTmdbUpcoming(
   results: TmdbRawMovie[] | null | undefined,
-  options?: { filterFuture?: boolean; requireImage?: boolean },
+  options?: { filterFuture?: boolean; requireImage?: boolean; minPopularity?: number },
 ): UpcomingMovieItem[] {
   if (!results || !Array.isArray(results)) return []
 
-  const { filterFuture = false, requireImage = false } = options ?? {}
+  const { filterFuture = false, requireImage = false, minPopularity = 0 } = options ?? {}
   const now = new Date()
 
   return results
@@ -105,6 +105,8 @@ export function mapTmdbUpcoming(
       }
       // Require at least one image if requested
       if (requireImage && !m.poster_path && !m.backdrop_path) return false
+      // Filter out low popularity (AI/fake data)
+      if (minPopularity > 0 && (m.popularity ?? 0) < minPopularity) return false
       return true
     })
     .map((m) => {

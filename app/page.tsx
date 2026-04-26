@@ -2,7 +2,6 @@ import { HeroBanner } from '@/src/fe/components/home/HeroBanner'
 import { ContinueWatchingRow } from '@/src/fe/components/home/ContinueWatchingRow'
 import { InterestsSection } from '@/src/fe/components/home/InterestsSection'
 import { MovieRow } from '@/src/fe/components/shared/MovieRow'
-import { PhimHayRow } from '@/src/fe/components/home/PhimHayRow'
 import { TopCommentsCarousel } from '@/src/fe/components/home/TopCommentsCarousel'
 import { TrendingRankings } from '@/src/fe/components/home/TrendingRankings'
 import { MovieNewsSection } from '@/src/fe/components/news/MovieNewsSection'
@@ -14,7 +13,7 @@ export default async function HomePage() {
   // Use allSettled so ONE failed call doesn't crash the entire page
   const [
     trendingR, popularR, topRatedR, nowPlayingR, upcomingR,
-    krR, cnR, usR, topSeriesR, topMoviesR
+    krR, cnR, usR
   ] = await Promise.allSettled([
     getTrending(),
     getPopular(),
@@ -24,8 +23,6 @@ export default async function HomePage() {
     getMoviesByCountry('KR'),
     getMoviesByCountry('CN'),
     getMoviesByCountry('US'),
-    getTrending(2), // Simulate Top 30 Phim Bộ
-    getPopular(2),  // Simulate Top 30 Phim Lẻ
   ])
 
   const emptyPage = { items: [], page: 1, totalPages: 0, totalResults: 0 }
@@ -37,8 +34,6 @@ export default async function HomePage() {
   const krMovies = krR.status === 'fulfilled' ? krR.value : emptyPage
   const cnMovies = cnR.status === 'fulfilled' ? cnR.value : emptyPage
   const usMovies = usR.status === 'fulfilled' ? usR.value : emptyPage
-  const topSeries = topSeriesR.status === 'fulfilled' ? topSeriesR.value : emptyPage
-  const topMoviesData = topMoviesR.status === 'fulfilled' ? topMoviesR.value : emptyPage
 
   // Only show welcome screen if ALL calls failed (no data at all)
   const hasAnyData = trending.items.length > 0 || popular.items.length > 0 ||
@@ -109,7 +104,13 @@ export default async function HomePage() {
         </div>
 
         <div className="animate-row-in" style={{ '--row': 3 } as React.CSSProperties}>
-          <PhimHayRow movies={topRated.items} />
+          <MovieRow
+            title="Rổ Phim Đề Cử"
+            accent="Đề Cử"
+            movies={topRated.items}
+            href="/browse?category=top-rated"
+            landscape={false}
+          />
         </div>
 
         <div className="animate-row-in" style={{ '--row': 4 } as React.CSSProperties}>
@@ -170,27 +171,7 @@ export default async function HomePage() {
           <TrendingRankings />
         </div>
 
-        <div className="animate-row-in" style={{ '--row': 11 } as React.CSSProperties}>
-          <MovieRow
-            title="Top 30 phim bộ hôm nay"
-            accent="phim bộ"
-            movies={topSeries.items}
-            href="/browse?category=trending"
-            showRank
-            landscape={false}
-          />
-        </div>
-
-        <div className="animate-row-in" style={{ '--row': 12 } as React.CSSProperties}>
-          <MovieRow
-            title="Top 30 Phim Lẻ Hôm Nay"
-            accent="Phim Lẻ"
-            movies={topMoviesData.items}
-            href="/browse?category=popular"
-            showRank
-            landscape={false}
-          />
-        </div>        {/* 8. Upcoming Movies feed */}
+        {/* 8. Upcoming Movies feed */}
         <div className="animate-row-in" style={{ '--row': 9 } as React.CSSProperties}>
           <UpcomingMoviesSection />
         </div>

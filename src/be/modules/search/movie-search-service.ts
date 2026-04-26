@@ -5,6 +5,7 @@
 
 import { getClient, getMoviesIndex, isAvailable } from './elastic-client'
 import { prisma } from '@/lib/db/prisma'
+import { sanitizeSearchQuery } from '@/src/be/shared/utils/sanitizer'
 
 // ─── Search Result Types ────────────────────────────────────────
 
@@ -258,38 +259,42 @@ export async function searchMovies(
   perPage: number = 20,
   filters: { contentType?: string; year?: number; category?: string; country?: string } = {}
 ): Promise<SearchResult> {
-  if (!query || query.trim().length < 1) {
+  const safeQuery = sanitizeSearchQuery(query)
+
+  if (!safeQuery) {
     return { items: [], total: 0, page, perPage, totalPages: 0, source: 'elasticsearch' }
   }
 
   try {
     if (await isAvailable()) {
-      return await searchElastic(query.trim(), page, perPage, filters)
+      return await searchElastic(safeQuery, page, perPage, filters)
     }
   } catch (error) {
     console.warn('[Search] ES search failed, falling back to Prisma:', error instanceof Error ? error.message : error)
   }
 
-  return searchPrismaFallback(query.trim(), page, perPage, filters)
+  return searchPrismaFallback(safeQuery, page, perPage, filters)
 }
 
 /**
  * Autocomplete suggest with ES + Prisma fallback.
  */
 export async function suggestMovies(query: string, limit: number = 8): Promise<{ items: SuggestItem[]; source: string }> {
-  if (!query || query.trim().length < 1) {
+  const safeQuery = sanitizeSearchQuery(query)
+
+  if (!safeQuery) {
     return { items: [], source: 'none' }
   }
 
   try {
     if (await isAvailable()) {
-      const items = await suggestElastic(query.trim(), limit)
+      const items = await suggestElastic(safeQuery, limit)
       return { items, source: 'elasticsearch' }
     }
   } catch (error) {
     console.warn('[Search] ES suggest failed, falling back to Prisma:', error instanceof Error ? error.message : error)
   }
 
-  const items = await suggestPrismaFallback(query.trim(), limit)
+  const items = await suggestPrismaFallback(safeQuery, limit)
   return { items, source: 'prisma_fallback' }
 }

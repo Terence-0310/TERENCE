@@ -54,7 +54,8 @@ export async function getUpcomingMovies(
 
     let items = mapTmdbUpcoming(data.results, {
       filterFuture: true,
-      requireImage: false,
+      requireImage: true,
+      minPopularity: 10,
     })
 
     // Region fallback: supplement with US if too few VN results
@@ -67,7 +68,8 @@ export async function getUpcomingMovies(
         })
         const fallbackItems = mapTmdbUpcoming(fallbackData.results, {
           filterFuture: true,
-          requireImage: false,
+          requireImage: true,
+          minPopularity: 15, // Be even stricter for US fallback
         })
         items = deduplicateMovies([...items, ...fallbackItems])
       } catch {

@@ -64,18 +64,22 @@ describe('GET /api/admin/summary', () => {
 
     const res = await summaryRoute()
     const { status, body } = await parseResponse<{
-      stats: any[]
-      recentMovies: any[]
-      topUsers: any[]
-      overview: any
+      success: boolean
+      data: {
+        stats: any[]
+        recentMovies: any[]
+        topUsers: any[]
+        overview: any
+      }
     }>(res)
 
     expect(status).toBe(200)
-    expect(body.stats).toHaveLength(4)
-    expect(body.recentMovies).toBeDefined()
-    expect(body.topUsers).toBeDefined()
-    expect(body.overview).toBeDefined()
-    expect(body.overview.totalMovies).toBe(50)
+    expect(body.success).toBe(true)
+    expect(body.data.stats).toHaveLength(4)
+    expect(body.data.recentMovies).toBeDefined()
+    expect(body.data.topUsers).toBeDefined()
+    expect(body.data.overview).toBeDefined()
+    expect(body.data.overview.totalMovies).toBe(50)
   })
 
   it('should handle errors gracefully', async () => {

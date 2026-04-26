@@ -126,6 +126,11 @@ export function WatchPartyOverlay({
     enabled: !!roomCode,
   })
 
+  // Bind SFU transport for text chat and sync
+  useEffect(() => {
+    party.setLiveKitRoom(call.room)
+  }, [call.room, party])
+
   // ── Create Room Handler ──
   const handleRoomCreated = useCallback((code: string) => {
     setRoomCode(code)
@@ -252,12 +257,17 @@ export function WatchPartyOverlay({
           </div>
         ) : showPanel && party.room && (
           <div className="w-full lg:w-[420px] shrink-0 border-t lg:border-t-0 lg:border-l border-white/[0.06] bg-[#0A0E17] flex flex-col h-full z-10 transition-all duration-300">
-            <WatchPartyPanel
-              room={party.room}
-              members={party.members}
-              messages={party.messages}
-              isHost={party.room.host.id === user.id}
-              userId={user.id}
+            {(() => {
+              const myMember = party.members.find(m => m.userId === user.id || (m.guestName && m.guestName === user.name))
+              const myRole = myMember?.role?.toUpperCase() || 'MEMBER'
+              const canManage = myRole === 'HOST' || myRole === 'COHOST'
+              return (
+                <WatchPartyPanel
+                  room={party.room}
+                  members={party.members}
+                  messages={party.messages}
+                  isHost={canManage}
+                  userId={user.id}
               userName={user.name}
               onSendChat={party.sendChat}
               onLeave={handleLeave}
@@ -268,7 +278,10 @@ export function WatchPartyOverlay({
               onApproveJoin={party.approveJoin}
               onRejectJoin={party.rejectJoin}
               onKickMember={party.kickMember}
+              onUpdateRole={party.updateRole}
             />
+              )
+            })()}
           </div>
         )}
       </div>

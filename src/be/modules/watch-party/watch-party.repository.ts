@@ -112,6 +112,13 @@ export async function markParticipantOffline(participantId: string) {
   })
 }
 
+export async function updateParticipantRole(participantId: string, role: 'HOST' | 'COHOST' | 'MEMBER' | 'GUEST') {
+  return prisma.watchPartyParticipant.update({
+    where: { id: participantId },
+    data: { role },
+  })
+}
+
 export async function markParticipantOnline(participantId: string) {
   return prisma.watchPartyParticipant.update({
     where: { id: participantId },

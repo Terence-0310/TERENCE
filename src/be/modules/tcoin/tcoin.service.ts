@@ -236,6 +236,25 @@ export async function adminAdjust(
   throw new Error('Amount cannot be zero')
 }
 
+/**
+ * Admin: manually refund a specific debit transaction.
+ */
+export async function adminRefund(
+  transactionId: string,
+  reason: string,
+  adminUserId: string,
+) {
+  try {
+    const refundTx = await repo.refundWalletTransaction(transactionId, reason, adminUserId)
+    return { ok: true, transaction: refundTx }
+  } catch (error: any) {
+    if (error.message === 'TRANSACTION_NOT_FOUND') return { ok: false, message: 'Giao dịch không tồn tại' }
+    if (error.message === 'ONLY_DEBIT_CAN_BE_REFUNDED') return { ok: false, message: 'Chỉ có thể hoàn tiền các giao dịch trừ tiền (DEBIT)' }
+    if (error.message === 'ALREADY_REFUNDED') return { ok: false, message: 'Giao dịch này đã được hoàn tiền trước đó' }
+    return { ok: false, message: error.message || 'Lỗi hoàn tiền nội bộ' }
+  }
+}
+
 // ═══════════════════════════════════════════════
 // SPEND
 // ═══════════════════════════════════════════════
@@ -256,20 +275,34 @@ export async function spendTcoins(userId: string, optionId: string): Promise<Spe
     }
   }
 
-  const { wallet: updated } = await repo.debitWallet(
-    wallet.id,
-    option.cost,
-    'spend',
-    `Đổi: ${option.name}`,
-    optionId,
-    'spend_option',
-  )
+  try {
+    const { wallet: updated } = await repo.debitWallet(
+      wallet.id,
+      option.cost,
+      'spend',
+      `Đổi: ${option.name}`,
+      optionId,
+      'spend_option',
+    )
 
-  return {
-    ok: true,
-    amount: option.cost,
-    balance: updated.balance,
-    message: `Đã đổi "${option.name}" thành công!`,
+    return {
+      ok: true,
+      amount: option.cost,
+      balance: updated.balance,
+      message: `Đã đổi "${option.name}" thành công!`,
+    }
+  } catch (error: any) {
+    if (error.message === 'INSUFFICIENT_BALANCE') {
+      // Tái nạp wallet để lấy số dư mới nhất (do giao dịch bị từ chối)
+      const latestWallet = await repo.getOrCreateWallet(userId)
+      return {
+        ok: false,
+        amount: 0,
+        balance: latestWallet.balance,
+        message: `Số dư bị trừ song song: Không đủ TCoin. Cần ${option.cost}, hiện có ${latestWallet.balance}.`,
+      }
+    }
+    throw error
   }
 }
 
@@ -341,5 +374,35 @@ function mapTransaction(t: any): TransactionItem {
     referenceId: t.referenceId,
     referenceType: t.referenceType,
     createdAt: t.createdAt.toISOString(),
+  }
+}
+
+/**
+ * Tính toán TCoin nhận được dựa trên số lượng gốc,
+ * tự động áp dụng các tỉ lệ thưởng (VD: nạp nhiều thưởng thêm 5-20%).
+ * Hỗ trợ hệ số nhân sự kiện.
+ * 
+ * @param baseAmount Số lượng TCoin cơ bản
+ * @param eventMultiplier Hệ số nhân của sự kiện (mặc định 1.0)
+ * @returns { base, bonusPercentage, bonus, total }
+ */
+export function calculateTCoinBonus(baseAmount: number, eventMultiplier = 1.0) {
+  let bonusPercentage = 0
+  
+  // Nạp càng nhiều, phần trăm bonus càng lớn
+  if (baseAmount >= 3000) bonusPercentage = 0.20 // 20%
+  else if (baseAmount >= 1200) bonusPercentage = 0.15 // 15%
+  else if (baseAmount >= 500) bonusPercentage = 0.10 // 10%
+  else if (baseAmount >= 100) bonusPercentage = 0.05 // 5%
+
+  const baseWithEvent = Math.floor(baseAmount * eventMultiplier)
+  const bonus = Math.floor(baseWithEvent * bonusPercentage)
+  const total = baseWithEvent + bonus
+
+  return {
+    base: baseWithEvent,
+    bonusPercentage: Math.round(bonusPercentage * 100),
+    bonus,
+    total
   }
 }

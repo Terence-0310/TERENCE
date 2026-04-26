@@ -764,13 +764,17 @@ model TopupOrder {
 }
 
 model BankWebhookLog {
-  id         String   @id @default(cuid())
-  provider   String // SEPAY
-  eventType  String?
-  rawPayload Json
-  signature  String?
-  processed  Boolean  @default(false)
-  createdAt  DateTime @default(now())
+  id            String   @id @default(cuid())
+  provider      String   // SEPAY, VIETQR...
+  eventType     String?
+  rawPayload    Json
+  signature     String?
+  processed     Boolean  @default(false)
+  error         String?  @db.Text
+  transactionId String?  // ID giao dịch từ ngân hàng
+  orderCode     String?  // Mã đơn hàng đối chiếu (nếu có)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -811,6 +815,7 @@ model WatchPartyParticipant {
   userId      String?
   displayName String
   role        String    @default("MEMBER")
+  status      String    @default("ACTIVE") // ACTIVE, PENDING, REJECTED
   joinedAt    DateTime  @default(now())
   leftAt      DateTime?
   isOnline    Boolean   @default(true)
@@ -822,6 +827,7 @@ model WatchPartyParticipant {
   @@index([roomId])
   @@index([userId])
   @@index([roomId, isOnline])
+  @@index([roomId, status])
 }
 
 model WatchPartyMessage {

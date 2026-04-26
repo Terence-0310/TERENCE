@@ -4,13 +4,11 @@
 
 import { prisma } from '@/lib/db'
 import type {
-  PlayableMovie,
-  PlayableEpisode,
-  PlayableSource,
-  PlayableSubtitle,
   EpisodePlaybackData,
   MoviePlaybackData,
 } from '@/lib/player/types'
+import { mapMovie, mapEpisode, mapSource, mapSubtitle } from './watch.mapper'
+import type { PlayableSource, PlayableSubtitle } from '@/lib/player/types'
 
 // ── URL validation ──
 
@@ -29,64 +27,6 @@ function isHlsUrl(url: string): boolean {
     return u.pathname.endsWith('.m3u8')
   } catch {
     return false
-  }
-}
-
-// ── Map DB models to playable types ──
-
-function mapMovie(m: any): PlayableMovie {
-  return {
-    id: m.id,
-    tmdbId: m.tmdbId,
-    slug: m.slug,
-    title: m.title,
-    originalTitle: m.originalTitle,
-    description: m.description,
-    contentType: m.contentType,
-    posterUrl: m.posterUrl,
-    backdropUrl: m.backdropUrl,
-    year: m.year,
-    quality: m.quality,
-    rating: m.rating,
-
-
-  }
-}
-
-function mapEpisode(ep: any): PlayableEpisode {
-  return {
-    id: ep.id,
-    episodeNumber: ep.episodeNumber,
-    episodeName: ep.episodeName,
-    episodeSlug: ep.episodeSlug,
-    title: ep.title,
-    description: ep.description,
-    thumbnailUrl: ep.thumbnailUrl,
-    duration: ep.duration,
-    isActive: ep.isActive,
-    serverName: ep.serverName,
-  }
-}
-
-function mapSource(src: any): PlayableSource {
-  return {
-    id: src.id,
-    sourceType: src.sourceType as 'hls' | 'mp4',
-    url: src.url,
-    label: src.label,
-    isPrimary: src.isPrimary,
-    mimeType: src.mimeType,
-  }
-}
-
-function mapSubtitle(sub: any): PlayableSubtitle {
-  return {
-    id: sub.id,
-    label: sub.label,
-    lang: sub.lang,
-    url: sub.url,
-    isDefault: sub.isDefault,
-    kind: sub.kind,
   }
 }
 
@@ -194,17 +134,20 @@ export async function getEpisodePlaybackData(
 
   // Fallback: use legacy streamUrl if no VideoSource exists
   if (sources.length === 0 && episode.streamUrl && isValidUrl(episode.streamUrl)) {
-    const legacyType = episode.streamType === 'hls' ? 'hls' : 'mp4' as const
-    if (legacyType === 'hls' && !isHlsUrl(episode.streamUrl)) {
-      // Skip invalid HLS URL
+    const streamTypeRaw = episode.streamType || ''
+    const isEmbedOrIframe = streamTypeRaw.includes('iframe') || streamTypeRaw.includes('embed') || streamTypeRaw.includes('youtube')
+    const mappedType = isEmbedOrIframe ? (streamTypeRaw.includes('youtube') ? 'youtube' : 'iframe') : (streamTypeRaw === 'hls' || streamTypeRaw === 'm3u8' ? 'hls' : 'mp4')
+    
+    if (mappedType === 'hls' && !isHlsUrl(episode.streamUrl)) {
+      // Skip invalid HLS URL unless it's falsely labeled
     } else {
       sources.push({
         id: `legacy-${episode.id}`,
-        sourceType: legacyType,
+        sourceType: mappedType as 'hls' | 'mp4' | 'iframe' | 'youtube',
         url: episode.streamUrl,
         label: episode.quality || 'Main',
         isPrimary: true,
-        mimeType: legacyType === 'hls' ? 'application/x-mpegURL' : 'video/mp4',
+        mimeType: mappedType === 'hls' ? 'application/x-mpegURL' : (mappedType === 'mp4' ? 'video/mp4' : null),
       })
     }
   }
@@ -383,6 +326,7 @@ export async function getMultiServerSources(
     // Try VideoSource records first
     for (const src of ep.videoSources) {
       if (!isValidUrl(src.url)) continue
+      if (src.sourceType === 'iframe' || src.sourceType === 'youtube') continue
       if (src.sourceType === 'hls' && !isHlsUrl(src.url)) continue
 
       if (!serverMap.has(serverName)) {
@@ -397,6 +341,9 @@ export async function getMultiServerSources(
 
     // Fallback to legacy streamUrl
     if (!serverMap.has(serverName) && ep.streamUrl && isValidUrl(ep.streamUrl)) {
+      const isEmbed = ep.streamType?.includes('iframe') || ep.streamType?.includes('embed') || ep.streamType?.includes('youtube')
+      if (isEmbed) continue
+      
       const isHls = ep.streamType === 'hls' || ep.streamType === 'm3u8'
       if (isHls && !isHlsUrl(ep.streamUrl)) continue
 
@@ -456,6 +403,7 @@ export async function getAllMovieServers(
     // Try VideoSource records first
     for (const src of ep.videoSources) {
       if (!isValidUrl(src.url)) continue
+      if (src.sourceType === 'iframe' || src.sourceType === 'youtube') continue
       if (src.sourceType === 'hls' && !isHlsUrl(src.url)) continue
       streamUrl = src.url
       break
@@ -463,6 +411,9 @@ export async function getAllMovieServers(
 
     // Fallback to legacy streamUrl
     if (!streamUrl && ep.streamUrl && isValidUrl(ep.streamUrl)) {
+      const isEmbed = ep.streamType?.includes('iframe') || ep.streamType?.includes('embed') || ep.streamType?.includes('youtube')
+      if (isEmbed) continue
+
       const isHls = ep.streamType === 'hls' || ep.streamType === 'm3u8'
       if (isHls && !isHlsUrl(ep.streamUrl)) continue
       streamUrl = ep.streamUrl
