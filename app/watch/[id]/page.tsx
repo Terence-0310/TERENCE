@@ -129,6 +129,23 @@ export default async function WatchPage({ params, searchParams }: PageProps) {
   const dbMovieId = dbPlayback?.movie?.id || id
   const director = tmdbMovie?.crew?.find((c) => c.job === 'Director')
 
+  // Back-link target. Derive it from the DB movie's own identity rather than
+  // `tmdbMovie`: that record is fetched from the TMDB *movie* endpoint using the
+  // URL id and can resolve to a completely unrelated film when the watched
+  // title is a TV series — TMDB's movie and TV id spaces overlap, so a TV id
+  // passed to the movie endpoint returns a different movie. Route by contentType.
+  const seriesContentTypes = ['series', 'tv', 'anime']
+  const backHref = (() => {
+    const m = dbPlayback?.movie
+    if (m?.tmdbId) {
+      return seriesContentTypes.includes(m.contentType ?? '')
+        ? `/tv/${m.tmdbId}`
+        : `/movie/${m.tmdbId}`
+    }
+    if (tmdbMovie?.id) return `/movie/${tmdbMovie.id}`
+    return '/'
+  })()
+
   // Build episode list for navigation
   const episodeList = dbPlayback?.episodes || []
   const providerEps = !hasDbSource && legacySource?.episodes ? legacySource.episodes : []
@@ -216,8 +233,8 @@ export default async function WatchPage({ params, searchParams }: PageProps) {
         
         {/* ═══════ BACK LINK ═══════ */}
         <header className="mb-4">
-          <Link 
-            href={tmdbMovie ? `/movie/${tmdbMovie.id}` : '/'} 
+          <Link
+            href={backHref}
             className="inline-flex items-center gap-2 rounded-full bg-white/5 py-1.5 pr-4 pl-1.5 text-sm font-medium text-white/80 transition hover:bg-white/10 hover:text-white mb-2"
           >
             <div className="flex h-6 w-6 items-center justify-center rounded-full bg-black/40">
