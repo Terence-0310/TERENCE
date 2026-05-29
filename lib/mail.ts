@@ -154,3 +154,78 @@ export const sendVerificationEmail = async (email: string, token: string, name?:
   });
 };
 
+/**
+ * Send a TCoin top-up receipt/invoice after a payment is confirmed (automatic
+ * SePay webhook, admin manual confirm, or free-amount). Best-effort — callers
+ * should not block the payment flow on delivery.
+ */
+export const sendTopupReceiptEmail = async (params: {
+  email: string;
+  name?: string | null;
+  orderCode: string;
+  packageName: string;
+  amountVnd: number;
+  coinAmount: number;
+  bonusAmount: number;
+  balanceAfter: number;
+  paidAt: Date;
+}) => {
+  const {
+    email, name, orderCode, packageName,
+    amountVnd, coinAmount, bonusAmount, balanceAfter, paidAt,
+  } = params;
+
+  const total = coinAmount + bonusAmount;
+  const vnd = (n: number) => `${n.toLocaleString("vi-VN")}đ`;
+  const coin = (n: number) => `${n.toLocaleString("vi-VN")} TCoin`;
+  const paidAtLabel = paidAt.toLocaleString("vi-VN", {
+    day: "2-digit", month: "2-digit", year: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  });
+
+  const rows: Array<[string, string, boolean?]> = [
+    ["Mã đơn", orderCode],
+    ["Gói", packageName],
+    ["Số tiền thanh toán", vnd(amountVnd)],
+    ["TCoin gốc", coin(coinAmount)],
+    ...(bonusAmount > 0
+      ? [["Bonus", `+${coin(bonusAmount)}`] as [string, string]]
+      : []),
+    ["Tổng TCoin nhận", coin(total), true],
+    ["Số dư ví sau giao dịch", coin(balanceAfter)],
+    ["Thời gian", paidAtLabel],
+  ];
+
+  const tableHtml = `
+    <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin: 24px 0 0; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
+      ${rows
+        .map(
+          ([label, value, highlight], i) => `
+        <tr style="background: ${i % 2 === 0 ? "#f8fafc" : "#ffffff"};">
+          <td style="padding: 12px 16px; color: #64748b; font-size: 13px; border-bottom: 1px solid #eef2f7;">${label}</td>
+          <td style="padding: 12px 16px; text-align: right; font-size: ${highlight ? "16px" : "14px"}; font-weight: ${highlight ? "800" : "600"}; color: ${highlight ? "#0d9488" : "#0f172a"}; border-bottom: 1px solid #eef2f7;">${value}</td>
+        </tr>`,
+        )
+        .join("")}
+    </table>`;
+
+  if (process.env.NODE_ENV !== "production" || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
+    log.info({ to: email, orderCode, total }, "Lệnh Gửi Email Hoá Đơn TCoin (Local Test)");
+  }
+
+  await transporter.sendMail({
+    from: fromAddress(),
+    to: email,
+    subject: `Hoá đơn nạp TCoin #${orderCode} — TERENCE`,
+    html: buildHtmlEmail({
+      title: "Hoá đơn nạp TCoin",
+      greeting: `Chào ${name || "bạn"},`,
+      message:
+        `Thanh toán của bạn đã được <strong>xác nhận tự động</strong> và <strong>${coin(total)}</strong> đã được cộng vào ví. Dưới đây là chi tiết hoá đơn:${tableHtml}`,
+      buttonText: "Xem ví TCoin",
+      buttonUrl: `${appUrl()}/tcoin`,
+      note: "Đây là email xác nhận giao dịch tự động. Nếu bạn không thực hiện giao dịch này, vui lòng liên hệ hỗ trợ ngay.",
+    }),
+  });
+};
+

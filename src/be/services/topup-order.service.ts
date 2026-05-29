@@ -252,8 +252,9 @@ export async function markOrderPaid(orderId: string, txnData: BankTxnData) {
   // 4. Push realtime event to the owning user (best-effort, never throws
   // — the wallet credit already committed). Skip on duplicate webhook delivery.
   if (!alreadyPaid) {
+    let balance = 0;
     try {
-      const { balance } = await getWalletOverview(updatedOrder.userId);
+      ({ balance } = await getWalletOverview(updatedOrder.userId));
       notifyUser(updatedOrder.userId, 'tcoin:paid', {
         orderId: updatedOrder.id,
         orderCode: updatedOrder.code,
@@ -262,6 +263,39 @@ export async function markOrderPaid(orderId: string, txnData: BankTxnData) {
       });
     } catch {
       // Realtime push is non-critical — UI polling fallback will catch up.
+    }
+
+    // 5. Receipt / invoice email — automatic confirmation. Best-effort: a mail
+    // failure must never affect the already-committed credit nor the webhook
+    // response. Only sent once (guarded by !alreadyPaid, so webhook retries on
+    // a PAID order don't re-send).
+    try {
+      const [user, pkg] = await Promise.all([
+        prisma.user.findUnique({
+          where: { id: updatedOrder.userId },
+          select: { email: true, name: true },
+        }),
+        prisma.tCoinPackage.findUnique({
+          where: { id: updatedOrder.packageId },
+          select: { name: true },
+        }),
+      ]);
+      if (user?.email) {
+        const { sendTopupReceiptEmail } = await import('@/lib/mail');
+        await sendTopupReceiptEmail({
+          email: user.email,
+          name: user.name,
+          orderCode: updatedOrder.code,
+          packageName: pkg?.name || 'Nạp TCoin',
+          amountVnd: updatedOrder.amountVnd,
+          coinAmount: updatedOrder.coinAmount,
+          bonusAmount: updatedOrder.bonusAmount,
+          balanceAfter: balance,
+          paidAt: new Date(),
+        });
+      }
+    } catch {
+      // Receipt email is non-critical — swallow so the payment flow is unaffected.
     }
   }
 
