@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import useSWR from 'swr'
 import { toast } from 'sonner'
@@ -83,6 +83,8 @@ type ActiveOrder = {
 type OverviewResponse = {
   isAuthenticated: boolean
   balance: number
+  totalEarned: number
+  totalSpent: number
   packages: Package[]
   rewards: Reward[]
   spendOptions: SpendOption[]
@@ -274,20 +276,10 @@ export default function TCoinPage() {
   )
   const activeByOption = perksEnvelope?.data?.activeByOption ?? {}
 
-  const totalEarned = useMemo(
-    () =>
-      transactions
-        .filter((t) => t.direction === 'CREDIT')
-        .reduce((sum, t) => sum + t.amount, 0),
-    [transactions]
-  )
-  const totalSpent = useMemo(
-    () =>
-      transactions
-        .filter((t) => t.direction === 'DEBIT')
-        .reduce((sum, t) => sum + t.amount, 0),
-    [transactions]
-  )
+  // Lifetime totals from the wallet aggregates (BE sums all transactions),
+  // not just the 8 recent ones shown below.
+  const totalEarned = overview?.totalEarned ?? 0
+  const totalSpent = overview?.totalSpent ?? 0
 
   const handleTopup = async (pkg: Package) => {
     if (!isAuthenticated) return openModal('login')
@@ -659,7 +651,7 @@ export default function TCoinPage() {
           {isAuthenticated && transactions.length > 0 ? (
             <div className="rounded-xl border border-white/[0.06] overflow-hidden divide-y divide-white/[0.04]">
               {transactions.map((tx) => {
-                const isCredit = tx.direction === 'CREDIT'
+                const isCredit = (tx.direction || '').toLowerCase() === 'credit'
                 return (
                   <div
                     key={tx.id}

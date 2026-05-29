@@ -121,6 +121,8 @@ export class TcoinController {
     return ok({
       isAuthenticated: true,
       balance: wallet.balance,
+      totalEarned: wallet.totalEarned,
+      totalSpent: wallet.totalSpent,
       packages,
       rewards: TcoinService.REWARD_CONFIGS,
       spendOptions: TcoinService.SPEND_OPTIONS,
