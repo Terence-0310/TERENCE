@@ -3,6 +3,9 @@ import { requireAdmin } from '@/src/be/modules/admin/api-helpers'
 import { adminRefund } from '@/src/be/modules/tcoin/tcoin.service'
 import { ok, badRequest, serverError, parseAndValidate } from '@/src/be/shared/api-handler'
 import { z } from 'zod'
+import { logger } from '@/src/be/shared/utils/logger'
+
+const log = logger.child({ module: 'admin-tcoin-refund' })
 
 const refundSchema = z.object({
   transactionId: z.string().min(1, 'transactionId is required'),
@@ -14,7 +17,7 @@ export async function POST(req: NextRequest) {
     const authRes = await requireAdmin()
     if (authRes instanceof Response) return authRes // 401/403
 
-    const adminId = (authRes as any).user?.id || 'admin-system'
+    const adminId = authRes.user.id
 
     const validation = await parseAndValidate(req, refundSchema)
     if (validation.error) return validation.error
@@ -28,7 +31,7 @@ export async function POST(req: NextRequest) {
 
     return ok({ success: true, transaction: result.transaction, message: 'Hoàn tiền thành công' })
   } catch (error: any) {
-    console.error('[Admin API] POST /api/admin/tcoin/refund error:', error)
+    log.error({ err: error instanceof Error ? error.message : error }, 'POST /api/admin/tcoin/refund error')
     return serverError('Đã xảy ra lỗi khi hoàn tiền')
   }
 }

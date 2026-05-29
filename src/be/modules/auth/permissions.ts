@@ -22,40 +22,13 @@ export type Permission =
   | 'reports.view'
   | 'settings.manage'
 
-const ROLE_PERMISSIONS: Record<string, Permission[]> = {
-  super_admin: [
-    'dashboard.access', 'movies.view', 'movies.create', 'movies.edit', 'movies.delete',
-    'episodes.view', 'episodes.create', 'episodes.edit', 'episodes.delete',
-    'shorts.view', 'shorts.create', 'shorts.edit', 'shorts.delete',
-    'users.view', 'users.create', 'users.edit', 'users.delete', 'users.block', 'users.change_role',
-    'logs.view', 'uploads.manage', 'reports.view', 'settings.manage',
-  ],
-  admin: [
-    'dashboard.access', 'movies.view', 'movies.create', 'movies.edit', 'movies.delete',
-    'episodes.view', 'episodes.create', 'episodes.edit', 'episodes.delete',
-    'shorts.view', 'shorts.create', 'shorts.edit', 'shorts.delete',
-    'users.view', 'users.create', 'users.edit', 'users.block', 'users.change_role',
-    'logs.view', 'uploads.manage', 'reports.view',
-  ],
-  staff: [
-    'dashboard.access', 'movies.view', 'movies.create', 'movies.edit',
-    'episodes.view', 'episodes.create', 'episodes.edit',
-    'shorts.view', 'shorts.create', 'shorts.edit',
-    'users.view', 'uploads.manage',
-  ],
-  editor: [
-    'dashboard.access', 'movies.view', 'movies.edit',
-    'episodes.view', 'episodes.edit',
-    'shorts.view', 'shorts.edit',
-    'uploads.manage',
-  ],
-  user: [],
-}
 
 import { hasPermission as newHasPermission } from '@/src/lib/permissions/access-control'
 import { PERMISSIONS } from '@/src/constants/permissions'
 
-export async function hasPermission(user: PublicUser | null, permission: Permission): Promise<boolean> {
+// Accepts the legacy `Permission` union OR any new PermissionKey string —
+// the internal map normalises both into the canonical key.
+export async function hasPermission(user: PublicUser | null, permission: Permission | string): Promise<boolean> {
   if (!user || !user.role) return false
   
   const map: Record<string, string> = {
@@ -81,13 +54,13 @@ export async function hasPermission(user: PublicUser | null, permission: Permiss
   const newKey = map[permission] || permission
 
   return newHasPermission(
-    { id: (user as any).id || '', role: typeof user.role === 'string' ? user.role.toUpperCase() : 'USER' },
+    { id: user.id || '', role: typeof user.role === 'string' ? user.role.toUpperCase() : 'USER' },
     newKey
   )
 }
 
 export async function canAccessDashboard(user: PublicUser | null): Promise<boolean> {
-  return hasPermission(user, PERMISSIONS.DASHBOARD_VIEW as any)
+  return hasPermission(user, PERMISSIONS.DASHBOARD_VIEW as Permission)
 }
 
 export function canChangeRole(actor: PublicUser, targetCurrentRole: string, newRole: string): boolean {

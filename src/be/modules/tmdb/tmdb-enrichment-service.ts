@@ -7,9 +7,11 @@
 import { PrismaClient } from '@prisma/client'
 import { getExternalIds, getVideos, getCredits, buildImageUrl, buildProfileUrl } from './tmdb-client'
 import { matchMovie, MIN_AUTO_BIND_CONFIDENCE } from './tmdb-matcher'
+import { logger } from '@/src/be/shared/utils/logger'
 import type { EnrichResult, TmdbVideo } from './types'
 
 const prisma = new PrismaClient()
+const log = logger.child({ module: 'tmdb-enrichment-service' })
 
 // ─── Helpers ────────────────────────────────────────────────────
 
@@ -58,7 +60,11 @@ async function completeSyncJob(jobId: string, stats: { total: number; processed:
   await prisma.syncJob.update({
     where: { id: jobId },
     data: {
-      status: stats.failed > 0 && stats.processed === 0 ? 'failed' : 'completed',
+      status: stats.failed > 0 && stats.processed === 0 
+        ? 'failed' 
+        : stats.failed > 0 || stats.skipped > 0
+          ? 'partial' 
+          : 'completed',
       totalItems: stats.total,
       processedItems: stats.processed,
       failedItems: stats.failed,
@@ -160,7 +166,7 @@ export async function enrichMovie(movieId: string, syncJobId?: string): Promise<
       return { movieId, movieTitle: 'unknown', action: 'fail', message: 'Movie not found', error: 'Not found' }
     }
 
-    console.log(`[TMDB Enrich] Processing: "${movie.title}" (${movie.originalTitle || 'no original title'})`)
+    log.info({ title: movie.title, originalTitle: movie.originalTitle }, `Processing: "${movie.title}" (${movie.originalTitle || 'no original title'})`)
 
     // 1. Match to TMDB
     const match = await matchMovie({
@@ -190,7 +196,7 @@ export async function enrichMovie(movieId: string, syncJobId?: string): Promise<
       }
     }
 
-    console.log(`[TMDB Enrich] Matched: "${movie.title}" → TMDB ${match.tmdbId} (${match.confidence} via ${match.matchMethod})`)
+    log.info({ title: movie.title, tmdbId: match.tmdbId, confidence: match.confidence, matchMethod: match.matchMethod }, `Matched: "${movie.title}" → TMDB ${match.tmdbId} (${match.confidence} via ${match.matchMethod})`)
 
     // 2. Fetch enrichment data
     const fieldsUpdated: string[] = []
@@ -208,7 +214,7 @@ export async function enrichMovie(movieId: string, syncJobId?: string): Promise<
         fieldsUpdated.push('imdbId')
       }
     } catch (e) {
-      console.warn(`[TMDB Enrich] Failed to get external IDs:`, e instanceof Error ? e.message : e)
+      log.warn({ err: e instanceof Error ? e.message : e }, 'Failed to get external IDs')
     }
 
     // 2b. Videos (Trailer)
@@ -222,7 +228,7 @@ export async function enrichMovie(movieId: string, syncJobId?: string): Promise<
         fieldsUpdated.push('trailerSite', 'trailerKey', 'trailerUrl')
       }
     } catch (e) {
-      console.warn(`[TMDB Enrich] Failed to get videos:`, e instanceof Error ? e.message : e)
+      log.warn({ err: e instanceof Error ? e.message : e }, 'Failed to get videos')
     }
 
     // 2c. Credits (Cast + Directors)
@@ -252,24 +258,37 @@ export async function enrichMovie(movieId: string, syncJobId?: string): Promise<
       // Legacy actorText/directorText fields removed in schema migration.
       // Actors and directors are fully tracked via MoviePerson table.
     } catch (e) {
-      console.warn(`[TMDB Enrich] Failed to get credits:`, e instanceof Error ? e.message : e)
+      log.warn({ err: e instanceof Error ? e.message : e }, 'Failed to get credits')
     }
 
-    // 2d. Backdrop (only if missing)
-    if (!movie.backdropUrl) {
+    // 2d. Details (Backdrop & Release Date)
+    if (!movie.backdropUrl || !movie.publishedAt) {
       try {
-        // Use search result data — we need to re-fetch detail for backdrop
         const detail = match.mediaType === 'movie'
           ? await (await import('./tmdb-client')).getMovieDetail(match.tmdbId)
           : await (await import('./tmdb-client')).getTvDetail(match.tmdbId)
 
-        const backdropPath = 'backdrop_path' in detail ? detail.backdrop_path : null
-        if (backdropPath) {
-          updateData.backdropUrl = buildImageUrl(backdropPath, 'w1280')
-          fieldsUpdated.push('backdropUrl')
+        if (!movie.backdropUrl) {
+          const backdropPath = 'backdrop_path' in detail ? detail.backdrop_path : null
+          if (backdropPath) {
+            updateData.backdropUrl = buildImageUrl(backdropPath, 'w1280')
+            fieldsUpdated.push('backdropUrl')
+          }
+        }
+
+        if (!movie.publishedAt) {
+          const releaseDateStr = 'release_date' in detail 
+            ? detail.release_date 
+            : ('first_air_date' in detail ? detail.first_air_date : null)
+            
+          if (releaseDateStr) {
+            // Task 88: Xử lý timezone đồng bộ UTC cho ngày phát hành phim
+            updateData.publishedAt = new Date(`${releaseDateStr}T00:00:00.000Z`)
+            fieldsUpdated.push('publishedAt')
+          }
         }
       } catch (e) {
-        console.warn(`[TMDB Enrich] Failed to get detail for backdrop:`, e instanceof Error ? e.message : e)
+        log.warn({ err: e instanceof Error ? e.message : e }, 'Failed to get detail')
       }
     }
 
@@ -327,6 +346,7 @@ export async function enrichBatch(limit: number = 20, delayMs: number = 800): Pr
           { tmdbId: null },
           { trailerUrl: null },
           { backdropUrl: null },
+          { people: { none: {} } },
         ],
       },
       select: { id: true, title: true, tmdbId: true },
@@ -334,7 +354,7 @@ export async function enrichBatch(limit: number = 20, delayMs: number = 800): Pr
       take: limit,
     })
 
-    console.log(`[TMDB Enrich] Found ${movies.length} movies needing enrichment`)
+    log.info({ count: movies.length }, `Found ${movies.length} movies needing enrichment`)
     stats.total = movies.length
 
     for (const movie of movies) {
@@ -352,22 +372,22 @@ export async function enrichBatch(limit: number = 20, delayMs: number = 800): Pr
       }
 
       if (stats.total > 0 && (stats.processed + stats.skipped + stats.failed) % 5 === 0) {
-        console.log(`[TMDB Enrich] Progress: ${stats.processed} enriched, ${stats.skipped} skipped, ${stats.failed} failed / ${stats.total}`)
+        log.info({ stats }, `Progress: ${stats.processed} enriched, ${stats.skipped} skipped, ${stats.failed} failed / ${stats.total}`)
       }
     }
 
     await completeSyncJob(job.id, stats)
 
-    console.log(`\n[TMDB Enrich] ✅ Completed!`)
-    console.log(`  Enriched: ${stats.processed}`)
-    console.log(`  Skipped: ${stats.skipped}`)
-    console.log(`  Failed: ${stats.failed}`)
-    console.log(`  Total: ${stats.total}`)
+    log.info({ stats }, 'Completed!')
+    log.info({ enriched: stats.processed }, `  Enriched: ${stats.processed}`)
+    log.info({ skipped: stats.skipped }, `  Skipped: ${stats.skipped}`)
+    log.info({ failed: stats.failed }, `  Failed: ${stats.failed}`)
+    log.info({ total: stats.total }, `  Total: ${stats.total}`)
 
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error)
     await failSyncJob(job.id, errorMsg)
-    console.error(`[TMDB Enrich] ❌ Job failed: ${errorMsg}`)
+    log.error({ err: errorMsg }, `Job failed: ${errorMsg}`)
   }
 
   return { jobId: job.id, results }

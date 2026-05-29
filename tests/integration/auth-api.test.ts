@@ -10,17 +10,21 @@ import { createMockPrisma, type MockPrisma } from '@/tests/helpers/mock-prisma'
 // ── Mock dependencies ──
 let mockPrisma: MockPrisma
 
-const { mockHashPassword } = vi.hoisted(() => ({
+const { mockHashPassword, mockCreateSession, mockTriggerEmailVerification } = vi.hoisted(() => ({
   mockHashPassword: vi.fn().mockResolvedValue('hashed_password_123'),
+  mockCreateSession: vi.fn().mockResolvedValue('session_id'),
+  mockTriggerEmailVerification: vi.fn().mockResolvedValue(undefined),
 }))
 
 vi.mock('@/src/be/shared/db/prisma', () => ({
   get prisma() { return mockPrisma }
 }))
 
-vi.mock('@/src/be/modules/auth', () => ({
+vi.mock('@/src/be/modules/auth/auth.service', () => ({
   AuthService: {
     hashPassword: mockHashPassword,
+    createSession: mockCreateSession,
+    triggerEmailVerification: mockTriggerEmailVerification,
   }
 }))
 
@@ -41,7 +45,8 @@ describe('POST /api/auth/register', () => {
   it('should return 400 when name is missing', async () => {
     const req = createMockRequest('/api/auth/register', {
       method: 'POST',
-      body: { email: 'test@example.com', password: '123456' },
+      // Password ≥8 chars to mirror the unified policy in auth.schema.ts.
+      body: { email: 'test@example.com', password: 'secure123' },
     })
     const res = await registerRoute(req)
     const { status, body } = await parseResponse<{ error: string }>(res)
@@ -53,7 +58,7 @@ describe('POST /api/auth/register', () => {
   it('should return 400 when email is invalid', async () => {
     const req = createMockRequest('/api/auth/register', {
       method: 'POST',
-      body: { name: 'Test', email: 'not-an-email', password: '123456' },
+      body: { name: 'Test', email: 'not-an-email', password: 'secure123' },
     })
     const res = await registerRoute(req)
     const { status, body } = await parseResponse<{ error: string }>(res)
@@ -62,29 +67,30 @@ describe('POST /api/auth/register', () => {
     expect(body.error).toContain('Email')
   })
 
-  it('should return 400 when password is too short', async () => {
+  it('should return 400 when password is too short (now <8)', async () => {
     const req = createMockRequest('/api/auth/register', {
       method: 'POST',
-      body: { name: 'Test', email: 'test@example.com', password: '12345' },
+      body: { name: 'Test', email: 'test@example.com', password: '1234567' },
     })
     const res = await registerRoute(req)
     const { status, body } = await parseResponse<{ error: string }>(res)
 
     expect(status).toBe(400)
-    expect(body.error).toContain('6')
+    // Password policy is now min 8 chars (unified between signup + reset).
+    expect(body.error).toContain('8')
   })
 
-  it('should return 400 when email already exists', async () => {
+  it('should return 409 when email already exists', async () => {
     mockPrisma.user.findUnique.mockResolvedValue({ id: 'existing-user', email: 'test@example.com' })
 
     const req = createMockRequest('/api/auth/register', {
       method: 'POST',
-      body: { name: 'Test', email: 'test@example.com', password: '123456' },
+      body: { name: 'Test', email: 'test@example.com', password: 'secure123' },
     })
     const res = await registerRoute(req)
     const { status, body } = await parseResponse<{ error: string }>(res)
 
-    expect(status).toBe(400)
+    expect(status).toBe(409)
     expect(body.error).toContain('Email')
   })
 
@@ -109,12 +115,13 @@ describe('POST /api/auth/register', () => {
       expect.objectContaining({
         data: expect.objectContaining({
           email: 'test@example.com',
-          isEmailVerified: false,
         }),
       })
     )
-    // Verification token should be created
-    expect(mockPrisma.verificationToken.create).toHaveBeenCalled()
+    // Verification email trigger should be called
+    expect(mockTriggerEmailVerification).toHaveBeenCalledWith('test@example.com', 'Test User')
+    // Session should be created
+    expect(mockCreateSession).toHaveBeenCalledWith('new-user-1')
   })
 })
 

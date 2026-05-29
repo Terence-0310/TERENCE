@@ -1,19 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/src/be/shared/db/prisma'
 import { AuthService } from '@/src/be/modules/auth'
+import { logger } from '@/src/be/shared/utils/logger'
+import { resetPasswordSchema } from '@/src/be/modules/auth/auth.schema'
+
+const log = logger.child({ module: 'auth-reset-password' })
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json()
-    const { token, password } = body as { token?: string, password?: string }
-
-    if (!token?.trim() || !password?.trim()) {
-      return NextResponse.json({ error: 'Token và mật khẩu mới là bắt buộc' }, { status: 400 })
+    let raw: unknown
+    try {
+      raw = await req.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
     }
 
-    if (password.length < 6) {
-      return NextResponse.json({ error: 'Mật khẩu phải có ít nhất 6 ký tự' }, { status: 400 })
+    const parsed = resetPasswordSchema.safeParse(raw)
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Dữ liệu không hợp lệ' }, { status: 400 })
     }
+    const { token, password } = parsed.data
 
     const resetToken = await prisma.passwordResetToken.findUnique({
       where: { token },
@@ -45,7 +51,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ message: 'Đặt lại mật khẩu thành công' })
   } catch (error) {
-    console.error('Reset password error:', error)
+    log.error({ err: error instanceof Error ? error.message : error }, 'Reset password error')
     return NextResponse.json({ error: 'Lỗi hệ thống' }, { status: 500 })
   }
 }

@@ -3,6 +3,9 @@
 // ============================================
 
 import type Hls from 'hls.js'
+import { logger } from '@/src/fe/lib/logger'
+
+const log = logger.child({ module: 'hls' })
 
 export interface HlsInitResult {
   hls: Hls | null
@@ -65,17 +68,17 @@ export async function initHls(options: HlsInitOptions): Promise<HlsInitResult> {
 
   hls.on(HlsLib.Events.ERROR, (_event, data) => {
     if (data.fatal) {
-      console.error('[HLS] Fatal error:', data.type, data.details)
+      log.error({ type: data.type, details: data.details }, 'Fatal error')
       onError?.(true, data.details)
 
       // Try recovery
       switch (data.type) {
         case HlsLib.ErrorTypes.NETWORK_ERROR:
-          console.log('[HLS] Attempting network recovery...')
+          log.info('Attempting network recovery')
           hls.startLoad()
           break
         case HlsLib.ErrorTypes.MEDIA_ERROR:
-          console.log('[HLS] Attempting media recovery...')
+          log.info('Attempting media recovery')
           hls.recoverMediaError()
           break
         default:

@@ -36,7 +36,7 @@ export function AddUserModal({ form, saving, onFormChange, onSubmit, onClose }: 
           <div><label className="text-sm font-medium">Mật khẩu (≥8 ký tự) *</label>
             <Input type="password" className="mt-1 bg-muted border-border" value={form.password} onChange={(e) => onFormChange({ ...form, password: e.target.value })} required minLength={8} /></div>
           <div><label className="text-sm font-medium">Vai trò</label>
-            <select className="w-full mt-1 px-3 py-2 bg-muted border border-border rounded-lg outline-none bg-[#0A0E17]" value={form.role} onChange={(e) => onFormChange({ ...form, role: e.target.value })}>
+            <select className="w-full mt-1 px-3 py-2 bg-muted border border-border rounded-lg outline-none bg-background" value={form.role} onChange={(e) => onFormChange({ ...form, role: e.target.value })}>
               <option value="USER">User</option><option value="EDITOR">Editor</option>
               <option value="STAFF">Staff</option><option value="ADMIN">Admin</option>
             </select></div>
@@ -85,7 +85,7 @@ export function EditUserModal({ user, editForm, saving, onFormChange, onSubmit, 
             <Input type="email" className="mt-1 bg-muted border-border" value={editForm.email} onChange={(e) => onFormChange({ ...editForm, email: e.target.value })} required /></div>
           <div className="grid grid-cols-2 gap-4">
             <div><label className="text-sm font-medium">Vai trò</label>
-              <select className="w-full mt-1 px-3 py-2 bg-muted border border-border rounded-lg outline-none bg-[#0A0E17]" value={editForm.role} onChange={(e) => onFormChange({ ...editForm, role: e.target.value })}>
+              <select className="w-full mt-1 px-3 py-2 bg-muted border border-border rounded-lg outline-none bg-background" value={editForm.role} onChange={(e) => onFormChange({ ...editForm, role: e.target.value })}>
                 <option value="SUPER_ADMIN">Super Admin</option><option value="ADMIN">Admin</option>
                 <option value="STAFF">Staff</option><option value="EDITOR">Editor</option><option value="USER">User</option>
               </select></div>

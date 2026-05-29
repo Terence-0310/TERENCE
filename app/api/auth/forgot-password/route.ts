@@ -2,18 +2,28 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/src/be/shared/db/prisma'
 import crypto from 'crypto'
 import { sendPasswordResetEmail } from '@/lib/mail'
+import { logger } from '@/src/be/shared/utils/logger'
+import { forgotPasswordSchema } from '@/src/be/modules/auth/auth.schema'
+
+const log = logger.child({ module: 'auth-forgot-password' })
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json()
-    const { email } = body as { email?: string }
-
-    if (!email?.trim()) {
-      return NextResponse.json({ error: 'Email là bắt buộc' }, { status: 400 })
+    let raw: unknown
+    try {
+      raw = await req.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
     }
 
+    const parsed = forgotPasswordSchema.safeParse(raw)
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Email không hợp lệ' }, { status: 400 })
+    }
+    const { email } = parsed.data
+
     const user = await prisma.user.findUnique({
-      where: { email: email.toLowerCase().trim() },
+      where: { email },
     })
 
     if (!user) {
@@ -39,14 +49,14 @@ export async function POST(req: NextRequest) {
     })
 
     // Send the email using the configured SMTP setup
-    await sendPasswordResetEmail(email, token);
+    await sendPasswordResetEmail(email, token)
 
     return NextResponse.json({ 
       message: 'Trường hợp email hợp lệ, link khôi phục đã được gửi',
       ...(process.env.NODE_ENV !== 'production' && { devToken: token }) 
     })
   } catch (error) {
-    console.error('Forgot password error:', error)
+    log.error({ err: error instanceof Error ? error.message : error }, 'Forgot password error')
     return NextResponse.json({ error: 'Lỗi hệ thống' }, { status: 500 })
   }
 }

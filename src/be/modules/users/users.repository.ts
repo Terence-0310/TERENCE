@@ -3,6 +3,7 @@
 // ============================================
 
 import { prisma } from '@/src/be/shared/db/prisma'
+import { getUserLoader } from '@/src/be/shared/db/loaders'
 import type { Prisma } from '@prisma/client'
 
 export class UsersRepository {
@@ -29,14 +30,24 @@ export class UsersRepository {
     ])
   }
 
+  async getGlobalStats() {
+    return Promise.all([
+      prisma.user.count(),
+      prisma.user.count({ where: { status: 'active', deletedAt: null } }),
+      prisma.user.count({ where: { role: { in: ['SUPER_ADMIN', 'ADMIN'] }, deletedAt: null } }),
+      prisma.user.count({ where: { status: 'banned', deletedAt: null } })
+    ])
+  }
+
   async findById(id: string) {
-    return prisma.user.findUnique({
-      where: { id },
-      select: {
-        id: true, email: true, name: true, role: true, status: true,
-        avatar: true, isActive: true, createdAt: true,
-      },
-    })
+    // Sử dụng DataLoader để gộp các truy vấn trùng lặp trong cùng 1 request
+    const user = await getUserLoader().load(id)
+    if (!user) return null
+
+    return {
+      id: user.id, email: user.email, name: user.name, role: user.role, status: user.status,
+      avatar: user.avatar, isActive: user.isActive, createdAt: user.createdAt,
+    }
   }
 
   async findByEmail(email: string) {

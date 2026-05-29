@@ -7,10 +7,10 @@ import { handleFileUpload } from '@/src/be/modules/uploads/legacy-upload'
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user || !(session.user as any).id) {
+    const userId = session?.user?.id
+    if (!userId) {
       return NextResponse.json({ error: 'Vui lòng đăng nhập' }, { status: 401 })
     }
-    const userId = (session.user as any).id
 
     const formData = await req.formData()
     const file = formData.get('file') as File | null

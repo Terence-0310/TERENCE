@@ -15,6 +15,8 @@ export interface PlayableMovie {
   year: number | null
   quality: string | null
   rating: number | null
+  /** Early-access embargo (ISO). While in the future, only TCoin early-access perk holders may watch. */
+  earlyAccessUntil: string | null
 
 
 

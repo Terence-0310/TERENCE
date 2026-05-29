@@ -9,6 +9,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/src/be/shared/db/prisma'
 import { requireAdmin } from '@/src/be/modules/admin/api-helpers'
+import { logger } from '@/src/be/shared/utils/logger'
+
+const log = logger.child({ module: 'admin-search' })
 
 export async function GET(req: NextRequest) {
   try {
@@ -19,8 +22,6 @@ export async function GET(req: NextRequest) {
     if (!q || q.length < 2) {
       return NextResponse.json({ success: true, data: { movies: [], users: [], pages: [] } })
     }
-
-    const searchTerm = `%${q}%`
 
     // Search movies and users in parallel
     const [movies, users] = await Promise.all([
@@ -93,7 +94,7 @@ export async function GET(req: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Admin search error:', error)
+    log.error({ err: error instanceof Error ? error.message : error }, 'Admin search error')
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
   }
 }

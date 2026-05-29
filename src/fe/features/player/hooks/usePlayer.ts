@@ -8,7 +8,7 @@
 
 import { useSourceResolver, type UseSourceResolverProps } from '../core/managers/useSourceResolver'
 import { useResumeManager } from '../core/managers/useResumeManager'
-import type { PlayerServer, PlayerMovieMeta } from '../core/player.types'
+import type { PlayerMovieMeta } from '../core/player.types'
 
 export type { PlayerServer, PlayerMovieMeta, PlayerServerEpisode as PlayerEpisode } from '../core/player.types'
 

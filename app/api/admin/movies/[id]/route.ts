@@ -3,6 +3,7 @@ import { requireAdmin, errorResponse, successResponse, parseBody } from '@/src/b
 import { movieUpdateSchema } from '@/src/be/modules/admin/validators'
 import { logAdminAction, getClientIp } from '@/src/be/modules/admin/audit'
 import { AdminMovieService } from '@/src/be/modules/movies/movie-service'
+import { syncMovieAsync } from '@/src/be/modules/search/movie-search-indexer'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -33,7 +34,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
   // RBAC: Overposting protection — prevent EDITOR or roles without 'movie.publish' from changing status
   if (parsed.data.status) {
     const { hasPermission } = await import('@/src/be/modules/auth/permissions')
-    if (!(await hasPermission(auth.user, 'movie.publish' as any))) {
+    if (!(await hasPermission(auth.user, 'movie.publish'))) {
        delete parsed.data.status
     }
   }
@@ -55,6 +56,10 @@ export async function PUT(req: NextRequest, { params }: Params) {
     ipAddress: getClientIp(req.headers),
   })
 
+  // Re-index in ES. If the movie became inactive / deleted, syncMovieAsync
+  // will detect that and remove the document instead of upserting.
+  syncMovieAsync(id, 'upsert')
+
   return successResponse(updated)
 }
 
@@ -73,6 +78,10 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     actorId: auth.user.email, action: 'delete', targetType: 'movie', targetId: id,
     metadata: { title: movie.title }, ipAddress: getClientIp(req.headers),
   })
+
+  // Pull the doc out of the search index so the soft-deleted movie stops
+  // appearing in search results immediately.
+  syncMovieAsync(id, 'delete')
 
   return successResponse({ ok: true })
 }

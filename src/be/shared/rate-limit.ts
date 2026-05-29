@@ -24,6 +24,7 @@
 //   }
 
 import { NextRequest } from 'next/server'
+import { redis } from '@/src/lib/redis'
 
 // -------------------------------------------------------------------
 // Types
@@ -71,10 +72,9 @@ export function rateLimit(options: RateLimitOptions = {}) {
     }
   }
 
-  function check(key: string): RateLimitResult {
+  function inMemoryCheck(key: string, now: number): RateLimitResult {
     cleanup()
 
-    const now = Date.now()
     const entry = store.get(key)
 
     // No existing entry or window expired — start fresh
@@ -103,6 +103,36 @@ export function rateLimit(options: RateLimitOptions = {}) {
       remaining: maxRequests - entry.count,
       resetMs: entry.startMs + windowMs,
     }
+  }
+
+  async function check(key: string): Promise<RateLimitResult> {
+    const now = Date.now()
+
+    if (redis) {
+      try {
+        const redisKey = `rl:${key}`
+        const count = await redis.incr(redisKey)
+        if (count === 1) {
+          await redis.pexpire(redisKey, windowMs)
+        }
+        
+        let ttl = await redis.pttl(redisKey)
+        if (ttl === -1) {
+           await redis.pexpire(redisKey, windowMs)
+           ttl = windowMs
+        }
+
+        return {
+          allowed: count <= maxRequests,
+          remaining: Math.max(0, maxRequests - count),
+          resetMs: now + (ttl > 0 ? ttl : windowMs),
+        }
+      } catch {
+        // Ignore redis errors and fallback
+      }
+    }
+
+    return inMemoryCheck(key, now)
   }
 
   return { check }

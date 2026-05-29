@@ -345,7 +345,7 @@ async function buildCurrentEpisode(
   }
 }
 
-async function buildServers(movieId: string, episodeNumber: number): Promise<WatchServer[]> {
+async function buildServers(movieId: string, _episodeNumber: number): Promise<WatchServer[]> {
   const episodes = await repo.findEpisodesWithSources(movieId)
   const serverMap = new Map<string, { name: string; slug: string; url: string }[]>()
 

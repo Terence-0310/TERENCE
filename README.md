@@ -1,4 +1,4 @@
-﻿# 🎬 TERENCE — Nền tảng xem phim trực tuyến
+# 🎬 TERENCE — Nền tảng xem phim trực tuyến
 
 > **Terence** là nền tảng khám phá và thưởng thức phim trực tuyến chất lượng cao,
 > được xây dựng bằng **Next.js 16** (App Router), **Prisma ORM**, **Socket.IO**,
@@ -97,7 +97,7 @@ graph TB
         SC["Server Components<br/>RSC Rendering"]
         SOCKET["Socket.IO Server<br/>Watch Party Sync"]
 
-        subgraph Modules["Server Modules (src/server/)"]
+        subgraph Modules["Backend Modules (src/be/modules/)"]
             MOV["movies"]
             OPHIM["ophim"]
             TMDB_S["tmdb"]
@@ -191,82 +191,57 @@ graph TB
 
 ```
 TERENCE-main/
-├── app/                        # Next.js App Router (routes + API)
-│   ├── api/                    # REST API endpoints
-│   │   ├── admin/              #   Admin CRUD (movies, users, episodes, ...)
-│   │   ├── auth/               #   Login, logout, signup, me
-│   │   ├── v1/                 #   Public API (home, movies, search, watch)
-│   │   ├── news/               #   Tin tức phim (GNews + TMDB)
-│   │   ├── tcoin/              #   TCoin wallet, reward, spend
-│   │   ├── watch/              #   Watch progress, continue, bootstrap
-│   │   ├── watch-party/        #   Watch party rooms
-│   │   ├── livekit/            #   LiveKit token generation
-│   │   ├── payments/           #   Payment orders
-│   │   └── socket/             #   Socket.IO bootstrap
+├── app/                        # Next.js App Router (Page views & API Routes)
+│   ├── api/                    # REST API endpoints (delegates to backend controllers)
+│   │   ├── admin/              #   Admin APIs
+│   │   ├── auth/               #   Authentication APIs
+│   │   ├── v1/                 #   Public APIs (movies, search, watch)
+│   │   └── ...                 #   Other domain APIs
 │   ├── browse/                 # Trang duyệt phim (filter, search)
+│   ├── dashboard/              # Admin panel (movies, users, news, ...)
 │   ├── movie/[id]/             # Chi tiết phim
-│   ├── movies/                 # Danh sách phim lẻ
-│   ├── series/                 # Danh sách phim bộ
 │   ├── watch/[id]/             # Xem phim (player)
 │   ├── xem-chung/              # Watch party
-│   ├── dashboard/              # Admin panel (movies, users, news, ...)
-│   ├── genres/                 # Duyệt theo thể loại
-│   ├── countries/              # Duyệt theo quốc gia
-│   ├── people/                 # Diễn viên / Đạo diễn
-│   ├── news/                   # Tin tức phim
-│   ├── reviews/                # Đánh giá phim
-│   ├── tcoin/                  # TCoin (tiền ảo)
 │   ├── login/ & signup/        # Auth pages
 │   └── layout.tsx              # Root layout
 │
-├── components/                 # React Components
-│   ├── ui/                     # shadcn/ui primitives
-│   ├── shared/                 # Shared (MovieCard, MovieRow, ...)
-│   ├── home/                   # Homepage (HeroBanner, ContinueWatchingRow)
-│   ├── watch/                  # Watch page components
-│   ├── player/                 # HLS Player (EnhancedVideoPlayer)
-│   ├── news/                   # News components
-│   ├── watch-party/            # Watch party UI
-│   ├── header.tsx              # Navbar (mega dropdown)
-│   ├── footer.tsx              # Footer
-│   └── layout-wrapper.tsx      # Layout wrapper
+├── src/                        # Core Application Code (Layered Architecture)
+│   ├── be/                     # Backend Layer (Server-side)
+│   │   ├── modules/            # Domain Modules (Controllers, Services, Repositories)
+│   │   │   ├── admin/          # Quản trị hệ thống
+│   │   │   ├── auth/           # Xác thực & phân quyền
+│   │   │   ├── movies/         # Quản lý & logic phim
+│   │   │   ├── ophim/          # OPhim sync pipeline
+│   │   │   ├── tmdb/           # TMDB enrichment
+│   │   │   ├── watch-party/    # Xử lý Watch Party (Phòng chung)
+│   │   │   └── ...             # Các module khác (users, news, tcoin, chat)
+│   │   └── shared/             # Shared Backend Utilities (Middlewares, DB init)
+│   │
+│   ├── fe/                     # Frontend Layer (Client-side)
+│   │   ├── components/         # React Components
+│   │   │   ├── ui/             # shadcn/ui primitives
+│   │   │   ├── shared/         # Reusable components (MovieCard, Navbar, Footer)
+│   │   │   ├── player/         # Video Player component (HLS)
+│   │   │   ├── watch-party/    # Watch Party UI component
+│   │   │   └── ...             # Feature components (chat, news, admin)
+│   │   └── features/           # React Hooks, Contexts & State Management
+│   │
+│   ├── dta/                    # Data Layer
+│   │   ├── prisma/             # Prisma schema, migrations, seed script
+│   │   └── scripts/            # Database management scripts
+│   │
+│   ├── constants/              # System configurations & shared constants
+│   ├── lib/                    # Shared lib connections (Redis)
+│   ├── services/               # External APIs wrappers
+│   └── types/                  # Global TypeScript type definitions
 │
-├── src/server/                 # Server-side domain modules
-│   ├── movies/                 # Movie service, serializers
-│   ├── ophim/                  # OPhim sync (client, mapper, service)
-│   ├── tmdb/                   # TMDB enrichment
-│   ├── search/                 # Elasticsearch integration
-│   ├── pipeline/               # Movie enrichment pipeline
-│   ├── watch/                  # Watch history service
-│   ├── modules/                # Domain modules (controller/service/repo)
-│   │   ├── admin/  analytics/  auth/  episodes/  movies/
-│   │   ├── news/  payments/  reviews/  tcoin/
-│   │   └── uploads/  users/  watch/  watch-party/
-│   └── shared/                 # DB, errors, guards, utils
-│
-├── lib/                        # Shared libraries (FE + Server)
-│   ├── auth/                   # Session, password, permissions
-│   ├── admin/                  # Admin API helpers, validators
-│   ├── db/                     # DB query builders
-│   ├── tmdb/                   # TMDB API client + mapper
-│   ├── news/                   # News aggregator
-│   ├── player/                 # Player source adapter
-│   ├── data/                   # Static data (genres, countries, tcoin)
-│   ├── watch-history/          # Watch history service + storage
-│   └── watch-party/            # Watch party client (store, sync)
-│
-├── hooks/                      # Custom React Hooks
-├── contexts/                   # React Contexts (AuthProvider)
-├── services/                   # External service integrations
-├── types/                      # TypeScript type definitions
-├── prisma/                     # Prisma schema + migrations + seed
-├── server/                     # Custom server (Socket.IO + Watch Party)
-├── scripts/                    # CLI scripts (sync, enrich, pipeline)
-├── docs/                       # Tài liệu kỹ thuật bổ sung
-├── deploy/                     # Deploy configs (Nginx)
-├── public/                     # Static assets
+├── lib/                        # Utility Shared libraries (LiveKit, Email, Auth Helpers)
+├── tests/                      # Unit & Integration tests
+├── docs/                       # Tài liệu kỹ thuật
+├── deploy/                     # Cấu hình Deploy (Nginx, PM2)
+├── public/                     # Static assets (images, fonts, icons)
 ├── server.ts                   # Custom server entry (Next.js + Socket.IO)
-├── middleware.ts                # Route protection middleware
+├── middleware.ts               # Route protection middleware
 └── package.json                # Dependencies & scripts
 ```
 
@@ -712,7 +687,7 @@ sequenceDiagram
     actor User as 👤 Người dùng
     participant FE as 🖥️ Frontend<br/>(Next.js)
     participant API as ⚙️ Backend API<br/>(/api/v1)
-    participant SV as 📦 MovieService<br/>(src/server)
+    participant SV as 📦 MovieService<br/>(src/be/modules)
     participant DB as 💾 Database<br/>(Prisma/SQLite)
     participant HLS as 🎬 HLS Stream<br/>(Video Source)
 
@@ -2529,7 +2504,7 @@ Các quyết định kiến trúc chính thức được ghi nhận trong Sprint
 - Chưa thay đổi UI/UX (Phase 1 chỉ focus backend architecture).
 - Đã chuẩn bị route map cho Phase 4.
 
-#### TODO Phase 2
+#### Phase 2 — Hoàn thành ✅
 
 - [x] Tạo Design System (colors, typography, spacing, card variants)
 - [x] Build AppHeader mới (sticky, search bar, mega dropdown)
@@ -2592,7 +2567,7 @@ Các quyết định kiến trúc chính thức được ghi nhận trong Sprint
 
 - **`parsePagination()` NaN bug** — `parseInt('abc')` → `NaN` → `Math.max(1, NaN)` = `NaN`. Fixed bằng `isNaN()` fallback.
 
-#### TODO Phase tiếp theo (test)
+#### Phase test tiếp theo — Hoàn thành ✅
 
 - [x] Integration tests cho thêm API routes (GET /api/v1/movies, /api/admin/*)
 - [x] Tăng function coverage lên >= 70%

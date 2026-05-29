@@ -11,6 +11,7 @@ import { useAuthModal } from '@/src/fe/components/auth/auth-modal-store'
 import { GENRES, genreBrowseUrl } from '@/lib/data/genres'
 import { COUNTRIES, countryBrowseUrl } from '@/lib/data/countries'
 import { TerenceLogo } from '@/src/fe/components/terence-logo'
+import { UserAvatar } from '@/src/fe/components/shared/UserAvatar'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,14 +21,18 @@ import {
   DropdownMenuTrigger,
 } from '@/src/fe/components/ui/dropdown-menu'
 
+// `primary` items stay inline on standard laptops (xl, 1280–1535px); the rest
+// collapse into a "Thêm" dropdown there and only show inline from 2xl (≥1536px).
 const NAV_ITEMS = [
-  { label: 'Phim lẻ', href: '/movies' },
-  { label: 'Phim bộ', href: '/series' },
-  { label: 'Xem chung', href: '/xem-chung' },
-  { label: 'Phim Top View', href: '/top-view' },
-  { label: 'Chủ Đề', href: '/browse' },
-  { label: 'Diễn viên', href: '/people' },
-  { label: 'Tcoin', href: '/tcoin' },
+  { label: 'Phim lẻ', href: '/movies', primary: true },
+  { label: 'Phim bộ', href: '/series', primary: true },
+  { label: 'Xem chung', href: '/xem-chung', primary: true },
+  { label: 'Phim Top View', href: '/top-view', primary: false },
+  { label: 'Chủ Đề', href: '/browse', primary: false },
+  { label: 'Diễn viên', href: '/people', primary: false },
+  { label: 'Tin tức', href: '/news', primary: false },
+  { label: 'Đánh giá', href: '/reviews', primary: false },
+  { label: 'Tcoin', href: '/tcoin', primary: true },
 ]
 
 function HeaderInner() {
@@ -51,16 +56,28 @@ function HeaderInner() {
   const countryRef = useRef<HTMLDivElement>(null)
   const countryTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // "Thêm" overflow dropdown (laptop widths, xl → just below 2xl)
+  const [moreOpen, setMoreOpen] = useState(false)
+  const moreRef = useRef<HTMLDivElement>(null)
+
   // Autocomplete
   const searchContainerRef = useRef<HTMLFormElement>(null)
   const [showSuggest, setShowSuggest] = useState(false)
 
   const { data: suggestData, isLoading: suggestLoading } = useSWR(
-    searchQuery.trim().length >= 2 ? `/api/search/suggest?q=${encodeURIComponent(searchQuery.trim())}` : null,
+    searchQuery.trim().length >= 2 ? `/api/v1/search/suggest?q=${encodeURIComponent(searchQuery.trim())}` : null,
     (url: string) => fetch(url).then((r) => r.json())
   )
 
-  const suggestions = suggestData?.items || []
+  const suggestions = suggestData?.data || []
+
+  // Current user's TCoin perk flags (avatar frame / exclusive badge).
+  const { data: perkData } = useSWR(
+    user ? '/api/tcoin/my-perks' : null,
+    (url: string) => fetch(url).then((r) => r.json()),
+  )
+  const frameActive = !!perkData?.data?.frameActive
+  const badgeActive = !!perkData?.data?.badgeActive
 
   // Scroll listener — transparent on top, solid after scroll
   useEffect(() => {
@@ -77,6 +94,7 @@ function HeaderInner() {
     function handleClick(e: MouseEvent) {
       if (genreRef.current && !genreRef.current.contains(e.target as Node)) setGenreOpen(false)
       if (countryRef.current && !countryRef.current.contains(e.target as Node)) setCountryOpen(false)
+      if (moreRef.current && !moreRef.current.contains(e.target as Node)) setMoreOpen(false)
       if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) setShowSuggest(false)
     }
     document.addEventListener('mousedown', handleClick)
@@ -87,6 +105,7 @@ function HeaderInner() {
   useEffect(() => {
     setGenreOpen(false)
     setCountryOpen(false)
+    setMoreOpen(false)
     setMobileOpen(false)
     setShowSuggest(false)
   }, [pathname, searchParams])
@@ -155,9 +174,9 @@ function HeaderInner() {
     }`
 
   // Header background class
-  const headerBg = isTransparent
+  const headerBg = (isTransparent && !mobileOpen)
     ? 'bg-transparent border-transparent'
-    : 'bg-[#0B0F19]/90 backdrop-blur-xl border-b border-white/[0.04] shadow-sm'
+    : 'bg-background/98 backdrop-blur-xl border-b border-white/[0.04] shadow-sm'
 
   return (
     <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${headerBg}`}>
@@ -172,8 +191,8 @@ function HeaderInner() {
 
         {/* M-L: Search Bar */}
         {pathname !== '/browse' ? (
-          <form ref={searchContainerRef} onSubmit={handleSearch} className="hidden md:flex relative w-[160px] xl:w-[180px] 2xl:w-[280px] shrink-0 z-[70]">
-            <Search className="absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-white/50" />
+          <form ref={searchContainerRef} onSubmit={handleSearch} className="hidden md:flex relative w-[160px] lg:w-[200px] xl:w-[220px] 2xl:w-[280px] shrink-0 z-[70]">
+            <Search className="absolute left-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-white/50" />
             <input
               type="text"
               value={searchQuery}
@@ -183,8 +202,8 @@ function HeaderInner() {
                 else setShowSuggest(false)
               }}
               onFocus={() => { if (searchQuery.trim().length > 0) setShowSuggest(true) }}
-              placeholder="Tìm kiếm phim, diễn viên..."
-              className="w-full rounded-[14px] bg-[#22213D]/70 hover:bg-[#22213D]/90 border border-transparent py-[11px] pl-11 pr-10 text-[14px] text-white outline-none placeholder:text-white/40 focus:border-[#4B48A1]/50 focus:bg-[#1A1835] transition-all focus:shadow-[0_0_15px_rgba(75,72,161,0.3)]"
+              placeholder="Tìm kiếm phim..."
+              className="w-full rounded-[14px] bg-[#22213D]/70 hover:bg-[#22213D]/90 border border-transparent py-[11px] pl-10 pr-9 text-[14px] text-white outline-none placeholder:text-white/40 focus:border-[#4B48A1]/50 focus:bg-[#1A1835] transition-all focus:shadow-[0_0_15px_rgba(75,72,161,0.3)]"
             />
             {suggestLoading && searchQuery.trim().length >= 2 && (
               <Loader2 className="absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-white/50" />
@@ -192,10 +211,10 @@ function HeaderInner() {
 
             {/* Autocomplete Dropdown */}
             {showSuggest && searchQuery.trim().length >= 2 && (
-              <div className="absolute left-0 right-0 top-[calc(100%+8px)] rounded-[14px] border border-white/[0.08] bg-[#0A0D15]/95 shadow-[0_20px_50px_rgba(0,0,0,0.8)] backdrop-blur-2xl p-2 z-[60] animate-dropdown-in flex flex-col max-h-[400px] overflow-y-auto">
+              <div className="absolute left-0 right-0 top-[calc(100%+8px)] rounded-[14px] border border-white/[0.08] bg-background/95 shadow-[0_20px_50px_rgba(0,0,0,0.8)] backdrop-blur-2xl p-2 z-[60] animate-dropdown-in flex flex-col max-h-[400px] overflow-y-auto">
                 {(() => {
                   const isEasterEgg = searchQuery.trim().toLowerCase() === 'mỹ chi' || searchQuery.trim().toLowerCase() === 'my chi';
-                  const baseSuggestions = suggestData?.items || [];
+                  const baseSuggestions = suggestData?.data || [];
                   const displayedSuggestions = isEasterEgg 
                     ? [{
                         id: 'mychi',
@@ -262,26 +281,26 @@ function HeaderInner() {
             )}
           </form>
         ) : (
-          <div className="hidden md:flex w-[180px] xl:w-[180px] 2xl:w-[280px] shrink-0" />
+          <div className="hidden md:flex w-[160px] lg:w-[200px] xl:w-[220px] 2xl:w-[280px] shrink-0" />
         )}
         </div>
 
         {/* RIGHT GROUP */}
-        <div className="flex items-center justify-end flex-1 gap-2 xl:gap-4 shrink-0 min-w-0">
+        <div className="flex items-center justify-end flex-1 gap-1 xl:gap-2 2xl:gap-3 shrink min-w-0">
         {/* M: Desktop Nav */}
-        <nav className="hidden xl:flex items-center lg:gap-1 2xl:gap-3 h-full overflow-visible shrink-0">
+        <nav className="hidden xl:flex items-center gap-0.5 xl:gap-1 2xl:gap-2 h-full overflow-visible shrink">
           {/* Quốc gia */}
           <div ref={countryRef} className="relative h-full flex items-center shrink-0" onMouseEnter={handleCountryEnter} onMouseLeave={handleCountryLeave}>
             <button
               onClick={() => { setCountryOpen(!countryOpen); setGenreOpen(false) }}
-              className={`flex items-center gap-0.5 2xl:gap-1.5 px-1.5 2xl:px-3 py-2 text-[13px] 2xl:text-[14px] font-medium whitespace-nowrap transition-colors rounded-lg hover:text-white ${isCountryActive || countryOpen ? 'text-white' : 'text-white/60'}`}
+              className={`flex items-center gap-0.5 2xl:gap-1.5 px-1 xl:px-1.5 2xl:px-2 py-2 text-[13px] 2xl:text-[14px] font-medium whitespace-nowrap transition-colors rounded-lg hover:text-white ${isCountryActive || countryOpen ? 'text-white' : 'text-white/60'}`}
             >
               Quốc gia
               <ChevronDown className={`w-[14px] h-[14px] text-white/40 transition-transform duration-200 ${(countryOpen || isCountryActive) ? 'text-white/100' : ''} ${countryOpen ? 'rotate-180' : ''}`} />
             </button>
             {countryOpen && (
               <div
-                className="absolute left-1/2 -translate-x-1/2 top-[calc(100%+5px)] w-[480px] xl:w-[680px] max-w-[90vw] rounded-[18px] border border-white/[0.08] bg-[#0A0D15]/98 shadow-[0_20px_50px_rgba(0,0,0,0.8)] backdrop-blur-xl p-4 xl:p-6 z-[60] animate-dropdown-in"
+                className="absolute left-1/2 -translate-x-1/2 top-[calc(100%+5px)] w-[480px] xl:w-[680px] max-w-[90vw] rounded-[18px] border border-white/[0.08] bg-background/98 shadow-[0_20px_50px_rgba(0,0,0,0.8)] backdrop-blur-xl p-4 xl:p-6 z-[60] animate-dropdown-in"
                 onMouseEnter={handleCountryEnter}
                 onMouseLeave={handleCountryLeave}
               >
@@ -290,11 +309,12 @@ function HeaderInner() {
                     <Link
                       key={c.code}
                       href={countryBrowseUrl(c.code)}
-                      className={`rounded-lg px-3 py-2.5 text-[13px] font-semibold transition-all duration-150 ${
+                      className={`block truncate rounded-lg px-3 py-2.5 text-[13px] font-semibold transition-all duration-150 ${
                         activeCountryCode === c.code
                           ? 'bg-primary/20 text-primary'
                           : 'text-white/60 hover:bg-white/10 hover:text-white'
                       }`}
+                      title={c.name}
                     >
                       {c.name}
                     </Link>
@@ -308,14 +328,14 @@ function HeaderInner() {
           <div ref={genreRef} className="relative h-full flex items-center shrink-0" onMouseEnter={handleGenreEnter} onMouseLeave={handleGenreLeave}>
             <button
               onClick={() => { setGenreOpen(!genreOpen); setCountryOpen(false) }}
-              className={`flex items-center gap-0.5 2xl:gap-1.5 px-1.5 2xl:px-3 py-2 text-[13px] 2xl:text-[14px] font-medium whitespace-nowrap transition-colors rounded-lg hover:text-white ${isGenreActive || genreOpen ? 'text-white' : 'text-white/60'}`}
+              className={`flex items-center gap-0.5 2xl:gap-1.5 px-1 xl:px-1.5 2xl:px-2 py-2 text-[13px] 2xl:text-[14px] font-medium whitespace-nowrap transition-colors rounded-lg hover:text-white ${isGenreActive || genreOpen ? 'text-white' : 'text-white/60'}`}
             >
               Thể loại
               <ChevronDown className={`w-[14px] h-[14px] text-white/40 transition-transform duration-200 ${(genreOpen || isGenreActive) ? 'text-white/100' : ''} ${genreOpen ? 'rotate-180' : ''}`} />
             </button>
             {genreOpen && (
               <div
-                className="absolute left-1/2 -translate-x-1/2 top-[calc(100%+5px)] w-[480px] xl:w-[680px] max-w-[90vw] rounded-[18px] border border-white/[0.08] bg-[#0A0D15]/98 shadow-[0_20px_50px_rgba(0,0,0,0.8)] backdrop-blur-xl p-4 xl:p-6 z-[60] animate-dropdown-in"
+                className="absolute left-1/2 -translate-x-1/2 top-[calc(100%+5px)] w-[480px] xl:w-[680px] max-w-[90vw] rounded-[18px] border border-white/[0.08] bg-background/98 shadow-[0_20px_50px_rgba(0,0,0,0.8)] backdrop-blur-xl p-4 xl:p-6 z-[60] animate-dropdown-in"
                 onMouseEnter={handleGenreEnter}
                 onMouseLeave={handleGenreLeave}
               >
@@ -324,11 +344,12 @@ function HeaderInner() {
                     <Link
                       key={g.id}
                       href={genreBrowseUrl(g.id)}
-                      className={`rounded-lg px-3 py-2.5 text-[13px] font-semibold transition-all duration-150 ${
+                      className={`block truncate rounded-lg px-3 py-2.5 text-[13px] font-semibold transition-all duration-150 ${
                         activeGenreId === g.id
                           ? 'bg-primary/20 text-primary'
                           : 'text-white/60 hover:bg-white/10 hover:text-white'
                       }`}
+                      title={g.name}
                     >
                       {g.name}
                     </Link>
@@ -338,21 +359,57 @@ function HeaderInner() {
             )}
           </div>
 
-          {/* Các mục còn lại */}
+          {/* Các mục còn lại — primary luôn hiện; secondary chỉ inline khi đủ
+              rộng (≥1700px). Ngưỡng cao hơn 2xl (1536px) vì laptop Windows
+              thường scale 125% → màn 1920 chỉ còn 1536 CSS px, vẫn chật nếu
+              bung đủ 11 mục. */}
           {NAV_ITEMS.map((item) => {
             const isActive = pathname === item.href.split('?')[0];
             const finalIsActive = item.href === '/browse' && searchParams.get('sort') ? false : isActive;
-            
+
             return (
-              <Link 
-                key={item.href} 
-                href={item.href} 
-                className={`shrink-0 px-1.5 2xl:px-3 py-2 text-[13px] 2xl:text-[14px] font-medium transition-colors hover:text-white whitespace-nowrap ${finalIsActive ? 'text-white' : 'text-white/60'}`}
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`shrink-0 px-1 xl:px-1.5 min-[1700px]:px-2 py-2 text-[13px] min-[1700px]:text-[14px] font-medium transition-colors hover:text-white whitespace-nowrap ${
+                  item.primary ? '' : 'hidden min-[1700px]:inline-block'
+                } ${finalIsActive ? 'text-white' : 'text-white/60'}`}
               >
                 {item.label}
               </Link>
             )
           })}
+
+          {/* "Thêm" — gom các mục phụ ở khoảng laptop (xl → <1700px), ẩn khi đủ rộng */}
+          <div ref={moreRef} className="relative h-full flex items-center shrink-0 min-[1700px]:hidden">
+            <button
+              onClick={() => { setMoreOpen(!moreOpen); setGenreOpen(false); setCountryOpen(false) }}
+              className={`flex items-center gap-0.5 px-1 xl:px-1.5 py-2 text-[13px] font-medium whitespace-nowrap transition-colors rounded-lg hover:text-white ${moreOpen ? 'text-white' : 'text-white/60'}`}
+            >
+              Thêm
+              <ChevronDown className={`w-[14px] h-[14px] text-white/40 transition-transform duration-200 ${moreOpen ? 'rotate-180 text-white/100' : ''}`} />
+            </button>
+            {moreOpen && (
+              <div className="absolute right-0 top-[calc(100%+5px)] w-48 rounded-[14px] border border-white/[0.08] bg-background/98 shadow-[0_20px_50px_rgba(0,0,0,0.8)] backdrop-blur-xl p-2 z-[60] animate-dropdown-in">
+                {NAV_ITEMS.filter((item) => !item.primary).map((item) => {
+                  const isActive = pathname === item.href.split('?')[0];
+                  const finalIsActive = item.href === '/browse' && searchParams.get('sort') ? false : isActive;
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={() => setMoreOpen(false)}
+                      className={`block rounded-lg px-3 py-2.5 text-[13px] font-semibold transition-colors ${
+                        finalIsActive ? 'bg-primary/20 text-primary' : 'text-white/60 hover:bg-white/10 hover:text-white'
+                      }`}
+                    >
+                      {item.label}
+                    </Link>
+                  )
+                })}
+              </div>
+            )}
+          </div>
         </nav>
 
         {/* R: Right Actions */}
@@ -373,27 +430,31 @@ function HeaderInner() {
           {user ? (
             <div className="flex items-center gap-1 xl:gap-1.5 2xl:gap-2">
               <DropdownMenu>
-                <DropdownMenuTrigger className="flex items-center gap-1 2xl:gap-2 rounded-full bg-[#2DD4BF] px-2 py-1 xl:px-2.5 2xl:px-4 2xl:py-1.5 hover:bg-[#14B8A6] transition shadow-[0_0_15px_rgba(45,212,191,0.2)] cursor-pointer outline-none border-transparent">
-                  <div className="flex h-5 w-5 xl:h-6 xl:w-6 2xl:h-7 2xl:w-7 items-center justify-center rounded-full bg-black/10 shrink-0">
-                    <User className="h-3 w-3 xl:h-3.5 xl:w-3.5 2xl:h-4 2xl:w-4 text-black" />
-                  </div>
-                  <span className="text-[11px] xl:text-[12px] 2xl:text-[14px] font-bold text-black border-l border-black/10 pl-2 xl:pl-2 2xl:pl-3 ml-0.5 py-0.5 max-w-[60px] xl:max-w-[70px] 2xl:max-w-[120px] truncate">{user.name}</span>
+                <DropdownMenuTrigger className="flex items-center gap-1 2xl:gap-2 rounded-full bg-primary px-2 py-1 xl:px-2.5 2xl:px-3 2xl:py-1.5 hover:bg-primary transition shadow-[0_0_15px_rgba(45,212,191,0.2)] cursor-pointer outline-none border-transparent">
+                  <UserAvatar
+                    src={user.avatar}
+                    name={user.name}
+                    frameActive={frameActive}
+                    badgeActive={badgeActive}
+                    className="h-5 w-5 xl:h-6 xl:w-6 2xl:h-7 2xl:w-7"
+                  />
+                  <span className="hidden sm:block text-[11px] xl:text-[12px] 2xl:text-[14px] font-bold text-black border-l border-black/10 pl-2 xl:pl-2 2xl:pl-3 ml-0.5 py-0.5 max-w-[60px] xl:max-w-[70px] 2xl:max-w-[120px] truncate">{user.name}</span>
                   <ChevronDown className="h-3.5 w-3.5 text-black/60 hidden md:block" />
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56 bg-[#0A0D15]/98 backdrop-blur-xl border border-white/[0.08] shadow-[0_20px_50px_rgba(0,0,0,0.8)] rounded-xl p-2 font-nunito animate-dropdown-in mt-2 z-[100]">
+                <DropdownMenuContent align="end" className="w-56 bg-background/98 backdrop-blur-xl border border-white/[0.08] shadow-[0_20px_50px_rgba(0,0,0,0.8)] rounded-xl p-2 font-nunito animate-dropdown-in mt-2 z-[100]">
                   <DropdownMenuLabel className="font-bold text-white/40 text-xs uppercase px-2 tracking-widest">Tài khoản</DropdownMenuLabel>
                   <DropdownMenuSeparator className="bg-white/10 my-2" />
                   {isAdmin && (
-                    <DropdownMenuItem onClick={() => router.push('/dashboard')} className="cursor-pointer font-semibold text-white rounded-lg py-2.5 hover:text-[#2dd4bf] hover:bg-white/5 focus:bg-white/5 focus:text-[#2dd4bf]">
+                    <DropdownMenuItem onClick={() => router.push('/dashboard')} className="cursor-pointer font-semibold text-white rounded-lg py-2.5 hover:text-primary hover:bg-white/5 focus:bg-white/5 focus:text-primary">
                       <LayoutDashboard className="w-4 h-4 mr-2" />
                       Quản lý hệ thống
                     </DropdownMenuItem>
                   )}
-                  <DropdownMenuItem onClick={() => router.push('/profile')} className="cursor-pointer font-semibold text-white rounded-lg py-2.5 hover:text-[#2dd4bf] hover:bg-white/5 focus:bg-white/5 focus:text-[#2dd4bf]">
+                  <DropdownMenuItem onClick={() => router.push('/profile')} className="cursor-pointer font-semibold text-white rounded-lg py-2.5 hover:text-primary hover:bg-white/5 focus:bg-white/5 focus:text-primary">
                     <User className="w-4 h-4 mr-2" />
                     Hồ sơ cá nhân
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => router.push('/tcoin')} className="cursor-pointer font-semibold text-white rounded-lg py-2.5 hover:text-[#2dd4bf] hover:bg-white/5 focus:bg-white/5 focus:text-[#2dd4bf]">
+                  <DropdownMenuItem onClick={() => router.push('/tcoin')} className="cursor-pointer font-semibold text-white rounded-lg py-2.5 hover:text-primary hover:bg-white/5 focus:bg-white/5 focus:text-primary">
                     <Coins className="w-4 h-4 mr-2" />
                     Nạp thẻ - TCoin
                   </DropdownMenuItem>
@@ -408,7 +469,7 @@ function HeaderInner() {
           ) : (
             <button
               onClick={() => openModal('login')}
-              className="inline-flex items-center gap-1.5 xl:gap-2.5 rounded-full bg-[#2DD4BF] px-3 py-[7px] xl:px-5 xl:py-[10px] text-[12px] xl:text-[14px] font-extrabold text-black transition-colors hover:bg-[#14B8A6] shadow-[0_4px_15px_rgba(45,212,191,0.25)]"
+              className="inline-flex items-center gap-1.5 xl:gap-2.5 rounded-full bg-primary px-3 py-[7px] xl:px-4 xl:py-[10px] text-[12px] xl:text-[14px] font-extrabold text-black transition-colors hover:bg-primary shadow-[0_4px_15px_rgba(45,212,191,0.25)]"
             >
               <User className="h-4 w-4 xl:h-5 xl:w-5" />
               <span className="hidden sm:inline">Thành viên</span>
@@ -423,7 +484,7 @@ function HeaderInner() {
       </div>
 
       {/* Mobile Search — hidden by default, toggle via button */}
-      <div id="mobile-search-bar" className="hidden border-t border-white/5 bg-background/95 px-4 py-3 backdrop-blur-xl md:hidden">
+      <div id="mobile-search-bar" className="hidden border-t border-white/5 bg-background/98 px-4 py-3 backdrop-blur-xl md:hidden">
         <form onSubmit={handleSearch}>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -440,7 +501,7 @@ function HeaderInner() {
 
       {/* Mobile Menu */}
       {mobileOpen && (
-        <div className="border-t border-white/5 bg-background/95 backdrop-blur-xl xl:hidden">
+        <div className="border-t border-white/5 bg-background/98 backdrop-blur-xl xl:hidden">
           <nav className="flex flex-col gap-1 px-4 py-4 max-h-[80vh] overflow-y-auto">
             <Link href="/" onClick={() => setMobileOpen(false)} className="rounded-lg px-3 py-2.5 text-sm font-medium text-white/70 transition hover:bg-white/5 hover:text-white">
               Trang chủ
@@ -466,7 +527,7 @@ function HeaderInner() {
             <p className="px-3 pt-1 pb-0.5 text-[10px] uppercase tracking-widest text-white/30 font-semibold">Thể loại</p>
             <div className="flex flex-wrap gap-1 px-2">
               {GENRES.map((g) => (
-                <Link key={g.id} href={genreBrowseUrl(g.id)} onClick={() => setMobileOpen(false)} className="rounded-lg px-3 py-2 text-[13px] font-medium text-white/60 hover:bg-white/10 hover:text-white transition whitespace-nowrap">
+                <Link key={g.id} href={genreBrowseUrl(g.id)} onClick={() => setMobileOpen(false)} className="block max-w-full truncate rounded-lg px-3 py-2 text-[13px] font-medium text-white/60 hover:bg-white/10 hover:text-white transition whitespace-nowrap" title={g.name}>
                   {g.name}
                 </Link>
               ))}
@@ -477,7 +538,7 @@ function HeaderInner() {
             <p className="px-3 pt-1 pb-0.5 text-[10px] uppercase tracking-widest text-white/30 font-semibold">Quốc gia</p>
             <div className="flex flex-wrap gap-1 px-2">
               {COUNTRIES.map((c) => (
-                <Link key={c.code} href={countryBrowseUrl(c.code)} onClick={() => setMobileOpen(false)} className="rounded-lg px-3 py-2 text-[13px] font-medium text-white/60 hover:bg-white/10 hover:text-white transition whitespace-nowrap">
+                <Link key={c.code} href={countryBrowseUrl(c.code)} onClick={() => setMobileOpen(false)} className="block max-w-full truncate rounded-lg px-3 py-2 text-[13px] font-medium text-white/60 hover:bg-white/10 hover:text-white transition whitespace-nowrap" title={c.name}>
                   {c.name}
                 </Link>
               ))}
@@ -486,6 +547,9 @@ function HeaderInner() {
             <div className="my-1 border-t border-white/[0.06]" />
             <Link href="/people" onClick={() => setMobileOpen(false)} className="rounded-lg px-3 py-2.5 text-sm font-medium text-white/70 transition hover:bg-white/5 hover:text-white">
               Diễn viên
+            </Link>
+            <Link href="/news" onClick={() => setMobileOpen(false)} className="rounded-lg px-3 py-2.5 text-sm font-medium text-white/70 transition hover:bg-white/5 hover:text-white">
+              Tin tức
             </Link>
             <Link href="/schedule" onClick={() => setMobileOpen(false)} className="rounded-lg px-3 py-2.5 text-sm font-medium text-white/70 transition hover:bg-white/5 hover:text-white">
               Lịch chiếu

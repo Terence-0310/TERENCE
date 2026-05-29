@@ -34,8 +34,9 @@ function ResetPasswordForm() {
       return
     }
 
-    if (password.length < 6) {
-      setError('Mật khẩu phải có ít nhất 6 ký tự.')
+    // Align with server schema (resetPasswordSchema): min 8 chars.
+    if (password.length < 8) {
+      setError('Mật khẩu phải có ít nhất 8 ký tự.')
       return
     }
 

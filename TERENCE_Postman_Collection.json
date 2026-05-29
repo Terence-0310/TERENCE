@@ -31,8 +31,113 @@
             },
             "url": {
               "raw": "{{baseUrl}}/auth/register",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "register"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Xác Thực Email (Click Link)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/auth/verify-email?token=MOCK_TOKEN_HERE",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "verify-email"
+              ],
+              "query": [
+                {
+                  "key": "token",
+                  "value": "MOCK_TOKEN_HERE"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Gửi Lại Email Xác Thực",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"test@example.com\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/verify-email",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "verify-email"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Quên Mật Khẩu",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"test@example.com\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/forgot-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "forgot-password"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Đặt Lại Mật Khẩu",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"token\": \"MOCK_TOKEN\",\n    \"password\": \"newpassword123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/reset-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "reset-password"
+              ]
             }
           }
         }
@@ -47,8 +152,13 @@
             "method": "GET",
             "url": {
               "raw": "{{baseUrl}}/v1/home",
-              "host": ["{{baseUrl}}"],
-              "path": ["v1", "home"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "home"
+              ]
             }
           }
         },
@@ -58,8 +168,14 @@
             "method": "GET",
             "url": {
               "raw": "{{baseUrl}}/v1/movies/trending-stats",
-              "host": ["{{baseUrl}}"],
-              "path": ["v1", "movies", "trending-stats"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "movies",
+                "trending-stats"
+              ]
             }
           }
         },
@@ -69,8 +185,14 @@
             "method": "GET",
             "url": {
               "raw": "{{baseUrl}}/v1/movies/most-liked",
-              "host": ["{{baseUrl}}"],
-              "path": ["v1", "movies", "most-liked"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "movies",
+                "most-liked"
+              ]
             }
           }
         },
@@ -80,10 +202,18 @@
             "method": "GET",
             "url": {
               "raw": "{{baseUrl}}/v1/search?q=demon slayer",
-              "host": ["{{baseUrl}}"],
-              "path": ["v1", "search"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "search"
+              ],
               "query": [
-                { "key": "q", "value": "demon slayer" }
+                {
+                  "key": "q",
+                  "value": "demon slayer"
+                }
               ]
             }
           }
@@ -94,10 +224,47 @@
             "method": "GET",
             "url": {
               "raw": "{{baseUrl}}/v1/search/suggest?q=batman",
-              "host": ["{{baseUrl}}"],
-              "path": ["v1", "search", "suggest"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "search",
+                "suggest"
+              ],
               "query": [
-                { "key": "q", "value": "batman" }
+                {
+                  "key": "q",
+                  "value": "batman"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Báo Cáo Phim Lỗi",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"episodeSlug\": \"tap-1\",\n  \"reason\": \"Video lỗi không xem được\",\n  \"details\": \"Bị đứng hình từ phút thứ 20\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/movies/one-piece/report",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "movies",
+                "one-piece",
+                "report"
               ]
             }
           }
@@ -112,7 +279,10 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -120,8 +290,14 @@
             },
             "url": {
               "raw": "{{baseUrl}}/v1/watch-history/progress",
-              "host": ["{{baseUrl}}"],
-              "path": ["v1", "watch-history", "progress"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "watch-history",
+                "progress"
+              ]
             }
           }
         },
@@ -131,8 +307,14 @@
             "method": "GET",
             "url": {
               "raw": "{{baseUrl}}/v1/watch-history/continue",
-              "host": ["{{baseUrl}}"],
-              "path": ["v1", "watch-history", "continue"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "watch-history",
+                "continue"
+              ]
             }
           }
         }
@@ -147,8 +329,13 @@
             "method": "GET",
             "url": {
               "raw": "{{baseUrl}}/tcoin/wallet",
-              "host": ["{{baseUrl}}"],
-              "path": ["tcoin", "wallet"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tcoin",
+                "wallet"
+              ]
             }
           }
         },
@@ -158,8 +345,14 @@
             "method": "POST",
             "url": {
               "raw": "{{baseUrl}}/tcoin/reward/daily-checkin",
-              "host": ["{{baseUrl}}"],
-              "path": ["tcoin", "reward", "daily-checkin"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tcoin",
+                "reward",
+                "daily-checkin"
+              ]
             }
           }
         }
@@ -173,7 +366,10 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -181,8 +377,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/watch-party/create",
-              "host": ["{{baseUrl}}"],
-              "path": ["watch-party", "create"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "watch-party",
+                "create"
+              ]
             }
           }
         },
@@ -191,7 +392,10 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -199,8 +403,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/watch-party/join",
-              "host": ["{{baseUrl}}"],
-              "path": ["watch-party", "join"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "watch-party",
+                "join"
+              ]
             }
           }
         }
@@ -215,8 +424,13 @@
             "method": "GET",
             "url": {
               "raw": "{{baseUrl}}/admin/summary",
-              "host": ["{{baseUrl}}"],
-              "path": ["admin", "summary"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "summary"
+              ]
             }
           }
         },
@@ -226,8 +440,74 @@
             "method": "POST",
             "url": {
               "raw": "{{baseUrl}}/admin/sync/ophim/catalog",
-              "host": ["{{baseUrl}}"],
-              "path": ["admin", "sync", "ophim", "catalog"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "sync",
+                "ophim",
+                "catalog"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Kích hoạt Đồng Bộ Tập Phim",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"movieSlug\": \"one-piece\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/sync/ophim/episodes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "sync",
+                "ophim",
+                "episodes"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Payments & Webhooks",
+      "item": [
+        {
+          "name": "SePay Webhook",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": 12345,\n  \"gateway\": \"SePay\",\n  \"transactionDate\": \"2023-10-25 10:20:00\",\n  \"accountNumber\": \"123456789\",\n  \"subAccount\": null,\n  \"code\": null,\n  \"content\": \"NAP 123456\",\n  \"transferType\": \"in\",\n  \"transferAmount\": 50000,\n  \"accumulated\": 1500000,\n  \"referenceCode\": \"REF123\",\n  \"description\": \"Nạp tiền TERENCE\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/webhooks/sepay",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "webhooks",
+                "sepay"
+              ]
             }
           }
         }

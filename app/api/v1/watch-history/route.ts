@@ -4,21 +4,62 @@
 // ============================================
 
 import { NextRequest, NextResponse } from 'next/server'
-import { AuthService } from '@/src/be/modules/auth'
 import {
   getWatchHistory,
   getContinueWatching,
   upsertWatchProgress,
 } from '@/src/be/modules/watch/watch-history-service'
 import { apiSuccess, apiError } from '@/src/be/shared/api-response'
+import { prisma } from '@/src/be/shared/db/prisma'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { logger } from '@/src/be/shared/utils/logger'
+
+const log = logger.child({ module: 'watch-history' })
 
 // ─── Auth Helper ────────────────────────────────────────────────
 
 async function requireUser() {
-  const session = await AuthService.getSession()
+  const session = await getServerSession(authOptions)
   if (!session?.user?.id) return null
-  return session.user
+  return { ...session.user }
 }
+
+// ─── Write Cache (TTL-based, bounded) ───────────────────────────
+// Throttles DB writes to once per THROTTLE_MS per user+movie+episode.
+// Uses eviction of the oldest entry when the map exceeds MAX_CACHE_SIZE,
+// preventing unbounded memory growth on long-running workers.
+
+class TtlWriteCache {
+  private readonly store = new Map<string, number>()
+  private readonly maxSize: number
+
+  constructor(maxSize: number) {
+    this.maxSize = maxSize
+  }
+
+  isThrottled(key: string, ttlMs: number): boolean {
+    const last = this.store.get(key)
+    if (last === undefined) return false
+    if (Date.now() - last >= ttlMs) {
+      this.store.delete(key)
+      return false
+    }
+    return true
+  }
+
+  set(key: string): void {
+    if (this.store.size >= this.maxSize) {
+      // Evict the oldest inserted entry (Map preserves insertion order)
+      const oldest = this.store.keys().next().value
+      if (oldest !== undefined) this.store.delete(oldest)
+    }
+    this.store.set(key, Date.now())
+  }
+}
+
+const writeCache = new TtlWriteCache(10_000)
+const THROTTLE_MS = 30_000
 
 // ─── GET: List watch history or continue watching ───────────────
 
@@ -65,16 +106,12 @@ export async function GET(req: NextRequest) {
       meta: { mode: 'history' },
     })
   } catch (error) {
-    console.error('[API] /v1/watch-history GET error:', error)
+    log.error({ err: error instanceof Error ? error.message : error }, '/v1/watch-history GET error')
     return apiError('Internal Server Error', 500)
   }
 }
 
 // ─── POST: Upsert watch progress ────────────────────────────────
-
-// Write Cache to throttle DB writes (30 seconds per user-movie)
-const writeCache = new Map<string, number>()
-const THROTTLE_MS = 30000
 
 export async function POST(req: NextRequest) {
   try {
@@ -98,22 +135,14 @@ export async function POST(req: NextRequest) {
       return apiError('duration must be a non-negative number', 400)
     }
 
-    // --- DEBOUNCE / THROTTLE PATTERN ---
-    // Prevent hitting the Database if less than 30s have passed since last write for this user+movie.
-    const cacheKey = `${user.id}:${body.movieId}:${body.episodeId || 'null'}`
-    const now = Date.now()
-    const lastWrite = writeCache.get(cacheKey)
+    // Throttle: skip DB write if last write for this user+movie was within THROTTLE_MS
+    const cacheKey = `${user.id}:${body.movieId}:${body.episodeId ?? 'null'}`
 
-    if (lastWrite && now - lastWrite < THROTTLE_MS) {
-      // Return early; frontend will be content. The localStorage on client is the primary source of truth anyway.
+    if (writeCache.isThrottled(cacheKey, THROTTLE_MS)) {
       return apiSuccess({ status: 'debounced', message: 'Write skipped to reduce DB load' })
     }
 
-    // Update cache
-    writeCache.set(cacheKey, now)
-    
-    // Prevent Map memory leaks on long-running worker
-    if (writeCache.size > 50000) writeCache.clear()
+    writeCache.set(cacheKey)
 
     // Get client info
     const forwarded = req.headers.get('x-forwarded-for')
@@ -137,7 +166,7 @@ export async function POST(req: NextRequest) {
     const message = error instanceof Error ? error.message : 'Internal Server Error'
     const status = ['Movie not found', 'Episode not found', 'Episode does not belong'].some(m => message.includes(m)) ? 400 : 500
 
-    if (status === 500) console.error('[API] /v1/watch-history POST error:', error)
+    if (status === 500) log.error({ err: error instanceof Error ? error.message : error }, '/v1/watch-history POST error')
 
     return apiError(message, status)
   }
@@ -150,4 +179,45 @@ function detectDeviceType(ua: string): string {
   if (/iPad|Tablet|PlayBook|Silk/i.test(ua)) return 'tablet'
   if (/Mobile|Android|iPhone|iPod/i.test(ua)) return 'mobile'
   return 'desktop'
+}
+
+// ─── DELETE: Remove watch history items ────────────────────────
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const user = await requireUser()
+    if (!user) {
+      return apiError('Not authenticated', 401)
+    }
+
+    const sp = req.nextUrl.searchParams
+    const movieId = sp.get('movieId')
+    const episodeId = sp.get('episodeId')
+    const clearAll = sp.get('clearAll')
+
+    if (clearAll === 'true') {
+      await prisma.watchHistory.deleteMany({
+        where: { userId: user.id }
+      })
+      return apiSuccess({ deleted: true, message: 'All history cleared' })
+    }
+
+    if (movieId) {
+      if (episodeId) {
+        await prisma.watchHistory.deleteMany({
+          where: { userId: user.id, movieId, episodeId }
+        })
+      } else {
+        await prisma.watchHistory.deleteMany({
+          where: { userId: user.id, movieId }
+        })
+      }
+      return apiSuccess({ deleted: true, message: 'History removed' })
+    }
+
+    return apiError('Invalid request parameters', 400)
+  } catch (error) {
+    log.error({ err: error instanceof Error ? error.message : error }, '/v1/watch-history DELETE error')
+    return apiError('Internal Server Error', 500)
+  }
 }

@@ -8,6 +8,7 @@ import { canChangeRole } from '@/src/be/modules/auth/permissions'
 import { UsersService } from '@/src/be/modules/users/users.service'
 import { ok, badRequest, forbidden, notFound, conflict, parseAndValidate } from '@/src/be/shared/api-handler'
 import { Container } from '@/src/be/shared/di'
+import type { Role } from '@prisma/client'
 
 export class UsersController {
   // GET /api/admin/users — list with full search/filter/sort
@@ -26,13 +27,8 @@ export class UsersController {
     const usersService = Container.resolve<UsersService>('UsersService')
     const [data, total] = await usersService.getPaginatedUsers(search, role, status, deleted, sortBy, skip, limit)
 
-    // Get real global stats
-    const [globalTotal, globalActive, globalAdmins, globalBanned] = await Promise.all([
-      prisma.user.count(),
-      prisma.user.count({ where: { status: 'active', deletedAt: null } }),
-      prisma.user.count({ where: { role: { in: ['SUPER_ADMIN', 'ADMIN'] }, deletedAt: null } }),
-      prisma.user.count({ where: { status: 'banned', deletedAt: null } })
-    ])
+    // Get cached global stats
+    const [globalTotal, globalActive, globalAdmins, globalBanned] = await usersService.getGlobalStats()
 
     const totalPages = Math.ceil(total / limit)
     
@@ -58,7 +54,7 @@ export class UsersController {
     const { data: parsedData } = validation
 
     // Check role assignment permission
-    if (parsedData.role !== 'USER' && !canChangeRole(auth.user as any, 'USER', parsedData.role as any)) {
+    if (parsedData.role && parsedData.role !== 'USER' && !canChangeRole(auth.user, 'USER', parsedData.role)) {
       return forbidden('Bạn không có quyền tạo user với role này')
     }
 
@@ -67,7 +63,7 @@ export class UsersController {
     if (existing) return conflict('Email đã được sử dụng')
 
     const passwordHash = await AuthService.hashPassword(parsedData.password)
-    const roleVal = (parsedData.role || 'USER').toUpperCase() as any
+    const roleVal = (parsedData.role || 'USER').toUpperCase() as Role
     const user = await usersService.createUser({
       name: parsedData.name, email: parsedData.email.toLowerCase(), passwordHash, role: roleVal
     })
@@ -123,7 +119,7 @@ export class UsersController {
 
     // Handle role change permission
     if (body.role && typeof body.role === 'string' && body.role.toLowerCase() !== user.role?.toLowerCase()) {
-      if (!canChangeRole(auth.user as any, (user.role as string)?.toLowerCase() as any, body.role.toLowerCase() as any)) {
+      if (!canChangeRole(auth.user, (user.role as string)?.toLowerCase(), body.role.toLowerCase())) {
         return forbidden('Bạn không có quyền đổi role này')
       }
     }
@@ -136,7 +132,7 @@ export class UsersController {
     }
 
     if (body.role) {
-      (body as any).role = body.role.toUpperCase()
+      body.role = body.role.toUpperCase() as typeof body.role
     }
 
     // Sync isActive with status
@@ -151,7 +147,7 @@ export class UsersController {
       await prisma.session.deleteMany({ where: { userId: id } })
     }
 
-    const updated = await usersService.updateUser(id, { ...body, ...updateData, role: body.role?.toUpperCase() as any })
+    const updated = await usersService.updateUser(id, { ...body, ...updateData, role: body.role?.toUpperCase() as Role | undefined })
 
     // Determine action type for logging
     const action = body.status === 'banned' ? 'block' :

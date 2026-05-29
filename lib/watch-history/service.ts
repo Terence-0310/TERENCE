@@ -29,6 +29,9 @@ import {
   MIN_PROGRESS_TO_SHOW,
   MAX_PROGRESS_TO_SHOW,
 } from './constants'
+import { logger } from '@/src/be/shared/utils/logger'
+
+const log = logger.child({ module: 'watch-history' })
 
 // ═══════════════════════════════════════════════════════════════
 // CORE: SAVE / UPDATE PROGRESS
@@ -75,6 +78,21 @@ export function saveWatchProgress(input: SaveWatchProgressInput): WatchHistoryIt
     lastWatchedAt: new Date().toISOString(),
     completed,
     sourceUrl: input.sourceUrl,
+  }
+
+  // Fire-and-forget sync to API
+  if (typeof window !== 'undefined') {
+    fetch('/api/v1/watch-history/progress', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        movieId: item.movieId,
+        episodeId: item.episodeId,
+        currentTime: item.currentTime,
+        duration: item.duration,
+        progressPercent: item.progressPercent,
+      }),
+    }).catch(() => {})
   }
 
   return upsertWatchHistoryItem(item)
@@ -189,6 +207,14 @@ export function markEpisodeCompleted(
     lastWatchedAt: new Date().toISOString(),
   }
 
+  if (typeof window !== 'undefined') {
+    fetch('/api/v1/watch-history/complete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ movieId, episodeId }),
+    }).catch(() => {})
+  }
+
   return upsertWatchHistoryItem(updated)
 }
 
@@ -199,6 +225,11 @@ export function removeContinueWatching(
   movieId: string,
   episodeId: string,
 ): WatchHistoryItem[] {
+  if (typeof window !== 'undefined') {
+    fetch(`/api/v1/watch-history?movieId=${movieId}&episodeId=${episodeId}`, {
+      method: 'DELETE',
+    }).catch(() => {})
+  }
   return removeWatchHistoryItem(movieId, episodeId)
 }
 
@@ -206,6 +237,11 @@ export function removeContinueWatching(
  * Remove all history for a movie.
  */
 export function removeMovieHistory(movieId: string): WatchHistoryItem[] {
+  if (typeof window !== 'undefined') {
+    fetch(`/api/v1/watch-history?movieId=${movieId}`, {
+      method: 'DELETE',
+    }).catch(() => {})
+  }
   return removeMovieFromHistory(movieId)
 }
 
@@ -213,6 +249,11 @@ export function removeMovieHistory(movieId: string): WatchHistoryItem[] {
  * Clear all watch history.
  */
 export function clearAllHistory(): void {
+  if (typeof window !== 'undefined') {
+    fetch('/api/v1/watch-history?clearAll=true', {
+      method: 'DELETE',
+    }).catch(() => {})
+  }
   clearStorage()
 }
 
@@ -259,7 +300,7 @@ export async function syncToRemote(): Promise<void> {
       }
     }
   } catch (error) {
-    console.error('Failed to sync watch history to remote:', error);
+    log.error({ err: error instanceof Error ? error.message : error }, 'Failed to sync watch history to remote');
   }
 }
 
@@ -280,7 +321,7 @@ export async function loadFromRemote(): Promise<WatchHistoryItem[]> {
       }
     }
   } catch (error) {
-    console.error('Failed to load watch history from remote:', error);
+    log.error({ err: error instanceof Error ? error.message : error }, 'Failed to load watch history from remote');
   }
   return getWatchHistoryFromStorage();
 }

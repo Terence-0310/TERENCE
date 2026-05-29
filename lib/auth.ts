@@ -1,10 +1,11 @@
-import { NextAuthOptions } from "next-auth";
+import { NextAuthOptions, type User as NextAuthUser } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/src/be/shared/db/prisma";
 import { AuthService } from "@/src/be/modules/auth";
 import { Adapter } from "next-auth/adapters";
+import * as AuthRepository from "@/src/be/modules/auth/auth.repository";
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma) as Adapter,
@@ -44,9 +45,7 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Missing credentials");
         }
 
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email.toLowerCase() }
-        });
+        const user = await AuthRepository.findUserByEmail(credentials.email);
 
         if (!user) {
           throw new Error("User not found");
@@ -66,18 +65,27 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Sai mật khẩu");
         }
 
-        return user as any;
+        // Map Prisma user → NextAuth User. Fields beyond the defaults
+        // (role, isActive, isEmailVerified) are declared in types/next-auth.d.ts.
+        const authUser: NextAuthUser = {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          image: user.image ?? null,
+          role: user.role,
+          isActive: user.isActive,
+          isEmailVerified: user.isEmailVerified,
+        };
+        return authUser;
       }
     })
   ],
   callbacks: {
-    async signIn({ user, account, profile }) {
+    async signIn({ user, account }) {
       if (account?.provider === "google") {
         if (!user.email) return false;
-        
-        const existingUser = await prisma.user.findUnique({
-          where: { email: user.email }
-        });
+
+        const existingUser = await AuthRepository.findUserByEmail(user.email);
 
         if (existingUser) {
           if (!existingUser.isActive) {
@@ -85,40 +93,89 @@ export const authOptions: NextAuthOptions = {
           }
           // The Prisma adapter will automatically link the account to this user
         }
+
+        // Google verifies the email at sign-up, so credit the one-time
+        // "Xác minh email" TCoin reward. Idempotent — the service refuses to
+        // credit twice — so this is safe on every sign-in.
+        try {
+          const u = existingUser ?? await AuthRepository.findUserByEmail(user.email)
+          if (u?.id) {
+            const { rewardVerifyEmail } = await import('@/src/be/modules/tcoin/tcoin.service')
+            await rewardVerifyEmail(u.id)
+          }
+        } catch {
+          /* best-effort — never block sign-in on a reward failure */
+        }
       }
       return true;
     },
     async jwt({ token, user, trigger, session }) {
       if (user) {
         token.id = user.id;
-        token.role = (user as any).role || "USER";
-        token.isActive = (user as any).isActive ?? true;
-        token.isEmailVerified = (user as any).isEmailVerified ?? false;
-        
+        token.role = user.role ?? "USER";
+        token.isActive = user.isActive ?? true;
+        token.isEmailVerified = user.isEmailVerified ?? false;
+
+        // Seed the token picture from the user's editable `avatar` (the field
+        // the profile page writes to), falling back to the OAuth `image`. This
+        // makes the header show the correct avatar right after login for both
+        // credentials and Google users — the header reads session.user.image,
+        // which derives from token.picture.
+        try {
+          const dbUser = await prisma.user.findUnique({
+            where: { id: user.id },
+            select: { avatar: true, image: true },
+          });
+          token.picture = dbUser?.avatar ?? dbUser?.image ?? user.image ?? null;
+        } catch {
+          /* keep whatever NextAuth already set on token.picture */
+        }
+
         try {
           const { getUserEffectivePermissions } = await import('@/src/lib/permissions/access-control');
-          const perms = await getUserEffectivePermissions(user.id, (user as any).role || "USER");
+          const perms = await getUserEffectivePermissions(user.id, token.role);
           token.permissions = perms.map(p => p.key);
-        } catch(e) {
+        } catch (err) {
+          // Don't lock the user out silently — fall back to empty permissions
+          // but surface the failure so it can be diagnosed.
+          console.error('[Auth] Failed to load effective permissions for user', user.id, err);
           token.permissions = [];
         }
       }
-      if (trigger === "update" && session?.name) {
-        token.name = session.name;
-        if (session.picture) token.picture = session.picture;
+      // useSession().update({ name, picture }) from the profile page lands here
+      // so avatar/name edits reflect in the header without a re-login.
+      if (trigger === "update" && session) {
+        if (session.name) token.name = session.name;
+        if (session.picture !== undefined) token.picture = session.picture;
       }
       return token;
     },
     async session({ session, token }) {
       if (token && session.user) {
-        (session.user as any).id = token.id;
-        (session.user as any).role = token.role;
-        (session.user as any).isActive = token.isActive;
-        (session.user as any).isEmailVerified = token.isEmailVerified;
-        (session.user as any).permissions = token.permissions || [];
+        session.user.id = token.id;
+        session.user.role = token.role;
+        session.user.isActive = token.isActive;
+        session.user.isEmailVerified = token.isEmailVerified;
+        session.user.permissions = token.permissions ?? [];
       }
       return session;
     }
+  },
+  events: {
+    // Fires right after the Prisma adapter creates a user row (OAuth sign-ups).
+    // Unlike the signIn callback — which runs before the row exists for a
+    // brand-new Google user, so the reward lookup finds nobody — this fires
+    // with the persisted user, making the one-time "verify email" credit
+    // reliable. Idempotent: the service refuses to credit twice.
+    async createUser({ user }) {
+      try {
+        if (!user?.id) return
+        const { rewardVerifyEmail } = await import('@/src/be/modules/tcoin/tcoin.service')
+        await rewardVerifyEmail(user.id)
+      } catch {
+        /* best-effort — never block account creation on a reward failure */
+      }
+    },
   },
   secret: process.env.NEXTAUTH_SECRET,
 };

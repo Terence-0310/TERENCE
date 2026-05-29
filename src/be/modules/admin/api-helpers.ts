@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { AuthService, type PublicUser } from '@/src/be/modules/auth'
 export { requireAdmin, requireAuth } from '@/src/be/shared/guards/require-auth'
 
 /** Parse search params for pagination */

@@ -5,6 +5,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin, isUser } from '@/src/be/modules/admin/admin.guard'
 import { indexMovie } from '@/src/be/modules/search/movie-search-indexer'
+import { logger } from '@/src/be/shared/utils/logger'
+
+const log = logger.child({ module: 'admin-sync-elastic-movieId' })
 
 export async function POST(
   _req: NextRequest,
@@ -27,7 +30,7 @@ export async function POST(
       message: ok ? 'Movie indexed successfully' : 'Failed to index (ES unavailable or movie not found)',
     })
   } catch (error) {
-    console.error('[Admin] ES index error:', error)
+    log.error({ err: error instanceof Error ? error.message : error }, 'ES index error')
     return NextResponse.json({ success: false, error: 'Indexing failed' }, { status: 500 })
   }
 }

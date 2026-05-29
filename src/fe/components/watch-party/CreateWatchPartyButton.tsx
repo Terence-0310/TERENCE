@@ -88,7 +88,7 @@ export function CreateWatchPartyButton({
         </button>
       </DialogTrigger>
       
-      <DialogContent className="max-w-[420px] bg-[#0E131F] border-white/10 sm:rounded-[20px] p-6 shadow-2xl">
+      <DialogContent className="max-w-[420px] bg-background border-white/10 sm:rounded-[20px] p-6 shadow-2xl">
         <DialogHeader className="mb-4">
           <DialogTitle className="text-[20px] font-bold text-white text-center">
             Thiết lập phòng xem chung
@@ -104,17 +104,17 @@ export function CreateWatchPartyButton({
                 onClick={() => setSelectedSize(size.value)}
                 className={`flex items-center justify-between px-4 py-3 rounded-[12px] border transition-all ${
                   selectedSize === size.value 
-                    ? 'border-[#31CDB8] bg-[#31CDB8]/10' 
+                    ? 'border-primary bg-primary/10' 
                     : 'border-white/10 bg-white/5 hover:bg-white/10'
                 }`}
               >
                 <div className="text-left">
-                  <p className={`font-bold text-[15px] ${selectedSize === size.value ? 'text-[#31CDB8]' : 'text-white'}`}>
+                  <p className={`font-bold text-[15px] ${selectedSize === size.value ? 'text-primary' : 'text-white'}`}>
                     {size.label}
                   </p>
                   <p className="text-[13px] text-white/50">{size.desc}</p>
                 </div>
-                <Users className={`h-5 w-5 ${selectedSize === size.value ? 'text-[#31CDB8]' : 'text-white/40'}`} />
+                <Users className={`h-5 w-5 ${selectedSize === size.value ? 'text-primary' : 'text-white/40'}`} />
               </button>
             ))}
           </div>
@@ -123,7 +123,7 @@ export function CreateWatchPartyButton({
         <Button 
           onClick={handleCreate}
           disabled={isCreating}
-          className="w-full h-[48px] rounded-[14px] bg-[#31CDB8] text-[#0A0F1E] font-bold text-[15px] hover:bg-[#2CBDA9] transition-colors"
+          className="w-full h-[48px] rounded-[14px] bg-primary text-[#0A0F1E] font-bold text-[15px] hover:bg-[#2CBDA9] transition-colors"
         >
           {isCreating ? (
             <>

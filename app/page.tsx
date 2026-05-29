@@ -1,13 +1,23 @@
 import { HeroBanner } from '@/src/fe/components/home/HeroBanner'
 import { ContinueWatchingRow } from '@/src/fe/components/home/ContinueWatchingRow'
+import { RecommendedRow } from '@/src/fe/components/home/RecommendedRow'
 import { InterestsSection } from '@/src/fe/components/home/InterestsSection'
 import { MovieRow } from '@/src/fe/components/shared/MovieRow'
 import { TopCommentsCarousel } from '@/src/fe/components/home/TopCommentsCarousel'
 import { TrendingRankings } from '@/src/fe/components/home/TrendingRankings'
-import { MovieNewsSection } from '@/src/fe/components/news/MovieNewsSection'
+import { MovieNewsSection, MovieNewsSkeleton } from '@/src/fe/components/news/MovieNewsSection'
 import { UpcomingMoviesSection } from '@/src/fe/components/news/UpcomingMoviesSection'
 import { getTrending, getPopular, getTopRated, getNowPlaying, getUpcoming, getMoviesByCountry } from '@/src/be/services/tmdb/movie-service'
 import { Film } from 'lucide-react'
+import { Suspense } from 'react'
+
+// Don't try to statically prerender the home page at build time. It depends
+// on TMDB + OPhim availability, both of which are flaky from CI / Docker
+// build hosts (60s timeouts on ophim1.com would fail the whole image build).
+// Rendering on demand also means fresh content per visit — fine for a home
+// page with a movie-row layout.
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
 export default async function HomePage() {
   // Use allSettled so ONE failed call doesn't crash the entire page
@@ -70,13 +80,29 @@ export default async function HomePage() {
 
   return (
     <main className="min-h-screen bg-background">
-      {/* 1. Hero Banner — RoPhim style with metadata badges + thumbnail strip */}
-      <HeroBanner movies={trending.items.slice(0, 6)} />
+      {/* 1. Hero Banner — dùng popular (backdrop rộng hơn trending) */}
+      <HeroBanner movies={
+        popular.items
+          .filter(m => m.backdropUrl && m.backdropUrl !== '/placeholder.jpg')
+          .slice(0, 6)
+          .length >= 2
+          ? popular.items
+              .filter(m => m.backdropUrl && m.backdropUrl !== '/placeholder.jpg')
+              .slice(0, 6)
+          : trending.items
+              .filter(m => m.backdropUrl && m.backdropUrl !== '/placeholder.jpg')
+              .slice(0, 6)
+      } />
 
       {/* Content Sections */}
       <div className="-mt-8 relative z-10 space-y-8 pb-16">
         {/* 2. Continue Watching — client component, auto-hides when empty */}
         <ContinueWatchingRow />
+
+        {/* 2.5. Recommended For You — AI Based on watch history */}
+        <div className="animate-row-in" style={{ '--row': 0 } as React.CSSProperties}>
+          <RecommendedRow />
+        </div>
 
         {/* 3. "Bạn đang quan tâm gì?" — RoPhim-style interest category cards */}
         <div className="animate-row-in" style={{ '--row': 0 } as React.CSSProperties}>
@@ -171,8 +197,15 @@ export default async function HomePage() {
           <TrendingRankings />
         </div>
 
+        {/* 7. Movie News Feed (Server Component with Suspense to avoid blocking) */}
+        <div className="animate-row-in" style={{ '--row': 11 } as React.CSSProperties}>
+          <Suspense fallback={<MovieNewsSkeleton />}>
+            <MovieNewsSection />
+          </Suspense>
+        </div>
+
         {/* 8. Upcoming Movies feed */}
-        <div className="animate-row-in" style={{ '--row': 9 } as React.CSSProperties}>
+        <div className="animate-row-in" style={{ '--row': 12 } as React.CSSProperties}>
           <UpcomingMoviesSection />
         </div>
       </div>

@@ -6,6 +6,9 @@
 
 import type { Server, Socket } from 'socket.io'
 import { prisma } from '@/lib/db'
+import { logger } from '@/src/be/shared/utils/logger'
+
+const log = logger.child({ module: 'watch-party-socket' })
 
 // ── DB Persist throttle — save state every 5s max per room ──
 const lastDbWrite = new Map<string, number>()
@@ -41,7 +44,7 @@ async function persistStateToDB(roomCode: string, playbackTime: number, isPlayin
       data: { lastSyncedAt: new Date() },
     })
   } catch (err) {
-    console.error(`[WP:Socket] DB persist error for room ${roomCode}:`, err)
+    log.error({ roomCode, err: err instanceof Error ? err.message : err }, 'DB persist error')
   }
 }
 
@@ -112,7 +115,7 @@ export function registerWatchPartyHandlers(io: Server, socket: Socket) {
   socket.use((packet, next) => {
     // We can exclude certain events from rate limiting if needed, e.g. disconnect
     if (checkRateLimit(socket.id)) {
-      console.warn(`[WP:Socket] Rate limit exceeded for socket ${socket.id}, event: ${packet[0]}`)
+      log.warn({ socketId: socket.id, event: packet[0] }, 'Rate limit exceeded')
       socket.emit('wp:error', { message: 'Gửi quá nhiều yêu cầu, vui lòng chậm lại' })
       return next(new Error('Rate limit exceeded'))
     }
@@ -147,7 +150,7 @@ export function registerWatchPartyHandlers(io: Server, socket: Socket) {
       room.hostSocketId = socket.id
     }
 
-    console.log(`[WP:Socket] ${displayName} joined room ${roomCode} (host: ${isHost})`)
+    log.info({ displayName, roomCode, isHost }, 'User joined room')
 
     // Send current state to new joiner
     socket.emit('wp:state', {
@@ -316,7 +319,7 @@ export function registerWatchPartyHandlers(io: Server, socket: Socket) {
         })
       }
     } catch (err) {
-      console.error(`[WP:Socket] DB persist message error for room ${data.roomCode}:`, err)
+      log.error({ roomCode: data.roomCode, err: err instanceof Error ? err.message : err }, 'DB persist message error')
     }
   })
 
@@ -349,7 +352,7 @@ export function registerWatchPartyHandlers(io: Server, socket: Socket) {
         })
       }
     } catch (err) {
-      console.error(`[WP:Socket] DB persist message error for room ${data.roomCode}:`, err)
+      log.error({ roomCode: data.roomCode, err: err instanceof Error ? err.message : err }, 'DB persist message error')
     }
   })
 
@@ -375,7 +378,7 @@ export function registerWatchPartyHandlers(io: Server, socket: Socket) {
       })
       io.in(data.roomCode).emit('wp:lock-changed', { isLocked: data.isLocked })
     } catch (e) {
-      console.error(e)
+      log.error({ err: e instanceof Error ? e.message : e }, 'Toggle lock error')
     }
   })
 
@@ -456,7 +459,7 @@ export function registerWatchPartyHandlers(io: Server, socket: Socket) {
       // Room empty — full cleanup
       rooms.delete(roomCode)
       lastDbWrite.delete(roomCode)
-      console.log(`[WP:Socket] Room ${roomCode} deleted (empty)`)
+      log.info({ roomCode }, 'Room deleted (empty)')
     } else if (room.hostId === userId) {
       // Host left — transfer to next participant
       const nextParticipant = room.participants.values().next().value
@@ -469,7 +472,7 @@ export function registerWatchPartyHandlers(io: Server, socket: Socket) {
           newHostName: nextParticipant.displayName,
         })
 
-        console.log(`[WP:Socket] Host transferred to ${nextParticipant.displayName} in room ${roomCode}`)
+        log.info({ newHost: nextParticipant.displayName, roomCode }, 'Host transferred')
       }
     }
 

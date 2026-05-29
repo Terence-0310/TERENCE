@@ -11,7 +11,7 @@
 // Signaling is executed gracefully via Watch Party WebSocket + LiveKit DataChannels.
 // Phase 2 & 3 Completed: Full SFU LiveKit integration for all group calls.
 
-import { useState, useMemo, useEffect } from 'react'
+import { useMemo, useRef, useCallback } from 'react'
 import { type Room } from 'livekit-client'
 import { useLiveKitRoom } from './useLiveKitRoom'
 import type { CallParticipant } from '@/lib/watch-party/types'
@@ -32,6 +32,8 @@ export interface UsePartyCallReturn {
   localStream: MediaStream | null
   participants: CallParticipant[]
   isCallSupported: boolean
+  /** Last LiveKit connection error message (null on success). */
+  error: string | null
   joinCall: () => Promise<void>
   leaveCall: () => void
   toggleMic: () => void
@@ -69,31 +71,53 @@ export function usePartyCall(options: UsePartyCallOptions): UsePartyCallReturn {
     return hasTracks ? stream : null
   }, [livekit.localParticipant?.audioTrack, livekit.localParticipant?.videoTrack])
 
+  // Cache MediaStreams to avoid recreating them and causing re-renders/flickering when active speakers change
+  const streamCache = useRef<Map<string, { stream: MediaStream; audioId?: string; videoId?: string }>>(new Map())
+
   // Map remote LiveKit streams into CallParticipant arrays
   const participants = useMemo<CallParticipant[]>(() => {
     return livekit.remoteParticipants.map((p) => {
-      const stream = new MediaStream()
-      let hasTracks = false
-      if (p.audioTrack) {
-        stream.addTrack(p.audioTrack)
-        hasTracks = true
+      const audioId = p.audioTrack?.id
+      const videoId = p.videoTrack?.id
+      let cached = streamCache.current.get(p.identity)
+
+      if (!cached || cached.audioId !== audioId || cached.videoId !== videoId) {
+        const stream = new MediaStream()
+        let hasTracks = false
+        if (p.audioTrack) {
+          stream.addTrack(p.audioTrack)
+          hasTracks = true
+        }
+        if (p.videoTrack) {
+          stream.addTrack(p.videoTrack)
+          hasTracks = true
+        }
+        
+        if (hasTracks) {
+          cached = { stream, audioId, videoId }
+          streamCache.current.set(p.identity, cached)
+        } else {
+          streamCache.current.delete(p.identity)
+          cached = undefined
+        }
       }
-      if (p.videoTrack) {
-        stream.addTrack(p.videoTrack)
-        hasTracks = true
-      }
+
       return {
         peerId: p.identity,
         memberId: p.identity,
         memberName: p.name,
         isMuted: p.isMuted,
         isCameraOn: p.isCameraOn,
-        stream: hasTracks ? stream : undefined,
+        stream: cached?.stream,
       }
     })
   }, [livekit.remoteParticipants])
 
-  return {
+  const joinCall = useCallback(async () => {
+    await livekit.connect(true, roomType !== 'group_chat')
+  }, [livekit.connect, roomType])
+
+  return useMemo(() => ({
     room: livekit.room,
     isInCall,
     isMuted: livekit.isMuted,
@@ -101,11 +125,26 @@ export function usePartyCall(options: UsePartyCallOptions): UsePartyCallReturn {
     localStream,
     participants,
     isCallSupported,
-    joinCall: async () => { await livekit.connect(true, roomType !== 'group_chat') },
+    error: livekit.error,
+    joinCall,
     leaveCall: livekit.disconnect,
     toggleMic: livekit.toggleMic,
     toggleCamera: livekit.toggleCamera,
     muteAll: livekit.muteAll,
-  }
+  }), [
+    livekit.room,
+    isInCall,
+    livekit.isMuted,
+    livekit.isCameraOn,
+    localStream,
+    participants,
+    isCallSupported,
+    livekit.error,
+    joinCall,
+    livekit.disconnect,
+    livekit.toggleMic,
+    livekit.toggleCamera,
+    livekit.muteAll,
+  ])
 }
 

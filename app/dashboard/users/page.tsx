@@ -7,13 +7,14 @@
 // to reduce page complexity. Page retains state + API logic.
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Search, UserPlus, RefreshCw } from 'lucide-react'
+import { UserPlus } from 'lucide-react'
 import { Button } from '@/src/fe/components/ui/button'
-import { Input } from '@/src/fe/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/src/fe/components/ui/card'
 import { UserTable } from './_components/UserTable'
 import { AddUserModal, EditUserModal } from './_components/UserModals'
 import { UserPermissionsModal } from './_components/UserPermissionsModal'
+import { UserFilters } from './_components/UserFilters'
+import { UserPagination } from './_components/UserPagination'
 import { useAuth } from '@/src/fe/features/auth/contexts/auth-context'
 
 interface UserItem {
@@ -75,9 +76,10 @@ export default function UsersPage() {
       const res = await fetch(`/api/admin/users?${params}`)
       if (res.ok) {
         const json = await res.json()
-        setUsers(json.data || [])
-        setPagination(json.pagination || { page: 1, limit: 20, total: 0, totalPages: 0 })
-        if (json.globalStats) setGlobalStats(json.globalStats)
+        const payload = json.success ? json.data : json
+        setUsers(payload.data || [])
+        setPagination(payload.pagination || { page: 1, limit: 20, total: 0, totalPages: 0 })
+        if (payload.globalStats) setGlobalStats(payload.globalStats)
       } else {
         setUsers([])
         setPagination({ page: 1, limit: 20, total: 0, totalPages: 0 })
@@ -174,10 +176,10 @@ export default function UsersPage() {
 
   // ── Format helpers ──
 
-  const roleLabel = (r: string) => ({ SUPER_ADMIN: 'Super Admin', ADMIN: 'Admin', STAFF: 'Staff', EDITOR: 'Editor', USER: 'User' }[r.toUpperCase()] || r)
-  const roleColor = (r: string) => ({ SUPER_ADMIN: 'bg-red-500/10 text-red-500 shadow-sm border border-red-500/20', ADMIN: 'bg-purple-500/10 text-purple-500 shadow-sm border border-purple-500/20', STAFF: 'bg-blue-500/10 text-blue-500', EDITOR: 'bg-cyan-500/10 text-cyan-500', USER: 'bg-muted text-muted-foreground' }[r.toUpperCase()] || 'bg-muted text-muted-foreground')
-  const statusColor = (s: string) => ({ ACTIVE: 'bg-green-500/10 text-green-500', SUSPENDED: 'bg-yellow-500/10 text-yellow-500', BANNED: 'bg-red-500/10 text-red-500' }[s.toUpperCase()] || 'bg-muted text-muted-foreground')
-  const statusLabel = (s: string) => ({ ACTIVE: 'Hoạt động', SUSPENDED: 'Tạm ngưng', BANNED: 'Bị khóa' }[s.toUpperCase()] || s)
+  const roleLabel = (r: string) => ({ SUPER_ADMIN: 'Super Admin', ADMIN: 'Admin', STAFF: 'Staff', EDITOR: 'Editor', USER: 'User' }[r?.toUpperCase()] || r)
+  const roleColor = (r: string) => ({ SUPER_ADMIN: 'bg-red-500/10 text-red-500 shadow-sm border border-red-500/20', ADMIN: 'bg-purple-500/10 text-purple-500 shadow-sm border border-purple-500/20', STAFF: 'bg-blue-500/10 text-blue-500', EDITOR: 'bg-cyan-500/10 text-cyan-500', USER: 'bg-muted text-muted-foreground' }[r?.toUpperCase()] || 'bg-muted text-muted-foreground')
+  const statusColor = (s: string) => ({ ACTIVE: 'bg-green-500/10 text-green-500', SUSPENDED: 'bg-yellow-500/10 text-yellow-500', BANNED: 'bg-red-500/10 text-red-500' }[s?.toUpperCase()] || 'bg-muted text-muted-foreground')
+  const statusLabel = (s: string) => ({ ACTIVE: 'Hoạt động', SUSPENDED: 'Tạm ngưng', BANNED: 'Bị khóa' }[s?.toUpperCase()] || s)
   const fmtDate = (d: string | null) => d ? new Date(d).toLocaleDateString('vi') : '—'
   const fmtDateTime = (d: string | null) => d ? new Date(d).toLocaleString('vi') : 'Chưa đăng nhập'
 
@@ -204,49 +206,14 @@ export default function UsersPage() {
       </div>
 
       {/* Filters */}
-      <Card className="bg-card border-border">
-        <CardContent className="p-4">
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input placeholder="Tìm theo tên hoặc email..." className="pl-9 bg-muted border-border"
-                  value={search} onChange={(e) => setSearch(e.target.value)} />
-              </div>
-              <Button variant="outline" size="icon" onClick={() => fetchUsers()}>
-                <RefreshCw className="w-4 h-4" />
-              </Button>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <select className="px-3 py-2 bg-muted border border-border rounded-lg text-sm bg-black/40 outline-none" value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
-                <option value="all" className="bg-[#0A0E17] text-white">Tất cả vai trò</option>
-                <option value="SUPER_ADMIN" className="bg-[#0A0E17] text-white">Super Admin</option>
-                <option value="ADMIN" className="bg-[#0A0E17] text-white">Admin</option>
-                <option value="STAFF" className="bg-[#0A0E17] text-white">Staff</option>
-                <option value="EDITOR" className="bg-[#0A0E17] text-white">Editor</option>
-                <option value="USER" className="bg-[#0A0E17] text-white">User</option>
-              </select>
-              <select className="px-3 py-2 bg-muted border border-border rounded-lg text-sm" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-                <option value="all">Tất cả trạng thái</option>
-                <option value="active">Hoạt động</option>
-                <option value="banned">Bị khóa</option>
-                <option value="suspended">Tạm ngưng</option>
-              </select>
-              <select className="px-3 py-2 bg-muted border border-border rounded-lg text-sm" value={specialFilter} onChange={(e) => setSpecialFilter(e.target.value)}>
-                <option value="all">Tất cả</option>
-                <option value="deleted">Đã xóa</option>
-              </select>
-              <select className="px-3 py-2 bg-muted border border-border rounded-lg text-sm" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-                <option value="newest">Mới nhất</option>
-                <option value="oldest">Cũ nhất</option>
-                <option value="lastLogin">Đăng nhập gần nhất</option>
-                <option value="loginCount">Nhiều lượt đăng nhập</option>
-                <option value="name">Theo tên A→Z</option>
-              </select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <UserFilters 
+        search={search} setSearch={setSearch}
+        roleFilter={roleFilter} setRoleFilter={setRoleFilter}
+        statusFilter={statusFilter} setStatusFilter={setStatusFilter}
+        specialFilter={specialFilter} setSpecialFilter={setSpecialFilter}
+        sortBy={sortBy} setSortBy={setSortBy}
+        onRefresh={() => fetchUsers()}
+      />
 
       {/* Table */}
       <Card className="bg-card border-border">
@@ -271,31 +238,10 @@ export default function UsersPage() {
             fmtDateTime={fmtDateTime}
           />
 
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-4 border-t border-border">
-            <p className="text-sm text-muted-foreground">
-              Trang {pagination.page}/{pagination.totalPages || 1} — {pagination.total} người dùng
-            </p>
-            <div className="flex items-center gap-1">
-              <Button variant="outline" size="icon" className="w-8 h-8" disabled={pagination.page <= 1} onClick={() => fetchUsers(1)}>
-                «
-              </Button>
-              <Button variant="outline" size="icon" className="w-8 h-8" disabled={pagination.page <= 1} onClick={() => fetchUsers(pagination.page - 1)}>
-                ‹
-              </Button>
-              
-              {/* Trang hiện tại */}
-              <div className="px-3 py-1 text-sm font-medium bg-primary text-white rounded-md mx-1 shadow-sm">
-                {pagination.page}
-              </div>
-
-              <Button variant="outline" size="icon" className="w-8 h-8" disabled={pagination.page >= pagination.totalPages} onClick={() => fetchUsers(pagination.page + 1)}>
-                ›
-              </Button>
-              <Button variant="outline" size="icon" className="w-8 h-8" disabled={pagination.page >= pagination.totalPages} onClick={() => fetchUsers(pagination.totalPages)}>
-                »
-              </Button>
-            </div>
-          </div>
+          <UserPagination 
+            pagination={pagination}
+            onPageChange={(page) => fetchUsers(page)}
+          />
         </CardContent>
       </Card>
 

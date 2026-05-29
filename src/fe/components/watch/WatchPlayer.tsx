@@ -14,6 +14,9 @@ import { useRef, useState, useCallback, useEffect, forwardRef, useImperativeHand
 import Hls from 'hls.js'
 import { Crown, Lock } from 'lucide-react'
 import { BasePlayer } from '@/src/fe/components/player/BasePlayer'
+import { logger } from '@/src/fe/lib/logger'
+
+const log = logger.child({ module: 'WatchPlayer' })
 
 // ── Types ──
 
@@ -150,15 +153,15 @@ export const WatchPlayer = forwardRef<WatchPlayerRef, WatchPlayerProps>(function
       hls.on(Hls.Events.ERROR, (_event, data) => {
         if (!data.fatal) return
 
-        console.error('[WatchPlayer] Fatal HLS error:', data.type, data.details)
+        log.error({ type: data.type, details: data.details }, 'Fatal HLS error')
 
         if (data.type === Hls.ErrorTypes.NETWORK_ERROR && retryCount < 5) {
           retryCount++
-          console.log(`[WatchPlayer] Retrying network connection (${retryCount}/5)...`)
+          log.info({ attempt: retryCount, max: 5 }, 'Retrying network connection')
           hls.startLoad()
         } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR && retryCount < 5) {
           retryCount++
-          console.log(`[WatchPlayer] Recovering media error (${retryCount}/5)...`)
+          log.info({ attempt: retryCount, max: 5 }, 'Recovering media error')
           hls.recoverMediaError()
         } else {
           setPlayerState('error')

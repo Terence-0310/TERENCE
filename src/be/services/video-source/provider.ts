@@ -2,7 +2,7 @@
 // Video Source Provider — Interface contract
 // ============================================
 
-import type { MovieDetail, MovieSourceResult, Episode, PlaybackSource, SourceType } from '@/types/movie'
+import type { MovieDetail, Episode, PlaybackSource, SourceType } from '@/types/movie'
 
 /**
  * Base interface for all video source providers.

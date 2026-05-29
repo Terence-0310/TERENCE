@@ -4,7 +4,9 @@
 // All TCoin operations: wallet, rewards, spending, admin.
 // This is the ONLY layer API routes should call.
 
+import { prisma } from '@/src/be/shared/db/prisma'
 import * as repo from './tcoin.repository'
+import { notifyUser, RT_EVENTS } from '@/src/be/shared/realtime/notify'
 import type {
   WalletResponse,
   TransactionItem,
@@ -25,8 +27,8 @@ export const REWARD_CONFIGS: RewardConfig[] = [
     category: 'daily_checkin',
     amount: 5,
     label: 'Điểm danh hàng ngày',
-    description: 'Nhận 5 TCoin mỗi ngày khi điểm danh',
-    icon: '📅',
+    description: 'Điểm danh mỗi ngày để nhận TCoin trên trang ví',
+    icon: '',
     maxPerDay: 1,
   },
   {
@@ -34,8 +36,8 @@ export const REWARD_CONFIGS: RewardConfig[] = [
     category: 'watch_reward',
     amount: 2,
     label: 'Xem phim hoàn tất',
-    description: 'Nhận 2 TCoin khi xem xong 1 phim/tập',
-    icon: '🎬',
+    description: 'Tự động cộng khi xem xong 1 tập (≥ 92% thời lượng)',
+    icon: '',
     maxPerDay: 10,
   },
   {
@@ -43,26 +45,47 @@ export const REWARD_CONFIGS: RewardConfig[] = [
     category: 'review_reward',
     amount: 10,
     label: 'Viết đánh giá phim',
-    description: 'Nhận 10 TCoin khi viết review',
-    icon: '✍️',
+    description: 'Cộng tự động khi bạn gửi review được duyệt',
+    icon: '',
     maxPerDay: 3,
   },
   {
     id: 'referral',
     category: 'referral_reward',
     amount: 100,
-    label: 'Mời bạn bè',
-    description: 'Nhận 100 TCoin khi bạn bè đăng ký thành công',
-    icon: '👥',
+    label: 'Mời bạn bè đăng ký',
+    description: 'Nhận thưởng khi người bạn mời đăng ký thành công',
+    icon: '',
+  },
+  {
+    id: 'verify_email',
+    category: 'other',
+    amount: 20,
+    label: 'Xác minh email',
+    description: 'Xác minh địa chỉ email để khoá tài khoản an toàn hơn',
+    icon: '',
+    oneTime: true,
+    actionUrl: '/profile',
+  },
+  {
+    id: 'complete_profile',
+    category: 'other',
+    amount: 30,
+    label: 'Hoàn thiện hồ sơ',
+    description: 'Cập nhật ảnh đại diện và phần giới thiệu bản thân',
+    icon: '',
+    oneTime: true,
+    actionUrl: '/profile',
   },
 ]
 
 export const SPEND_OPTIONS: SpendOption[] = [
-  { id: 'remove-ads-7d', name: 'Xóa quảng cáo 7 ngày', cost: 50, description: 'Trải nghiệm không quảng cáo', icon: '🚫', durationDays: 7 },
-  { id: 'hd-upgrade', name: 'Nâng HD → Full HD', cost: 30, description: 'Xem phim chất lượng cao hơn', icon: '📺', durationDays: 30 },
-  { id: 'early-access', name: 'Xem sớm 24h', cost: 100, description: 'Xem phim mới trước cộng đồng', icon: '⏰' },
-  { id: 'exclusive-badge', name: 'Huy hiệu đặc biệt', cost: 200, description: 'Nhận badge hiển thị khi chat', icon: '🏅' },
-  { id: 'room-theme', name: 'Theme phòng xem chung', cost: 80, description: 'Tùy chỉnh giao diện phòng', icon: '🎨' },
+  { id: 'remove-ads-7d', name: 'Xóa quảng cáo 7 ngày', cost: 50, description: 'Trải nghiệm không quảng cáo', icon: '', durationDays: 7 },
+  { id: 'hd-upgrade', name: 'Nâng HD → Full HD', cost: 30, description: 'Xem phim chất lượng cao hơn', icon: '', durationDays: 30 },
+  { id: 'early-access', name: 'Xem sớm 24h', cost: 100, description: 'Xem phim mới trước cộng đồng', icon: '' },
+  { id: 'exclusive-badge', name: 'Huy hiệu đặc biệt', cost: 200, description: 'Nhận badge hiển thị khi chat', icon: '' },
+  { id: 'room-theme', name: 'Theme phòng xem chung', cost: 80, description: 'Tùy chỉnh giao diện phòng', icon: '' },
+  { id: 'avatar-frame', name: 'Khung viền avatar Neon', cost: 150, description: 'Hiệu ứng viền sáng quanh ảnh đại diện', icon: '', durationDays: 30 },
 ]
 
 export const TCOIN_PACKAGES = [
@@ -144,6 +167,12 @@ export async function claimDailyCheckin(userId: string): Promise<DailyCheckinRes
     `Điểm danh hàng ngày: +${config.amount} TCoin`,
   )
 
+  notifyUser(userId, RT_EVENTS.TASK_CLAIMED, {
+    taskId: 'daily_checkin',
+    amount: config.amount,
+    balance: updated.balance,
+  })
+
   return {
     ok: true,
     amount: config.amount,
@@ -175,6 +204,88 @@ export async function rewardWatchComplete(userId: string, movieId: string): Prom
     'movie',
   )
 
+  return { ok: true, amount: config.amount }
+}
+
+/**
+ * Reward one-time khi user xác minh email thành công.
+ * Idempotent: nếu đã từng credit thì trả ok:false.
+ */
+export async function rewardVerifyEmail(userId: string): Promise<{ ok: boolean; amount: number }> {
+  const wallet = await repo.getOrCreateWallet(userId)
+  const config = REWARD_CONFIGS.find((r) => r.id === 'verify_email')!
+
+  const existing = await prisma.walletTransaction.findFirst({
+    where: { walletId: wallet.id, type: 'verify_email' },
+    select: { id: true },
+  })
+  if (existing) return { ok: false, amount: 0 }
+
+  await repo.creditWallet(
+    wallet.id,
+    config.amount,
+    'verify_email',
+    `Xác minh email: +${config.amount} TCoin`,
+    userId,
+    'user',
+  )
+  return { ok: true, amount: config.amount }
+}
+
+/**
+ * Reward one-time khi user hoàn thiện hồ sơ (avatar + bio đều có giá trị).
+ * Idempotent: chỉ credit lần đầu khi hồ sơ đạt tiêu chí.
+ */
+export async function rewardCompleteProfile(userId: string): Promise<{ ok: boolean; amount: number }> {
+  const wallet = await repo.getOrCreateWallet(userId)
+  const config = REWARD_CONFIGS.find((r) => r.id === 'complete_profile')!
+
+  const existing = await prisma.walletTransaction.findFirst({
+    where: { walletId: wallet.id, type: 'complete_profile' },
+    select: { id: true },
+  })
+  if (existing) return { ok: false, amount: 0 }
+
+  await repo.creditWallet(
+    wallet.id,
+    config.amount,
+    'complete_profile',
+    `Hoàn thiện hồ sơ: +${config.amount} TCoin`,
+    userId,
+    'user',
+  )
+  return { ok: true, amount: config.amount }
+}
+
+/**
+ * One-time reward when a user signs up via someone's referral link. The
+ * INVITER gets the credit; the invitee can earn their own rewards via
+ * the normal task list. We guard against double-credits with a
+ * (type, referenceId) lookup — re-running the signup hook is a no-op.
+ *
+ *   inviterUserId — owner of the referral code (the one earning TCoin).
+ *   inviteeUserId — the newly-registered user (used as referenceId).
+ */
+export async function rewardInvite(inviterUserId: string, inviteeUserId: string): Promise<{ ok: boolean; amount: number }> {
+  if (inviterUserId === inviteeUserId) return { ok: false, amount: 0 }
+
+  const wallet = await repo.getOrCreateWallet(inviterUserId)
+  const config = REWARD_CONFIGS.find((r) => r.id === 'referral')!
+
+  const existing = await prisma.walletTransaction.findFirst({
+    where: { walletId: wallet.id, type: 'referral_reward', referenceId: inviteeUserId },
+    select: { id: true },
+  })
+  if (existing) return { ok: false, amount: 0 }
+
+  await repo.creditWallet(
+    wallet.id,
+    config.amount,
+    'referral_reward',
+    `Mời bạn bè đăng ký: +${config.amount} TCoin`,
+    inviteeUserId,
+    'user',
+  )
   return { ok: true, amount: config.amount }
 }
 
@@ -259,6 +370,29 @@ export async function adminRefund(
 // SPEND
 // ═══════════════════════════════════════════════
 
+// Sentinel "never expires" date for permanent perks stored in DateTime columns.
+const PERK_PERMANENT = new Date('9999-12-31T00:00:00.000Z')
+
+/**
+ * Keep the denormalised perk columns on User in sync after a successful spend.
+ * Only perks that need to be shown on OTHER users (and therefore can't rely on
+ * the viewer's own getActivePerks) are mirrored here.
+ */
+async function applyPerkDenormalisation(userId: string, optionId: string, durationDays?: number) {
+  const expiry = durationDays
+    ? new Date(Date.now() + durationDays * 86_400_000)
+    : PERK_PERMANENT
+  try {
+    if (optionId === 'avatar-frame') {
+      await prisma.user.update({ where: { id: userId }, data: { avatarFrameUntil: expiry } })
+    } else if (optionId === 'exclusive-badge') {
+      await prisma.user.update({ where: { id: userId }, data: { exclusiveBadgeUntil: expiry } })
+    }
+  } catch {
+    /* best-effort — the authoritative record is still the wallet transaction */
+  }
+}
+
 export async function spendTcoins(userId: string, optionId: string): Promise<SpendResponse> {
   const option = SPEND_OPTIONS.find((o) => o.id === optionId)
   if (!option) {
@@ -285,6 +419,17 @@ export async function spendTcoins(userId: string, optionId: string): Promise<Spe
       'spend_option',
     )
 
+    // Denormalise perks that must be visible on OTHER users (avatar frame in
+    // comments/chat, badge in chat) so list queries don't recompute them.
+    await applyPerkDenormalisation(userId, optionId, option.durationDays)
+
+    notifyUser(userId, RT_EVENTS.REWARD_REDEEMED, {
+      optionId,
+      name: option.name,
+      cost: option.cost,
+      balance: updated.balance,
+    })
+
     return {
       ok: true,
       amount: option.cost,
@@ -307,11 +452,108 @@ export async function spendTcoins(userId: string, optionId: string): Promise<Spe
 }
 
 // ═══════════════════════════════════════════════
+// ACTIVE PERKS — quy ra từ các giao dịch DEBIT "spend"
+// ═══════════════════════════════════════════════
+
+export type ActivePerk = {
+  optionId: string
+  name: string
+  purchasedAt: string
+  activeUntil: string | null  // null = vĩnh viễn
+  durationDays?: number
+}
+
+export type ActivePerks = {
+  avatarFrame: ActivePerk | null
+  removeAds: ActivePerk | null
+  hdUpgrade: ActivePerk | null
+  earlyAccess: ActivePerk | null
+  exclusiveBadge: ActivePerk | null
+  roomTheme: ActivePerk | null
+}
+
+/**
+ * Trả về danh sách perk còn hiệu lực của user, suy ra từ wallet_transactions
+ * (DEBIT mới nhất theo từng optionId; áp dụng durationDays nếu có).
+ */
+export async function getActivePerks(userId: string): Promise<ActivePerks> {
+  const wallet = await repo.findWallet(userId)
+  if (!wallet) {
+    return {
+      avatarFrame: null,
+      removeAds: null,
+      hdUpgrade: null,
+      earlyAccess: null,
+      exclusiveBadge: null,
+      roomTheme: null,
+    }
+  }
+
+  const optionIds = SPEND_OPTIONS.map((o) => o.id)
+  // Direction/type được lưu lẫn cả lowercase ('debit') và uppercase ('DEBIT'),
+  // dùng `in` để khớp đôi bên.
+  const txs = await prisma.walletTransaction.findMany({
+    where: {
+      walletId: wallet.id,
+      direction: { in: ['debit', 'DEBIT'] },
+      type: { in: ['spend', 'SPEND'] },
+      referenceId: { in: optionIds },
+    },
+    orderBy: { createdAt: 'desc' },
+  })
+
+  // Lấy giao dịch gần nhất cho từng optionId
+  const latestByOption: Record<string, typeof txs[number]> = {}
+  for (const tx of txs) {
+    if (!tx.referenceId) continue
+    if (!latestByOption[tx.referenceId]) {
+      latestByOption[tx.referenceId] = tx
+    }
+  }
+
+  const now = new Date()
+
+  const buildPerk = (optionId: string): ActivePerk | null => {
+    const tx = latestByOption[optionId]
+    if (!tx) return null
+    const opt = SPEND_OPTIONS.find((o) => o.id === optionId)
+    if (!opt) return null
+
+    let activeUntil: Date | null = null
+    if (opt.durationDays) {
+      activeUntil = new Date(tx.createdAt)
+      activeUntil.setDate(activeUntil.getDate() + opt.durationDays)
+      if (activeUntil < now) return null // hết hạn
+    }
+    return {
+      optionId,
+      name: opt.name,
+      purchasedAt: tx.createdAt.toISOString(),
+      activeUntil: activeUntil ? activeUntil.toISOString() : null,
+      durationDays: opt.durationDays,
+    }
+  }
+
+  return {
+    avatarFrame: buildPerk('avatar-frame'),
+    removeAds: buildPerk('remove-ads-7d'),
+    hdUpgrade: buildPerk('hd-upgrade'),
+    earlyAccess: buildPerk('early-access'),
+    exclusiveBadge: buildPerk('exclusive-badge'),
+    roomTheme: buildPerk('room-theme'),
+  }
+}
+
+// ═══════════════════════════════════════════════
 // ADMIN
 // ═══════════════════════════════════════════════
 
-export async function getAdminWallets(page = 1, perPage = 20) {
-  const { wallets, total } = await repo.getAllWallets(page, perPage)
+export async function getAdminGlobalStats() {
+  return repo.getGlobalStats()
+}
+
+export async function getAdminWallets(page = 1, perPage = 20, search?: string) {
+  const { wallets, total } = await repo.getAllWallets(page, perPage, search)
 
   const items = await Promise.all(
     wallets.map(async (w) => {

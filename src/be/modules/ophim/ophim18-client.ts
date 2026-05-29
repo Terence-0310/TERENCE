@@ -16,6 +16,9 @@ import type {
   OPhim18CatalogResponse,
   OPhim18SearchResponse,
 } from './ophim18-types'
+import { logger } from '@/src/be/shared/utils/logger'
+
+const log = logger.child({ module: 'ophim18-client' })
 
 const DEFAULT_BASE_URL = 'https://ophim1.com'
 const DEFAULT_TIMEOUT = 20_000
@@ -71,7 +74,7 @@ async function fetchWithRetry<T>(url: string, timeoutMs: number): Promise<T> {
 
       if (attempt < MAX_RETRIES) {
         const delay = RETRY_DELAY_MS * attempt
-        console.warn(`[OPhim18] Attempt ${attempt}/${MAX_RETRIES} failed for ${url}. Retrying in ${delay}ms...`)
+        log.warn({ attempt, maxRetries: MAX_RETRIES, url, delay }, `Attempt ${attempt}/${MAX_RETRIES} failed. Retrying in ${delay}ms...`)
         await new Promise(resolve => setTimeout(resolve, delay))
       }
     }
@@ -90,7 +93,7 @@ export async function fetchMovieDetail(slug: string): Promise<OPhim18DetailRespo
   const { baseUrl, timeout } = getConfig()
   const url = `${baseUrl}/v1/api/phim/${encodeURIComponent(slug)}`
 
-  console.log(`[OPhim18] Fetching movie detail: ${slug}`)
+  log.info({ slug }, 'Fetching movie detail')
   const data = await fetchWithRetry<OPhim18DetailResponse>(url, timeout)
 
   if (data.status !== 'success' && data.status !== true) {
@@ -117,7 +120,7 @@ export async function fetchCatalogPage(
   const { baseUrl, timeout } = getConfig()
   const url = `${baseUrl}/v1/api/danh-sach/${encodeURIComponent(type)}?page=${page}`
 
-  console.log(`[OPhim18] Fetching catalog "${type}" page ${page}...`)
+  log.info({ type, page }, 'Fetching catalog')
   const data = await fetchWithRetry<OPhim18CatalogResponse>(url, timeout)
 
   if (data.status !== 'success' && data.status !== true) {
@@ -127,7 +130,7 @@ export async function fetchCatalogPage(
   const items = data.data?.items || []
   const pagination = data.data?.params?.pagination || { totalItems: 0, totalItemsPerPage: 24, currentPage: page, totalPages: 1 }
 
-  console.log(`[OPhim18] Got ${items.length} items (page ${pagination.currentPage}/${pagination.totalPages})`)
+  log.info({ count: items.length, page: pagination.currentPage, totalPages: pagination.totalPages }, `Got ${items.length} items`)
   return data
 }
 
@@ -139,7 +142,7 @@ export async function searchMovies(keyword: string, page: number = 1): Promise<O
   const { baseUrl, timeout } = getConfig()
   const url = `${baseUrl}/v1/api/tim-kiem?keyword=${encodeURIComponent(keyword)}&page=${page}`
 
-  console.log(`[OPhim18] Searching: "${keyword}" page ${page}`)
+  log.info({ keyword, page }, 'Searching')
   const data = await fetchWithRetry<OPhim18SearchResponse>(url, timeout)
 
   return data

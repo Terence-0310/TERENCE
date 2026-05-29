@@ -127,10 +127,10 @@ export const movieScopes = {
     const q = query.replace(/\\/g, '')
     return {
       OR: [
-        { title: { contains: q, mode: 'insensitive' } as any },
-        { originalTitle: { contains: q, mode: 'insensitive' } as any },
-        { slug: { contains: q, mode: 'insensitive' } as any },
-        { people: { some: { person: { name: { contains: q, mode: 'insensitive' } as any } } } },
+        { title: { contains: q, mode: 'insensitive' } },
+        { originalTitle: { contains: q, mode: 'insensitive' } },
+        { slug: { contains: q, mode: 'insensitive' } },
+        { people: { some: { person: { name: { contains: q, mode: 'insensitive' } } } } },
       ],
       deletedAt: null,
     }

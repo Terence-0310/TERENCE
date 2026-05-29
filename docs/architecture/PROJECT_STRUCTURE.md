@@ -191,17 +191,21 @@ Each module in `src/server/modules/<domain>/` follows this pattern:
 
 ## Migration Status
 
+> **Note**: The original migration plan referenced `src/server/*` and `src/features/*` paths.
+> The final convention adopted is `src/be/*` (backend) and `src/fe/features/*` (frontend features).
+> Update other diagrams in this document accordingly when revisiting.
+
 | Legacy Location | New Module | Status |
 |---|---|---|
-| `lib/auth/*` | `src/server/modules/auth` | ✅ Scaffolded, re-exports legacy |
-| `lib/db/*` | `src/server/shared/db` | ✅ New singleton created |
-| `src/server/movies/*` | `src/server/modules/movies` | ✅ Scaffolded, re-exports legacy |
-| `server/watch-party/*` | `src/server/modules/watch-party` | ✅ Scaffolded, re-exports legacy |
-| `server/services/*` | `src/server/modules/watch` | ✅ Scaffolded, re-exports legacy |
-| `lib/news/*` | `src/server/modules/news` | ✅ Scaffolded, re-exports legacy |
-| `lib/data/reviews.ts` | `src/server/modules/reviews` | ✅ Scaffolded, re-exports legacy |
-| `lib/data/tcoin.ts` | `src/server/modules/tcoin` | ✅ Scaffolded, re-exports legacy |
-| `lib/admin/*` | `src/server/modules/admin` | ✅ Scaffolded, re-exports legacy |
-| `src/server/admin/*` | `src/server/modules/admin` | ✅ Scaffolded, re-exports legacy |
-| `hooks/*` | `src/features/*` | 🔲 TODO (Phase 2) |
-| `contexts/*` | `src/features/auth` | 🔲 TODO (Phase 2) |
+| `lib/auth/*` | `src/be/modules/auth` | ✅ Migrated |
+| `lib/db/*` | `src/be/shared/db` | ✅ Migrated (singleton) |
+| `src/server/movies/*` | `src/be/modules/movies` | ✅ Migrated |
+| `server/watch-party/*` | `src/be/modules/watch-party` | ✅ Migrated |
+| `server/services/*` | `src/be/modules/watch` | ✅ Migrated |
+| `lib/news/*` | `src/be/modules/news` | ✅ Migrated |
+| `lib/data/reviews.ts` | `src/be/modules/reviews` | ✅ Migrated |
+| `lib/data/tcoin.ts` | `src/be/modules/tcoin` | ✅ Migrated |
+| `lib/admin/*` | `src/be/modules/admin` | ✅ Migrated |
+| `src/server/admin/*` | `src/be/modules/admin` | ✅ Migrated |
+| `hooks/*` | `src/fe/features/<domain>/hooks` | ✅ Migrated (e.g. `src/fe/features/movies/hooks/useContinueWatching.ts`) |
+| `contexts/*` | `src/fe/features/auth/contexts` | ✅ Migrated (`src/fe/features/auth/contexts/auth-context.tsx`) |

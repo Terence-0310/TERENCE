@@ -18,6 +18,9 @@
 
 import type { PlayerEpisode, PlayerServer, PlayerSourceMap } from './source-types'
 import { EMPTY_SOURCE_MAP } from './source-types'
+import { logger } from '@/src/fe/lib/logger'
+
+const log = logger.child({ module: 'source-adapter' })
 
 // ═══════════════════════════════════════════════════════════════
 // INTERNAL HELPERS
@@ -325,7 +328,7 @@ export function mapOPhimToPlayerSources(input: unknown): PlayerSourceMap {
 
     return { servers }
   } catch (e) {
-    console.error('[source-adapter] Failed to parse input:', e)
+    log.error({ err: e instanceof Error ? e.message : e }, 'Failed to parse input')
     return EMPTY_SOURCE_MAP
   }
 }

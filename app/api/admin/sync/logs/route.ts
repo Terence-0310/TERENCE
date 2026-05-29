@@ -6,6 +6,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin, isUser } from '@/src/be/modules/admin/admin.guard'
 import { prisma } from '@/lib/db/prisma'
+import { logger } from '@/src/be/shared/utils/logger'
+
+const log = logger.child({ module: 'admin-sync-logs' })
 
 export async function GET(req: NextRequest) {
   const guard = await requireAdmin()
@@ -62,7 +65,7 @@ export async function GET(req: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('[Admin] Sync logs error:', error)
+    log.error({ err: error instanceof Error ? error.message : error }, 'Sync logs error')
     return NextResponse.json({ success: false, error: 'Failed to fetch logs' }, { status: 500 })
   }
 }

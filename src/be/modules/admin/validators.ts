@@ -28,6 +28,9 @@ export const movieCreateSchema = z.object({
   isTrending: z.boolean().default(false),
   isRecommended: z.boolean().default(false),
   isPublished: z.boolean().default(false),
+  // TCoin early-access embargo (ISO datetime or null). While in the future,
+  // only users holding the "early-access" perk can watch.
+  earlyAccessUntil: z.string().datetime().optional().nullable(),
   isCopyright: z.boolean().default(false),
   isActive: z.boolean().default(true),
   sourceStatus: z.enum(['active', 'missing', 'broken', 'pending']).optional(),

@@ -57,13 +57,14 @@ export interface TCoinSpendOption {
   icon: string
 }
 
+// Note: id phải khớp với SPEND_OPTIONS trong src/be/modules/tcoin/tcoin.service.ts
 export const TCOIN_SPEND_OPTIONS: TCoinSpendOption[] = [
-  { id: 'remove-ads', name: 'Xóa quảng cáo 7 ngày', cost: 50, description: 'Trải nghiệm xem phim không quảng cáo', icon: '🚫' },
-  { id: 'hd-quality', name: 'Nâng HD → Full HD', cost: 30, description: 'Xem phim chất lượng cao hơn', icon: '📺' },
-  { id: 'early-access', name: 'Xem sớm 24h', cost: 100, description: 'Xem phim mới trước cộng đồng', icon: '⏰' },
-  { id: 'exclusive-badge', name: 'Huy hiệu đặc biệt', cost: 200, description: 'Nhận badge hiển thị khi chat', icon: '🏅' },
-  { id: 'room-theme', name: 'Theme phòng xem chung', cost: 80, description: 'Tùy chỉnh giao diện phòng', icon: '🎨' },
-  { id: 'avatar-frame', name: 'Khung Avatar Neon', cost: 150, description: 'Hiệu ứng viền Avatar độc quyền', icon: '🖼️' },
+  { id: 'remove-ads-7d', name: 'Xóa quảng cáo 7 ngày', cost: 50, description: 'Trải nghiệm xem phim không quảng cáo', icon: '' },
+  { id: 'hd-upgrade', name: 'Nâng HD → Full HD', cost: 30, description: 'Xem phim chất lượng cao hơn', icon: '' },
+  { id: 'early-access', name: 'Xem sớm 24h', cost: 100, description: 'Xem phim mới trước cộng đồng', icon: '' },
+  { id: 'exclusive-badge', name: 'Huy hiệu đặc biệt', cost: 200, description: 'Nhận badge hiển thị khi chat', icon: '' },
+  { id: 'room-theme', name: 'Theme phòng xem chung', cost: 80, description: 'Tùy chỉnh giao diện phòng', icon: '' },
+  { id: 'avatar-frame', name: 'Khung viền avatar Neon', cost: 150, description: 'Hiệu ứng viền sáng quanh ảnh đại diện', icon: '' },
 ]
 
 // ── Demo balance ──

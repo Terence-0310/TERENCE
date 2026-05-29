@@ -6,7 +6,7 @@
 // Pill-shaped bar with mic/camera/leave controls.
 // Google Meet mini style.
 
-import { Mic, MicOff, Video, VideoOff, PhoneOff, Settings } from 'lucide-react'
+import { Mic, MicOff, Video, VideoOff, PhoneOff } from 'lucide-react'
 
 interface CallControlsProps {
   isMuted: boolean

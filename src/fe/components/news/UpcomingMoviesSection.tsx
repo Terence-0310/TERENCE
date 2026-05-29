@@ -108,8 +108,8 @@ function UpcomingCard({ movie, index }: {
         {/* Rating badge (top-right) */}
         {movie.voteAverage !== undefined && movie.voteAverage > 0 && (
           <div className="absolute top-4 right-4">
-            <span className="inline-flex items-center gap-0.5 rounded-full bg-black/60 border border-white/10 px-2 py-0.5 text-[11px] font-bold text-yellow-400 backdrop-blur-sm">
-              <Star className="h-3 w-3 fill-yellow-400" />
+            <span className="inline-flex items-center gap-0.5 rounded-full bg-black/60 border border-white/10 px-2 py-0.5 text-[11px] font-bold text-primary backdrop-blur-sm">
+              <Star className="h-3 w-3 fill-primary" />
               {movie.voteAverage.toFixed(1)}
             </span>
           </div>

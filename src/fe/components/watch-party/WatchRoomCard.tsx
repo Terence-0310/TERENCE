@@ -27,6 +27,7 @@ export function WatchRoomCard({ room, memberCount }: Props) {
               alt={room.roomName}
               className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
               loading="lazy"
+              onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/placeholder.jpg' }}
             />
           ) : (
             <div className="flex h-full items-center justify-center bg-gradient-to-br from-primary/10 to-background">

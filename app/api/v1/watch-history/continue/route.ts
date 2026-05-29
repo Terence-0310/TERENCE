@@ -5,17 +5,19 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getContinueWatching } from '@/src/be/modules/watch/watch.service'
-import { AuthService } from '@/src/be/modules/auth'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 
 export async function GET(request: NextRequest) {
-  const session = await AuthService.getSession()
-  if (!session?.userId) {
+  const session = await getServerSession(authOptions)
+  const userId = session?.user?.id
+  if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const limit = Number(request.nextUrl.searchParams.get('limit')) || 20
 
-  const items = await getContinueWatching(session.userId, Math.min(limit, 50))
+  const items = await getContinueWatching(userId, Math.min(limit, 50))
 
   return NextResponse.json({
     items,

@@ -13,7 +13,7 @@
 
 import type { WatchPartySyncEvent } from './types'
 import type { RealtimeChannel } from './realtime'
-import { SEEK_THROTTLE_MS, MAX_TIME_DRIFT_SECONDS } from './constants'
+import { SEEK_THROTTLE_MS } from './constants'
 
 // ── Types ──
 

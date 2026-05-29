@@ -120,11 +120,11 @@ export function UserTable({
                 ) : (
                   <select className={`px-2 py-1 rounded-full text-xs font-medium border-0 cursor-pointer outline-none bg-black/40 ${roleColor(user.role)}`}
                     value={user.role} onChange={(e) => onRoleChange(user.id, e.target.value)}>
-                    {currentUserRole === 'SUPER_ADMIN' && <option value="SUPER_ADMIN" className="bg-[#0A0E17] text-white">Super Admin</option>}
-                    {['SUPER_ADMIN', 'ADMIN'].includes(currentUserRole) && <option value="ADMIN" className="bg-[#0A0E17] text-white">Admin</option>}
-                    {['SUPER_ADMIN', 'ADMIN', 'STAFF'].includes(currentUserRole) && <option value="STAFF" className="bg-[#0A0E17] text-white">Staff</option>}
-                    {['SUPER_ADMIN', 'ADMIN', 'STAFF'].includes(currentUserRole) && <option value="EDITOR" className="bg-[#0A0E17] text-white">Editor</option>}
-                    <option value="USER" className="bg-[#0A0E17] text-white">User</option>
+                    {currentUserRole === 'SUPER_ADMIN' && <option value="SUPER_ADMIN" className="bg-background text-white">Super Admin</option>}
+                    {['SUPER_ADMIN', 'ADMIN'].includes(currentUserRole) && <option value="ADMIN" className="bg-background text-white">Admin</option>}
+                    {['SUPER_ADMIN', 'ADMIN', 'STAFF'].includes(currentUserRole) && <option value="STAFF" className="bg-background text-white">Staff</option>}
+                    {['SUPER_ADMIN', 'ADMIN', 'STAFF'].includes(currentUserRole) && <option value="EDITOR" className="bg-background text-white">Editor</option>}
+                    <option value="USER" className="bg-background text-white">User</option>
                   </select>
                 )}
               </td>
@@ -145,7 +145,7 @@ export function UserTable({
                   ) : (
                     <>
                       {/* ADMIN KHÔNG được sửa SUPER_ADMIN */}
-                      {!(currentUserRole !== 'SUPER_ADMIN' && user.role.toUpperCase() === 'SUPER_ADMIN') && (
+                      {!(currentUserRole !== 'SUPER_ADMIN' && user.role?.toUpperCase() === 'SUPER_ADMIN') && (
                         <>
                           <Button variant="ghost" size="icon" className="h-8 w-8" title="Sửa" onClick={() => onEdit(user)}>
                             <Edit className="w-4 h-4" />

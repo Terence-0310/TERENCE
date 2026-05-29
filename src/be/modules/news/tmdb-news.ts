@@ -12,6 +12,9 @@
 import { tmdbFetch } from '@/src/be/modules/tmdb/legacy/client'
 import { mapTmdbUpcoming } from './mappers'
 import type { UpcomingMovieItem } from './legacy-types'
+import { logger } from '@/src/be/shared/utils/logger'
+
+const log = logger.child({ module: 'tmdb-news' })
 
 // ── Raw TMDB response shape ──
 
@@ -60,7 +63,7 @@ export async function getUpcomingMovies(
 
     // Region fallback: supplement with US if too few VN results
     if (items.length < MIN_RESULTS_THRESHOLD && region !== 'US') {
-      console.info(`[tmdb-news] Only ${items.length} upcoming for region=${region}, supplementing with US`)
+      log.info({ count: items.length, region }, 'Few upcoming results, supplementing with US')
       try {
         const fallbackData = await tmdbFetch<TmdbPaginatedResult>('/movie/upcoming', {
           params: { region: 'US', page: 1 },
@@ -82,7 +85,7 @@ export async function getUpcomingMovies(
       total: data.total_results,
     }
   } catch (err) {
-    console.error('[tmdb-news] Failed to fetch upcoming movies:', (err as Error).message)
+    log.error({ err: err instanceof Error ? err.message : err }, 'Failed to fetch upcoming movies')
     return { items: [], total: 0 }
   }
 }
@@ -107,7 +110,7 @@ export async function searchMoviesByTitle(
       total: data.total_results,
     }
   } catch (err) {
-    console.error('[tmdb-news] Failed to search movies:', (err as Error).message)
+    log.error({ err: err instanceof Error ? err.message : err }, 'Failed to search movies')
     return { items: [], total: 0 }
   }
 }
@@ -129,7 +132,7 @@ export async function getTrendingMoviesForNews(
       total: data.total_results,
     }
   } catch (err) {
-    console.error('[tmdb-news] Failed to fetch trending:', (err as Error).message)
+    log.error({ err: err instanceof Error ? err.message : err }, 'Failed to fetch trending')
     return { items: [], total: 0 }
   }
 }
@@ -163,7 +166,7 @@ export async function discoverMovies(params: {
       total: data.total_results,
     }
   } catch (err) {
-    console.error('[tmdb-news] Failed to discover movies:', (err as Error).message)
+    log.error({ err: err instanceof Error ? err.message : err }, 'Failed to discover movies')
     return { items: [], total: 0 }
   }
 }

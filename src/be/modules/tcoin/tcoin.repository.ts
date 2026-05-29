@@ -4,6 +4,32 @@
 
 import { prisma } from '@/src/be/shared/db/prisma'
 import { encryptMetadata, decryptMetadata } from '@/src/be/shared/utils/encryption'
+import { notifyUser, RT_EVENTS } from '@/src/be/shared/realtime/notify'
+
+// Emit per-user wallet updates. Best-effort — silently no-ops when the
+// Socket.IO server isn't running (Jest, plain `next dev`, etc.) so we
+// don't break the wallet code path. Called *after* the prisma
+// transaction commits to avoid emitting before persistence.
+function emitWalletUpdate(userId: string, balance: number, transaction: any) {
+  if (!userId) return
+  notifyUser(userId, RT_EVENTS.TCOIN_UPDATED, { userId, balance })
+  notifyUser(userId, RT_EVENTS.TCOIN_TX_NEW, {
+    userId,
+    balance,
+    transaction: {
+      id: transaction.id,
+      type: transaction.type,
+      direction: transaction.direction,
+      amount: transaction.amount,
+      balanceBefore: transaction.balanceBefore,
+      balanceAfter: transaction.balanceAfter,
+      referenceId: transaction.referenceId,
+      createdAt: transaction.createdAt instanceof Date
+        ? transaction.createdAt.toISOString()
+        : transaction.createdAt,
+    },
+  })
+}
 
 // ─── Wallet ─────────────────────────────────────────────────
 
@@ -56,6 +82,9 @@ export async function creditWallet(
     })
 
     return { wallet: updated, transaction: txn }
+  }).then((result) => {
+    emitWalletUpdate(result.wallet.userId, result.wallet.balance, result.transaction)
+    return result
   })
 }
 
@@ -100,6 +129,9 @@ export async function debitWallet(
     })
 
     return { wallet: updated, transaction: txn }
+  }).then((result) => {
+    emitWalletUpdate(result.wallet.userId, result.wallet.balance, result.transaction)
+    return result
   })
 }
 
@@ -152,6 +184,9 @@ export async function refundWalletTransaction(transactionId: string, reason: str
       }
     })
 
+    return { refundTx, balanceAfter, userId: originalTx.userId }
+  }).then(({ refundTx, balanceAfter, userId }) => {
+    emitWalletUpdate(userId, balanceAfter, refundTx)
     return refundTx
   })
 }
@@ -245,10 +280,24 @@ export async function findPaymentOrder(id: string) {
 
 // ─── Admin Queries ───────────────────────────────────────────
 
-export async function getAllWallets(page: number, perPage: number) {
+export async function getAllWallets(page: number, perPage: number, search?: string) {
   const skip = (page - 1) * perPage
+  // Search applies to the joined user's name/email. When search is empty
+  // we leave `where` undefined so Prisma uses the most efficient plan.
+  const where = search && search.trim()
+    ? {
+        user: {
+          OR: [
+            { name:  { contains: search.trim(), mode: 'insensitive' as const } },
+            { email: { contains: search.trim(), mode: 'insensitive' as const } },
+          ],
+        },
+      }
+    : undefined
+
   const [wallets, total] = await Promise.all([
     prisma.wallet.findMany({
+      where,
       include: {
         user: { select: { name: true, email: true } },
         _count: { select: { transactions: true } },
@@ -257,9 +306,34 @@ export async function getAllWallets(page: number, perPage: number) {
       skip,
       take: perPage,
     }),
-    prisma.wallet.count(),
+    prisma.wallet.count({ where }),
   ])
   return { wallets, total }
+}
+
+/**
+ * Site-wide TCoin stats. Single source of truth for the admin dashboard's
+ * stat cards (previously summed only the current page, which gave wildly
+ * wrong numbers as the user paged through wallets).
+ */
+export async function getGlobalStats() {
+  const [
+    totalCirculating,
+    activeWallets,
+    totalOrders,
+    paidOrders,
+  ] = await Promise.all([
+    prisma.wallet.aggregate({ _sum: { balance: true } }),
+    prisma.wallet.count(),
+    prisma.topupOrder.count(),
+    prisma.topupOrder.count({ where: { status: 'PAID' } }),
+  ])
+  return {
+    totalCirculating: totalCirculating._sum.balance ?? 0,
+    activeWallets,
+    totalOrders,
+    completedOrders: paidOrders,
+  }
 }
 
 export async function getAllPaymentOrders(page: number, perPage: number, status?: string) {

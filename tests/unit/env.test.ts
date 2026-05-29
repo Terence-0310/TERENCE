@@ -2,7 +2,7 @@
 // Unit Tests — Environment Validation
 // ============================================
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, afterEach } from 'vitest'
 import { validateEnv, getRequiredEnv, getLiveKitConfig } from '@/lib/env'
 
 describe('lib/env', () => {
@@ -20,7 +20,7 @@ describe('lib/env', () => {
 
     it('should throw when DATABASE_URL is missing', () => {
       delete process.env.DATABASE_URL
-      expect(() => validateEnv()).toThrow('Missing required environment variables')
+      expect(() => validateEnv()).toThrow('Environment validation failed')
       expect(() => validateEnv()).toThrow('DATABASE_URL')
     })
 

@@ -25,6 +25,8 @@ export interface RewardConfig {
   icon: string
   cooldown?: number // ms before user can claim again
   maxPerDay?: number
+  oneTime?: boolean      // true: chỉ nhận được 1 lần / tài khoản
+  actionUrl?: string     // link FE điều hướng người dùng đến nơi thực hiện
 }
 
 // ── Spend option ──

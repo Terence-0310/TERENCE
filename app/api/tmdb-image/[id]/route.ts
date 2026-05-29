@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
 import { getMovieDetail } from '@/src/be/services/tmdb/movie-service'
 import { getTvDetail } from '@/src/be/services/tmdb/tv-service'
+import { logger } from '@/src/be/shared/utils/logger'
+
+const log = logger.child({ module: 'tmdb-image' })
 
 export const revalidate = 86400 // Cache 24 hours
 
@@ -82,11 +85,11 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
           })
         }
       } catch (e) {
-        console.error(`[TMDB Image Proxy] Fetch failed for ${tmdbProxyUrl}`, e)
+        log.error({ tmdbProxyUrl, err: e instanceof Error ? e.message : e }, 'Fetch failed')
       }
     }
   } catch (err) {
-    console.error(`[TMDB Image Proxy] Metadata retrieval failed for ID: ${id}`, err)
+    log.error({ id, err: err instanceof Error ? err.message : err }, 'Metadata retrieval failed')
   }
 
   // Fallback nếu 404 hoặc lỗi (trả về placeholder tĩnh)

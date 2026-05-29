@@ -5,6 +5,7 @@
 // Fits inside the existing watch page layout between player and info bar
 // ============================================
 
+import React from 'react'
 import Link from 'next/link'
 import { ChevronLeft, ChevronRight, Play, Clock } from 'lucide-react'
 import type { SeriesEpisode, Season } from '@/types/series'
@@ -26,9 +27,11 @@ export function EpisodeListBar({
   seriesEpisodes,
   seasons,
   currentEpisodeSlug,
-  watchUrl,
+  watchUrl = '',
   activeSeason,
 }: EpisodeListBarProps) {
+  const [activeChunk, setActiveChunk] = React.useState(0)
+
   // Determine which episode list to use (TMDB series data preferred)
   const episodes: { slug: string; title: string; number: number; duration?: string; isCurrent: boolean }[] = []
 
@@ -53,6 +56,13 @@ export function EpisodeListBar({
       })
     }
   }
+
+  React.useEffect(() => {
+    const currentIdx = episodes.findIndex(e => e.isCurrent)
+    if (currentIdx >= 0) {
+      setActiveChunk(Math.floor(currentIdx / 100))
+    }
+  }, [currentEpisodeSlug, episodes])
 
   if (episodes.length === 0) return null
 
@@ -127,12 +137,36 @@ export function EpisodeListBar({
           )}
         </div>
 
+        {/* Episode Chunking (if > 100 episodes) */}
+        {episodes.length > 100 && (
+          <div className="flex flex-wrap gap-2 mb-4">
+            {Array.from({ length: Math.ceil(episodes.length / 100) }).map((_, i) => {
+              const start = i * 100 + 1
+              const end = Math.min((i + 1) * 100, episodes.length)
+              return (
+                <button
+                  key={i}
+                  onClick={() => setActiveChunk(i)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                    activeChunk === i 
+                      ? 'bg-primary text-white shadow-md' 
+                      : 'bg-white/5 text-white/50 hover:bg-white/10 hover:text-white'
+                  }`}
+                >
+                  Tập {start} - {end}
+                </button>
+              )
+            })}
+          </div>
+        )}
+
         {/* Episode grid */}
-        <div className="flex flex-wrap gap-2">
-          {episodes.map((ep) => (
+        <div className="flex flex-wrap gap-2 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
+          {episodes.slice(activeChunk * 100, (activeChunk + 1) * 100).map((ep) => (
             <Link
               key={ep.slug}
               href={`${watchUrl}?ep=${ep.slug}${activeSeason ? `&season=${activeSeason}` : ''}`}
+              prefetch={false}
               className={`group inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-medium transition ${
                 ep.isCurrent
                   ? 'bg-primary text-white shadow-md shadow-primary/20'

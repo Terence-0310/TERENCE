@@ -19,7 +19,7 @@ export async function requireAuth(
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
-  if (permission && !(await hasPermission(user as any, permission as Permission))) {
+  if (permission && !(await hasPermission(user, permission))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
   return { user }
@@ -38,12 +38,12 @@ export async function requireAdmin(
   }
 
   // Luôn luôn kiểm tra quyền truy cập dashboard (để cản role USER)
-  if (!(await canAccessDashboard(user as any))) {
+  if (!(await canAccessDashboard(user))) {
     return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 })
   }
 
   // Nếu có permission cụ thể, kiểm tra thêm
-  if (permission && !(await hasPermission(user as any, permission as Permission))) {
+  if (permission && !(await hasPermission(user, permission))) {
     return NextResponse.json({ error: 'Forbidden: Missing specific permission' }, { status: 403 })
   }
   

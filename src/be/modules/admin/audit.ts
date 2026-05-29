@@ -1,4 +1,7 @@
 import { prisma } from '@/src/be/shared/db/prisma'
+import { logger } from '@/src/be/shared/utils/logger'
+
+const log = logger.child({ module: 'admin-audit' })
 
 /**
  * Log an admin action to the AdminLog table.
@@ -29,7 +32,7 @@ export async function logAdminAction(opts: {
         resolvedActorId = user.id
       } else {
         // Can't find user — skip logging rather than crash
-        console.warn(`[audit] Cannot find user with email: ${opts.actorId}`)
+        log.warn({ email: opts.actorId }, 'Cannot find user with email')
         return
       }
     }
@@ -47,7 +50,7 @@ export async function logAdminAction(opts: {
       },
     })
   } catch (e) {
-    console.error('Failed to log admin action:', e)
+    log.error({ err: e instanceof Error ? e.message : e }, 'Failed to log admin action')
   }
 }
 

@@ -11,14 +11,16 @@ import type {
   WatchRoom,
   WatchRoomMember,
   WatchRoomMessage,
-  WatchPartySyncEvent,
 } from '@/lib/watch-party/types'
 import { createRealtimeChannel } from '@/lib/watch-party/realtime'
 import type { RealtimeChannel } from '@/lib/watch-party/realtime'
 import { PlayerSyncService } from '@/lib/watch-party/sync-service'
 import { toast } from 'sonner'
+import { logger } from '@/src/fe/lib/logger'
 
-import { io, Socket } from 'socket.io-client'
+import { Socket } from 'socket.io-client'
+
+const log = logger.child({ module: 'useWatchParty' })
 
 // ── Types ──
 
@@ -37,6 +39,13 @@ export interface UseWatchPartyOptions {
   onRemoteSeek?: (time: number) => void
   onRemoteEpisodeChange?: (slug: string) => void
   onRemoteServerChange?: (index: number) => void
+  /**
+   * Called when the server asks THIS client (the host) to report the
+   * current playback position. The host should return `{currentTime,
+   * isPlaying}` from its video element so the joiner can sync to where
+   * the host is right now (not stale state from last play/pause event).
+   */
+  onTimeRequest?: () => { currentTime: number; isPlaying: boolean } | null
   /** LiveKit Room for SFU DataChannel transport */
   livekitRoom?: any
 }
@@ -62,6 +71,7 @@ export interface UseWatchPartyReturn {
   refresh: () => void
   requestJoin: () => void
   toggleLock: (locked: boolean) => void
+  setTheme: (theme: string) => void
   approveJoin: (userId: string, targetSocketId: string) => void
   rejectJoin: (userId: string, targetSocketId: string) => void
   kickMember: (targetId: string) => void
@@ -80,8 +90,14 @@ export function useWatchParty(options: UseWatchPartyOptions): UseWatchPartyRetur
     onRemoteSeek,
     onRemoteEpisodeChange,
     onRemoteServerChange,
+    onTimeRequest,
     livekitRoom,
   } = options
+
+  // Keep the latest onTimeRequest in a ref so the socket listener (registered
+  // once on join) always sees the freshest video element state.
+  const onTimeRequestRef = useRef(onTimeRequest)
+  useEffect(() => { onTimeRequestRef.current = onTimeRequest }, [onTimeRequest])
 
   const [room, setRoom] = useState<WatchRoom | null>(null)
   const [members, setMembers] = useState<WatchRoomMember[]>([])
@@ -125,7 +141,7 @@ export function useWatchParty(options: UseWatchPartyOptions): UseWatchPartyRetur
           if (errData?.code === 'ROOM_LOCKED') {
             setIsLockedOut(true)
           } else {
-            console.error('[useWatchParty] Failed to join room')
+            log.error({}, 'Failed to join room')
           }
           setIsLoading(false)
           return
@@ -164,7 +180,7 @@ export function useWatchParty(options: UseWatchPartyOptions): UseWatchPartyRetur
           onRemoteEpisodeChange,
           onRemoteServerChange,
           onRoomClosed: (reason) => {
-            console.log('[useWatchParty] Room closed:', reason)
+            log.info({ reason }, 'Room closed')
             setRoom(null)
           },
         })
@@ -241,9 +257,25 @@ export function useWatchParty(options: UseWatchPartyOptions): UseWatchPartyRetur
           window.location.href = '/' // Kick user entirely to home
         })
 
+        // Server asks THIS client (only the host receives this) for the
+        // live playback position whenever a new member joins. Read directly
+        // from the video element via onTimeRequestRef and emit wp:sync-time,
+        // which the server then broadcasts as `wp:state` to the joiner so
+        // they seek to where the host actually is right now.
+        channel.onRaw('wp:request-time', () => {
+          const data = onTimeRequestRef.current?.()
+          if (!data) return
+          channel.emitRaw('wp:sync-time', {
+            roomCode: code,
+            userId: user.id,
+            currentTime: data.currentTime,
+            isPlaying: data.isPlaying,
+          })
+        })
+
         setIsLoading(false)
       } catch (err) {
-        console.error('[useWatchParty] Init error:', err)
+        log.error({ err: err instanceof Error ? err.message : err }, 'Init error')
         setIsLoading(false)
       }
     }
@@ -386,7 +418,11 @@ export function useWatchParty(options: UseWatchPartyOptions): UseWatchPartyRetur
             setIsLockedOut(false)
           }
         }
-      } catch (e) {}
+      } catch (e) {
+        // Network blip is expected during waitlist polling; keep retrying
+        // on subsequent tick but surface the issue so it's debuggable.
+        log.warn({ err: e instanceof Error ? e.message : e }, 'Poll waitlist status failed')
+      }
     }, 3000)
     return () => clearInterval(interval)
   }, [isLockedOut, roomCode, pendingParticipantId])
@@ -403,6 +439,25 @@ export function useWatchParty(options: UseWatchPartyOptions): UseWatchPartyRetur
       setRoom(prev => prev ? { ...prev, isLocked: locked } : prev)
     } catch (e) {
       toast.error('Lỗi khi thay đổi trạng thái khoá phòng')
+    }
+  }, [roomCode, memberId])
+
+  const setTheme = useCallback(async (theme: string) => {
+    if (!roomCode || !memberId) return
+    // Optimistic — apply locally, then persist.
+    setRoom((prev) => (prev ? { ...prev, theme } : prev))
+    try {
+      const res = await fetch(`/api/watch-party/${roomCode}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ theme, participantId: memberId }),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => null)
+        toast.error(d?.error || 'Không thể đổi theme phòng')
+      }
+    } catch {
+      toast.error('Lỗi khi đổi theme phòng')
     }
   }, [roomCode, memberId])
 
@@ -481,6 +536,7 @@ export function useWatchParty(options: UseWatchPartyOptions): UseWatchPartyRetur
     refresh,
     requestJoin,
     toggleLock,
+    setTheme,
     approveJoin,
     rejectJoin,
     kickMember,

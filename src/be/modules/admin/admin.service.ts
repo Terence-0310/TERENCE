@@ -22,7 +22,6 @@ export class AdminService {
   static async getDashboardSummary(selectedDateRange: number = 7) {
     const now = new Date()
     const d7 = new Date(now.getTime() - selectedDateRange * 24 * 60 * 60 * 1000)
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
     const notDeleted = { deletedAt: null }
 
     const [
@@ -66,12 +65,56 @@ export class AdminService {
     ])
 
     let viewsToday = 0, views7d = 0
+    let totalRevenue = 0
+    
+    // Generate structure for the last 7 days chart
+    const chartData: any[] = []
+    const dayNames = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date()
+      date.setDate(date.getDate() - i)
+      date.setHours(0, 0, 0, 0)
+      const nextDate = new Date(date)
+      nextDate.setDate(nextDate.getDate() + 1)
+      
+      chartData.push({
+        date: date,
+        nextDate: nextDate,
+        name: i === 0 ? 'Hôm nay' : dayNames[date.getDay()],
+        views: 0,
+        revenue: 0
+      })
+    }
+
     try {
-      [viewsToday, views7d] = await Promise.all([
-        prisma.pageView.count({ where: { createdAt: { gte: today } } }),
-        prisma.pageView.count({ where: { createdAt: { gte: d7 } } }),
+      const [allViews7d, allTopups7d] = await Promise.all([
+        prisma.pageView.findMany({
+          where: { createdAt: { gte: chartData[0].date } },
+          select: { createdAt: true }
+        }),
+        prisma.topupOrder.findMany({
+          where: { status: 'COMPLETED', createdAt: { gte: chartData[0].date } },
+          select: { createdAt: true, amountVnd: true }
+        })
       ])
+      
+      views7d = allViews7d.length
+      totalRevenue = allTopups7d.reduce((sum, t) => sum + (t.amountVnd || 0), 0)
+      
+      for (const v of allViews7d) {
+        const day = chartData.find(c => v.createdAt >= c.date && v.createdAt < c.nextDate)
+        if (day) day.views++
+      }
+      for (const t of allTopups7d) {
+        const day = chartData.find(c => t.createdAt >= c.date && t.createdAt < c.nextDate)
+        if (day) day.revenue += (t.amountVnd || 0)
+      }
+      
+      viewsToday = chartData[chartData.length - 1].views
     } catch {}
+
+    // Clean up unnecessary date objects from chartData before returning
+    const finalChartData = chartData.map(d => ({ name: d.name, views: d.views, revenue: d.revenue }))
 
     const totalMovieViews = await prisma.movie.aggregate({ _sum: { viewCount: true }, where: notDeleted })
 
@@ -81,7 +124,9 @@ export class AdminService {
       draftMovies, publishedMovies, hiddenMovies, archivedMovies,
       blockedUsers, totalEpisodes, topMovies, recentUsers,
       missingPoster, brokenSources, recentLogs, viewsToday, views7d,
-      totalMovieViews: totalMovieViews._sum.viewCount || 0
+      totalMovieViews: totalMovieViews._sum.viewCount || 0,
+      totalRevenue,
+      chartData: finalChartData
     }
   }
 }

@@ -8,7 +8,7 @@ import { getCache, setCache, deleteCache, deleteByPrefix, CACHE_TTL } from '@/sr
 
 // ─── Shared Prisma Select/Include ───────────────────────────────
 
-const CARD_SELECT = {
+export const CARD_SELECT = {
   id: true, slug: true, title: true, originalTitle: true,
   contentType: true, year: true, quality: true, language: true,
   thumbUrl: true, posterUrl: true, rating: true,
@@ -61,7 +61,7 @@ const EPISODE_SELECT = {
 
 // Base filter: active + not deleted
 const ACTIVE_FILTER = { isActive: true, deletedAt: null }
-const PUBLISHED_FILTER = { ...ACTIVE_FILTER, status: 'published', isPublished: true }
+export const PUBLISHED_FILTER = { ...ACTIVE_FILTER, status: 'published', isPublished: true }
 
 // ─── Sort ───────────────────────────────────────────────────────
 
@@ -196,14 +196,11 @@ export async function getEpisodesByMovieSlug(slug: string) {
   const cached = await getCache<any>(cacheKey)
   if (cached) return cached
 
-  const movie = await prisma.movie.findFirst({
-    where: { slug, ...ACTIVE_FILTER },
-    select: { id: true },
-  })
-  if (!movie) return null
-
   const episodes = await prisma.episode.findMany({
-    where: { movieId: movie.id, isActive: true },
+    where: { 
+      movie: { slug, ...ACTIVE_FILTER },
+      isActive: true 
+    },
     select: EPISODE_SELECT,
     orderBy: { episodeOrder: 'asc' },
   })
@@ -337,6 +334,16 @@ export async function getTrendingMovies() {
 // ═══════════════════════════════════════════════════════════════
 
 export const AdminMovieService = {
+  /**
+   * Retrieves a paginated list of movies for the admin dashboard.
+   * Includes total count for pagination UI.
+   * 
+   * @param where - Prisma filter conditions
+   * @param skip - Number of records to skip
+   * @param take - Number of records to return
+   * @param orderBy - Sorting criteria
+   * @returns A tuple containing the array of movies and total count
+   */
   async getPaginatedMovies(where: any, skip: number, take: number, orderBy: any) {
     return Promise.all([
       prisma.movie.findMany({
@@ -347,6 +354,13 @@ export const AdminMovieService = {
     ])
   },
 
+  /**
+   * Creates a new movie record and invalidates relevant caches.
+   * 
+   * @param data - The movie creation payload
+   * @param createdBy - ID or name of the admin creating the movie
+   * @returns The created movie record
+   */
   async createMovie(data: any, createdBy: string) {
     // Sync isPublished with status
     const isPublished = data.status === 'published'
@@ -361,17 +375,44 @@ export const AdminMovieService = {
     return result
   },
 
+  /**
+   * Retrieves full details of a movie by ID, including episodes, genres,
+   * countries, cast/crew, and streaming sources.
+   * 
+   * @param id - The unique movie ID
+   * @returns The movie record with all related entities
+   */
   async getMovieById(id: string) {
     return prisma.movie.findUnique({
       where: { id },
-      include: { episodes: { orderBy: { sortOrder: 'asc' } } },
+      include: { 
+        episodes: { orderBy: { sortOrder: 'asc' } },
+        genres: { include: { genre: true } },
+        countries: { include: { country: true } },
+        people: { include: { person: true } },
+        movieSources: true,
+      },
     })
   },
 
+  /**
+   * Finds a single movie by its slug.
+   * 
+   * @param slug - The URL-friendly movie slug
+   * @returns The movie record or null if not found
+   */
   async getMovieBySlug(slug: string) {
     return prisma.movie.findUnique({ where: { slug } })
   },
 
+  /**
+   * Updates an existing movie, syncs its publish state, and clears caches.
+   * 
+   * @param id - The unique movie ID to update
+   * @param data - The update payload
+   * @param updatedBy - ID or name of the admin performing the update
+   * @returns The updated movie record
+   */
   async updateMovie(id: string, data: any, updatedBy: string) {
     const updateData: Record<string, unknown> = { ...data, updatedBy }
     if (data.status) {
@@ -390,6 +431,13 @@ export const AdminMovieService = {
     return result
   },
 
+  /**
+   * Soft deletes a movie by setting the deletedAt timestamp and unpublishing it.
+   * 
+   * @param id - The unique movie ID to soft delete
+   * @param updatedBy - ID or name of the admin performing the action
+   * @returns The updated (archived) movie record
+   */
   async softDeleteMovie(id: string, updatedBy: string) {
     const result = await prisma.movie.update({
       where: { id },

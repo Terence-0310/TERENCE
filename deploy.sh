@@ -55,18 +55,13 @@ echo "🗄️  Generating Prisma client..."
 npx prisma generate || { echo -e "${RED}✗ Prisma generate thất bại${NC}"; exit 1; }
 echo -e "${GREEN}✓${NC} Prisma client generated"
 
-# ── 6. Run migrations & seed (if fresh) ──
+# ── 6. Run migrations ──
 echo ""
 echo "🗄️  Running Prisma migrations..."
-npx prisma migrate deploy 2>/dev/null || {
-    echo "  → First time setup, running migrate dev..."
-    npx prisma migrate dev --name init --skip-generate 2>/dev/null || true
+npx prisma migrate deploy || {
+    echo "  ⚠️ Migration failed! Check DATABASE_URL in .env"
+    exit 1
 }
-
-if [ ! -f "prisma/dev.db" ] || [ $(stat -c%s "prisma/dev.db" 2>/dev/null || echo 0) -lt 1000 ]; then
-    echo "  → Database mới, seeding data..."
-    npx prisma db seed || echo "  ⚠️  Seed có lỗi nhưng tiếp tục"
-fi
 echo -e "${GREEN}✓${NC} Database ready"
 
 # ── 7. Build ──

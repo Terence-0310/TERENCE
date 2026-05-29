@@ -4,6 +4,9 @@
 // Real-time tracking engine for user analytics, page views, and movie trends.
 
 import { prisma } from '@/src/be/shared/db/prisma'
+import { logger } from '@/src/be/shared/utils/logger'
+
+const log = logger.child({ module: 'analytics-service' })
 
 export interface TrackData {
   path: string
@@ -42,7 +45,7 @@ export class AnalyticsService {
           }
         }
       }).catch((err: any) => {
-        console.error('Failed to increment viewCount for movie:', data.movieId, err)
+        log.error({ movieId: data.movieId, err: err instanceof Error ? err.message : err }, 'Failed to increment viewCount for movie')
       })
     }
     

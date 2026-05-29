@@ -4,7 +4,10 @@
 
 import { NextResponse } from 'next/server'
 import { requireAdmin, isUser } from '@/src/be/modules/admin/admin.guard'
-import { prisma } from '@/lib/db/prisma'
+import { prisma } from '@/src/be/shared/db/prisma'
+import { logger } from '@/src/be/shared/utils/logger'
+
+const log = logger.child({ module: 'admin-sync-validate-sources' })
 
 export async function POST() {
   const guard = await requireAdmin()
@@ -31,6 +34,31 @@ export async function POST() {
     let broken = 0
     let ok = 0
 
+    // Prevent N+1 Query: Fetch all broken episodes grouped by source upfront
+    const activeMovieIds = sources.map(s => s.movieId)
+    const activeSourceNames = sources.map(s => s.sourceName)
+    
+    const brokenEpisodesGrouped = await prisma.episode.groupBy({
+      by: ['movieId', 'sourceName'],
+      where: {
+        isActive: true,
+        OR: [
+          { streamUrl: null },
+          { streamUrl: '' },
+        ],
+        movieId: { in: activeMovieIds },
+        sourceName: { in: activeSourceNames }
+      },
+      _count: {
+        id: true
+      }
+    })
+
+    const brokenMap = new Map()
+    for (const group of brokenEpisodesGrouped) {
+      brokenMap.set(`${group.movieId}-${group.sourceName}`, group._count.id)
+    }
+
     for (const source of sources) {
       checked++
       let isBroken = false
@@ -56,17 +84,7 @@ export async function POST() {
       }
 
       // Also check: episodes with this source that have no streamUrl
-      const brokenEpisodes = await prisma.episode.count({
-        where: {
-          movieId: source.movieId,
-          sourceName: source.sourceName,
-          isActive: true,
-          OR: [
-            { streamUrl: null },
-            { streamUrl: '' },
-          ],
-        },
-      })
+      const brokenEpisodes = brokenMap.get(`${source.movieId}-${source.sourceName}`) || 0
 
       if (brokenEpisodes > 0) {
         isBroken = true
@@ -119,7 +137,7 @@ export async function POST() {
       },
     })
   } catch (error) {
-    console.error('[Admin] Validate sources error:', error)
+    log.error({ err: error instanceof Error ? error.message : error }, 'Validate sources error')
     return NextResponse.json({ success: false, error: 'Validation failed' }, { status: 500 })
   }
 }

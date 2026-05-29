@@ -51,6 +51,7 @@ describe('GET /api/v1/search', () => {
   it('should return search results for valid query', async () => {
     mockSearchMovies.mockResolvedValue({
       items: [{ id: '1', title: 'Avengers', slug: 'avengers' }],
+      suggestions: [],
       page: 1,
       perPage: 20,
       total: 1,
@@ -60,21 +61,23 @@ describe('GET /api/v1/search', () => {
 
     const req = createMockRequest('/api/v1/search', { searchParams: { q: 'avengers' } })
     const res = await searchRoute(req)
+    // Response shape now nests under data: { items, pagination, suggestions }.
     const { status, body } = await parseResponse<{
       success: boolean
-      data: unknown[]
-      pagination: { total: number }
+      data: { items: unknown[]; pagination: { total: number }; suggestions: unknown[] }
     }>(res)
 
     expect(status).toBe(200)
     expect(body.success).toBe(true)
-    expect(body.data).toHaveLength(1)
-    expect(body.pagination.total).toBe(1)
+    expect(body.data.items).toHaveLength(1)
+    expect(body.data.pagination.total).toBe(1)
+    expect(body.data.suggestions).toEqual([])
   })
 
   it('should forward filter params to service', async () => {
     mockSearchMovies.mockResolvedValue({
       items: [],
+      suggestions: [],
       page: 1,
       perPage: 20,
       total: 0,
@@ -95,7 +98,7 @@ describe('GET /api/v1/search', () => {
 
   it('should ignore invalid type param', async () => {
     mockSearchMovies.mockResolvedValue({
-      items: [], page: 1, perPage: 20, total: 0, totalPages: 0, source: 'prisma',
+      items: [], suggestions: [], page: 1, perPage: 20, total: 0, totalPages: 0, source: 'prisma',
     })
 
     const req = createMockRequest('/api/v1/search', {

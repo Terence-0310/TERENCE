@@ -5,7 +5,10 @@
 
 import { NextResponse } from 'next/server'
 import { requireAdmin, isUser } from '@/src/be/modules/admin/admin.guard'
-import { prisma } from '@/lib/db/prisma'
+import { prisma } from '@/src/be/shared/db/prisma'
+import { logger } from '@/src/be/shared/utils/logger'
+
+const log = logger.child({ module: 'admin-sync-summary' })
 
 export async function GET() {
   const guard = await requireAdmin()
@@ -25,6 +28,7 @@ export async function GET() {
       brokenSources,
       recentFailedJobs,
       recentSuccessJobs,
+      recentPartialJobs,
       totalSyncJobs,
       moviesWithOphim,
       moviesWithTmdb,
@@ -38,6 +42,7 @@ export async function GET() {
       prisma.movieSource.count({ where: { isActive: false } }),
       prisma.syncJob.count({ where: { status: 'failed', createdAt: { gte: d7 } } }),
       prisma.syncJob.count({ where: { status: 'completed', createdAt: { gte: d7 } } }),
+      prisma.syncJob.count({ where: { status: 'partial', createdAt: { gte: d7 } } }),
       prisma.syncJob.count(),
       prisma.movie.count({ where: { ...notDeleted, ophimId: { not: null } } }),
       prisma.movie.count({ where: { ...notDeleted, tmdbId: { not: null } } }),
@@ -72,6 +77,7 @@ export async function GET() {
           totalJobs: totalSyncJobs,
           recentSuccessJobs7d: recentSuccessJobs,
           recentFailedJobs7d: recentFailedJobs,
+          recentPartialJobs7d: recentPartialJobs,
           recentErrors24h: recentSyncLogs,
         },
         recentJobs: recentJobs.map(j => ({
@@ -90,7 +96,7 @@ export async function GET() {
       },
     })
   } catch (error) {
-    console.error('[Admin] Sync summary error:', error)
+    log.error({ err: error instanceof Error ? error.message : error }, 'Sync summary error')
     return NextResponse.json({ success: false, error: 'Failed to fetch summary' }, { status: 500 })
   }
 }

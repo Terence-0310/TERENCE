@@ -3,6 +3,7 @@ import { requireAdmin, parsePagination, paginatedResponse, errorResponse, succes
 import { movieCreateSchema, generateSlug } from '@/src/be/modules/admin/validators'
 import { logAdminAction, getClientIp } from '@/src/be/modules/admin/audit'
 import { AdminMovieService } from '@/src/be/modules/movies/movie-service'
+import { syncMovieAsync } from '@/src/be/modules/search/movie-search-indexer'
 
 // GET /api/admin/movies — list with full search/filter/sort
 export async function GET(req: NextRequest) {
@@ -90,6 +91,11 @@ export async function POST(req: NextRequest) {
     actorId: auth.user.email, action: 'create', targetType: 'movie', targetId: movie.id,
     metadata: { title: movie.title, type: movie.contentType }, ipAddress: getClientIp(req.headers),
   })
+
+  // Push to Elasticsearch in the background. DB write is the source of truth;
+  // ES failure is logged but never bubbles up — search just stays slightly
+  // stale until the next reindex.
+  syncMovieAsync(movie.id, 'upsert')
 
   return successResponse(movie, 201)
 }

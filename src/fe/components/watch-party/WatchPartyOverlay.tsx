@@ -12,8 +12,8 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useWatchParty } from '@/src/fe/features/watch-party/hooks/useWatchParty'
 import { usePartyCall } from '@/src/fe/features/watch-party/hooks/usePartyCall'
+import { useAuth } from '@/src/fe/features/auth/contexts/auth-context'
 import { WatchPartyPanel } from '@/src/fe/components/watch-party/WatchPartyPanel'
-import { CreateWatchPartyButton } from '@/src/fe/components/watch-party/CreateWatchPartyButton'
 import { WatchPartyContext } from '@/src/fe/components/watch-party/WatchPartyContext'
 import { Users, X, Lock } from 'lucide-react'
 
@@ -73,7 +73,12 @@ export function WatchPartyOverlay({
   const [showPanel, setShowPanel] = useState(!!initialRoom)
   const [joinInput, setJoinInput] = useState('')
   const [showJoinInput, setShowJoinInput] = useState(false)
-  const user = useRef(getGuestUser()).current
+  // Prefer the authenticated user so TCoin perks (avatar frame, exclusive badge,
+  // room theme) resolve against a real account; fall back to a guest identity.
+  const { user: authUser } = useAuth()
+  const user = useRef(
+    authUser?.id ? { id: authUser.id, name: authUser.name || 'Người xem' } : getGuestUser(),
+  ).current
 
   // ── Watch Party Hook ──
   const party = useWatchParty({
@@ -114,6 +119,14 @@ export function WatchPartyOverlay({
     },
     onRemoteServerChange: (_index) => {
       // Server change handled by player
+    },
+    // When the server asks the host for its live time (fired on every join),
+    // read the host's video element so the joiner sees where the host
+    // actually is, not the stale playbackTime from the last play/pause event.
+    onTimeRequest: () => {
+      const video = videoRef?.current
+      if (!video) return null
+      return { currentTime: video.currentTime, isPlaying: !video.paused }
     },
   })
 
@@ -242,7 +255,7 @@ export function WatchPartyOverlay({
         </div>
 
         {party.isLockedOut ? (
-          <div className="w-full lg:w-[420px] shrink-0 border-t lg:border-t-0 lg:border-l border-white/[0.06] bg-[#0A0E17] flex flex-col items-center justify-center h-full z-10 p-8 text-center transition-all duration-300">
+          <div className="w-full lg:w-[420px] shrink-0 border-t lg:border-t-0 lg:border-l border-white/[0.06] bg-background flex flex-col items-center justify-center h-full z-10 p-8 text-center transition-all duration-300">
              <div className="h-14 w-14 rounded-full bg-red-500/10 flex items-center justify-center mb-6 border border-red-500/20">
                <Lock className="text-red-400 h-6 w-6" />
              </div>
@@ -256,7 +269,7 @@ export function WatchPartyOverlay({
              </button>
           </div>
         ) : showPanel && party.room && (
-          <div className="w-full lg:w-[420px] shrink-0 border-t lg:border-t-0 lg:border-l border-white/[0.06] bg-[#0A0E17] flex flex-col h-full z-10 transition-all duration-300">
+          <div className="w-full lg:w-[420px] shrink-0 border-t lg:border-t-0 lg:border-l border-white/[0.06] bg-background flex flex-col h-full z-10 transition-all duration-300">
             {(() => {
               const myMember = party.members.find(m => m.userId === user.id || (m.guestName && m.guestName === user.name))
               const myRole = myMember?.role?.toUpperCase() || 'MEMBER'
@@ -275,6 +288,7 @@ export function WatchPartyOverlay({
               call={call}
               pendingRequests={party.pendingRequests}
               onToggleLock={party.toggleLock}
+              onSetTheme={party.setTheme}
               onApproveJoin={party.approveJoin}
               onRejectJoin={party.rejectJoin}
               onKickMember={party.kickMember}

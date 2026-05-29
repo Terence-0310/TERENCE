@@ -2,9 +2,9 @@
 // Auth Module — Repository
 // ============================================
 // Prisma queries for auth-related data access.
-// TODO [MIGRATION] Consolidate all auth queries here from lib/auth/
 
 import { prisma } from '@/src/be/shared/db/prisma'
+import { Role } from '@prisma/client'
 
 export async function findUserByEmail(email: string) {
   return prisma.user.findUnique({
@@ -27,7 +27,7 @@ export async function createUser(data: {
       email: data.email,
       name: data.name,
       passwordHash: data.passwordHash,
-      role: (data.role ?? 'USER') as any,
+      role: (data.role ?? 'USER') as Role,
     },
   })
 }
@@ -52,5 +52,39 @@ export async function deleteSessionRecord(sessionId: string) {
 export async function deleteExpiredSessions(userId: string) {
   return prisma.session.deleteMany({
     where: { userId, expiresAt: { lt: new Date() } },
+  })
+}
+
+export async function findVerificationToken(token: string) {
+  return prisma.verificationToken.findUnique({
+    where: { token },
+  })
+}
+
+export async function deleteVerificationToken(identifier: string, token: string) {
+  return prisma.verificationToken.deleteMany({
+    where: { identifier, token },
+  })
+}
+
+export async function deleteVerificationTokensByIdentifier(identifier: string) {
+  return prisma.verificationToken.deleteMany({
+    where: { identifier },
+  })
+}
+
+export async function createVerificationToken(identifier: string, token: string, expires: Date) {
+  return prisma.verificationToken.create({
+    data: { identifier, token, expires },
+  })
+}
+
+export async function verifyUserEmail(userId: string) {
+  return prisma.user.update({
+    where: { id: userId },
+    data: {
+      isEmailVerified: true,
+      emailVerified: new Date(),
+    },
   })
 }

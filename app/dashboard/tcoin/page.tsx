@@ -14,11 +14,11 @@ import {
   RefreshCw,
   TrendingUp,
   Users,
-  AlertTriangle,
 } from 'lucide-react'
 import { WalletsTab } from './_components/WalletsTab'
 import { PaymentsTab } from './_components/PaymentsTab'
 import { AdjustModal } from './_components/AdjustModal'
+import { TransactionsModal } from './_components/TransactionsModal'
 
 // ── Types ──
 interface WalletSummary {
@@ -48,28 +48,6 @@ interface PaymentOrderItem {
 
 type Tab = 'wallets' | 'payments'
 
-const MOCK_WALLETS: WalletSummary[] = [
-  { userId: 'u1', userName: 'Nguyễn Văn Admin', email: 'admin@terence.com', balance: 14500000, totalEarned: 24000000, totalSpent: 9500000, transactionCount: 45, lastActivity: new Date().toISOString() },
-  { userId: 'u2', userName: 'VVIP Đam Mê', email: 'vvip@yahoo.com', balance: 8500000, totalEarned: 12000000, totalSpent: 3500000, transactionCount: 22, lastActivity: new Date(Date.now() - 3600000).toISOString() },
-  { userId: 'u3', userName: 'Thích Xem Chùa', email: 'xemchua@gmail.com', balance: 50000, totalEarned: 100000, totalSpent: 50000, transactionCount: 3, lastActivity: new Date(Date.now() - 86400000).toISOString() },
-  { userId: 'u4', userName: 'Phú Nhị Đại', email: 'richkid@hotmail.com', balance: 50000000, totalEarned: 52000000, totalSpent: 2000000, transactionCount: 15, lastActivity: new Date(Date.now() - 120000).toISOString() },
-  { userId: 'u5', userName: 'Dân Cày Cuốc', email: 'caycuoc@game.vn', balance: 1200000, totalEarned: 2400000, totalSpent: 1200000, transactionCount: 124, lastActivity: new Date(Date.now() - 86400000 * 2).toISOString() },
-]
-
-const MOCK_PAYMENTS: PaymentOrderItem[] = [
-  { id: 'ORD-89472', userId: 'u4', userName: 'Phú Nhị Đại', amount: 500000, currency: 'VND', tcoins: 50000000, provider: 'vietqr', providerTxnId: 'SEPAY123456', status: 'completed', paidAt: new Date(Date.now() - 3600000).toISOString(), createdAt: new Date(Date.now() - 3610000).toISOString() },
-  { id: 'ORD-89473', userId: 'u2', userName: 'VVIP Đam Mê', amount: 100000, currency: 'VND', tcoins: 10000000, provider: 'vnpay', providerTxnId: 'VNP789012', status: 'completed', paidAt: new Date(Date.now() - 7200000).toISOString(), createdAt: new Date(Date.now() - 7210000).toISOString() },
-  { id: 'ORD-89474', userId: 'u5', userName: 'Dân Cày Cuốc', amount: 20000, currency: 'VND', tcoins: 2000000, provider: 'zalopay', providerTxnId: null, status: 'pending', paidAt: null, createdAt: new Date(Date.now() - 14400000).toISOString() },
-  { id: 'ORD-89475', userId: 'u3', userName: 'Thích Xem Chùa', amount: 50000, currency: 'VND', tcoins: 5000000, provider: 'vietqr', providerTxnId: null, status: 'failed', paidAt: null, createdAt: new Date(Date.now() - 86400000).toISOString() },
-]
-
-const MOCK_TCOIN_STATS = {
-  totalCirculating: 145500000,
-  activeWallets: 12450,
-  totalOrders: 15420,
-  completedOrders: 14800,
-}
-
 export default function TCoinDashboardPage() {
   const [activeTab, setActiveTab] = useState<Tab>('wallets')
   const [wallets, setWallets] = useState<WalletSummary[]>([])
@@ -96,38 +74,39 @@ export default function TCoinDashboardPage() {
   const [adjustReason, setAdjustReason] = useState('')
   const [adjusting, setAdjusting] = useState(false)
 
-  const [isMockData, setIsMockData] = useState(false)
+  // History + refund modal
+  const [historyModal, setHistoryModal] = useState<{ userId: string; userName: string } | null>(null)
 
   const PER_PAGE = 15
 
-  const loadWallets = useCallback(async (page: number) => {
+  const loadWallets = useCallback(async (page: number, searchTerm?: string) => {
     setLoading(true)
     try {
-      const res = await fetch(`/api/admin/tcoin/wallets?page=${page}&perPage=${PER_PAGE}`)
+      const params = new URLSearchParams({ page: String(page), perPage: String(PER_PAGE) })
+      if (searchTerm && searchTerm.trim()) params.set('search', searchTerm.trim())
+      const res = await fetch(`/api/admin/tcoin/wallets?${params}`)
       if (res.ok) {
-        const data = await res.json()
-        const isFallback = !data.items || data.items.length === 0;
-        setIsMockData(isFallback);
-        const currentWallets = isFallback ? MOCK_WALLETS : data.items;
-        
-        setWallets(currentWallets)
-        setWalletsTotal(isFallback ? 12450 : data.total)
+        const jsonRaw = await res.json()
+        const data = jsonRaw.success ? jsonRaw.data : jsonRaw
+        setWallets(data.items || [])
+        setWalletsTotal(data.total || 0)
 
-        const totalCirculating = isFallback ? MOCK_TCOIN_STATS.totalCirculating : data.items.reduce((s: number, w: WalletSummary) => s + w.balance, 0)
-        setStats((prev) => ({
-          ...prev,
-          totalCirculating,
-          activeWallets: isFallback ? MOCK_TCOIN_STATS.activeWallets : data.total,
-        }))
+        // Stats are authoritative — computed across ALL wallets/orders on the BE.
+        // Avoid summing the current page (used to produce wildly wrong values).
+        if (data.stats) {
+          setStats((prev) => ({
+            ...prev,
+            totalCirculating: data.stats.totalCirculating,
+            activeWallets: data.stats.activeWallets,
+            totalOrders: data.stats.totalOrders,
+            completedOrders: data.stats.completedOrders,
+          }))
+        }
       } else {
-        setIsMockData(true);
-        setWallets(MOCK_WALLETS); setWalletsTotal(12450);
-        setStats(prev => ({ ...prev, totalCirculating: MOCK_TCOIN_STATS.totalCirculating, activeWallets: MOCK_TCOIN_STATS.activeWallets }))
+        setWallets([]); setWalletsTotal(0);
       }
     } catch {
-        setIsMockData(true);
-        setWallets(MOCK_WALLETS); setWalletsTotal(12450);
-        setStats(prev => ({ ...prev, totalCirculating: MOCK_TCOIN_STATS.totalCirculating, activeWallets: MOCK_TCOIN_STATS.activeWallets }))
+        setWallets([]); setWalletsTotal(0);
     } finally {
       setLoading(false)
     }
@@ -140,38 +119,41 @@ export default function TCoinDashboardPage() {
       if (status) params.set('status', status)
       const res = await fetch(`/api/admin/tcoin/payments?${params}`)
       if (res.ok) {
-        const data = await res.json()
-        const isFallback = !data.items || data.items.length === 0;
-        setIsMockData(isFallback);
-        const currentPayments = isFallback ? MOCK_PAYMENTS : data.items;
-        
-        setPayments(currentPayments)
-        setPaymentsTotal(isFallback ? 15420 : data.total)
-        setStats((prev) => ({
-          ...prev,
-          totalOrders: isFallback ? MOCK_TCOIN_STATS.totalOrders : data.total,
-          completedOrders: isFallback ? MOCK_TCOIN_STATS.completedOrders : data.items.filter((o: PaymentOrderItem) => o.status === 'completed').length,
-        }))
+        const jsonRaw = await res.json()
+        const data = jsonRaw.success ? jsonRaw.data : jsonRaw
+        setPayments(data.items || [])
+        setPaymentsTotal(data.total || 0)
+        // Don't overwrite global stats from a filtered payments query — the
+        // wallets endpoint owns the stat-card values.
       } else {
-        setIsMockData(true);
-        setPayments(MOCK_PAYMENTS); setPaymentsTotal(15420);
-        setStats(prev => ({ ...prev, totalOrders: MOCK_TCOIN_STATS.totalOrders, completedOrders: MOCK_TCOIN_STATS.completedOrders }))
+        setPayments([]); setPaymentsTotal(0);
       }
     } catch {
-        setIsMockData(true);
-        setPayments(MOCK_PAYMENTS); setPaymentsTotal(15420);
-        setStats(prev => ({ ...prev, totalOrders: MOCK_TCOIN_STATS.totalOrders, completedOrders: MOCK_TCOIN_STATS.completedOrders }))
+        setPayments([]); setPaymentsTotal(0);
     } finally {
       setLoading(false)
     }
   }, [])
 
+  // Debounce the search input so we don't fire a request per keystroke.
+  useEffect(() => {
+    if (activeTab !== 'wallets') return
+    const t = setTimeout(() => {
+      setWalletsPage(1)
+      loadWallets(1, search)
+    }, 300)
+    return () => clearTimeout(t)
+  }, [search, activeTab, loadWallets])
+
   useEffect(() => {
     if (activeTab === 'wallets') {
-      loadWallets(walletsPage)
+      loadWallets(walletsPage, search)
     } else {
       loadPayments(paymentsPage, paymentFilter)
     }
+    // We intentionally exclude `search` here — its own debounced effect
+    // above handles search-driven reloads and resets to page 1.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, walletsPage, paymentsPage, paymentFilter, loadWallets, loadPayments])
 
   const handleAdjust = async () => {
@@ -179,42 +161,6 @@ export default function TCoinDashboardPage() {
     setAdjusting(true)
     const amountNum = Number(adjustAmount)
     try {
-      // Simulate frontend operation perfectly for mock users
-      if (adjustModal.userId.startsWith('u')) {
-        await new Promise(r => setTimeout(r, 600)) // Fake latency
-        
-        setWallets(prevWallets => prevWallets.map(w => {
-          if (w.userId === adjustModal.userId) {
-            const newBalance = w.balance + amountNum;
-            if (newBalance < 0) {
-              alert('Lỗi: Số dư không đủ để trừ!');
-              return w;
-            }
-            return {
-              ...w,
-              balance: newBalance,
-              totalEarned: amountNum > 0 ? w.totalEarned + amountNum : w.totalEarned,
-              totalSpent: amountNum < 0 ? w.totalSpent + Math.abs(amountNum) : w.totalSpent,
-              transactionCount: w.transactionCount + 1,
-              lastActivity: new Date().toISOString()
-            }
-          }
-          return w;
-        }))
-        
-        // Update stats summary on screen
-        setStats(s => ({
-          ...s,
-          totalCirculating: s.totalCirculating + amountNum
-        }))
-        
-        alert(`Điều chỉnh thành công ${amountNum > 0 ? '+' : ''}${amountNum.toLocaleString('vi-VN')} TCoin cho người dùng ${adjustModal.userName}`)
-        setAdjustModal(null)
-        setAdjustAmount('')
-        setAdjustReason('')
-        return
-      }
-
       // Real DB interaction
       const res = await fetch('/api/admin/tcoin/adjust', {
         method: 'POST',
@@ -230,7 +176,7 @@ export default function TCoinDashboardPage() {
         setAdjustModal(null)
         setAdjustAmount('')
         setAdjustReason('')
-        loadWallets(walletsPage)
+        loadWallets(walletsPage, search)
       } else {
         const err = await res.json()
         alert(err.error || 'Có lỗi xảy ra khi điều chỉnh')
@@ -241,33 +187,18 @@ export default function TCoinDashboardPage() {
   }
 
   const handleConfirmOrder = async (orderId: string) => {
-    // If interacting with mock data order
-    if (orderId.startsWith('ORD-')) {
-      alert('Đã xác nhận thanh toán đơn hàng này (Mô phỏng)!')
-      setPayments(prev => prev.map(p => {
-        if (p.id === orderId) {
-           return { ...p, status: 'completed', paidAt: new Date().toISOString() }
-        }
-        return p
-      }))
-      setStats(s => ({ ...s, completedOrders: s.completedOrders + 1 }))
-      return
-    }
-
-    const res = await fetch('/api/payments/callback', {
+    if (!confirm('Xác nhận đơn nạp này đã thanh toán? TCoin sẽ được cộng ngay vào ví user.')) return
+    const res = await fetch(`/api/admin/tcoin/orders/${orderId}/confirm`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        orderId,
-        providerTxnId: `admin-confirm-${Date.now()}`,
-        status: 'completed',
-      }),
+      body: JSON.stringify({ note: 'Manual confirmation from admin dashboard' }),
     })
     if (res.ok) {
       alert('Xác nhận thanh toán thành công!')
       loadPayments(paymentsPage, paymentFilter)
     } else {
-      alert('Lỗi xác nhận đơn nạp!')
+      const err = await res.json().catch(() => ({}))
+      alert(err.error || 'Lỗi xác nhận đơn nạp!')
     }
   }
 
@@ -282,18 +213,6 @@ export default function TCoinDashboardPage() {
 
   return (
     <div className="space-y-6">
-      {isMockData && (
-        <div className="bg-amber-500/10 border border-amber-500/30 text-amber-500 rounded-lg p-4 flex items-center justify-between shadow-sm animate-pulse">
-          <div className="flex items-center gap-3">
-             <AlertTriangle className="h-5 w-5" />
-             <div>
-               <p className="font-bold text-sm">Chế độ Mô Phỏng (Demo Mode)</p>
-               <p className="text-xs mt-0.5 opacity-90">Dữ liệu ví TCoin hoặc Cơ sở dữ liệu Payment Gateway hiện chưa được khởi tạo. Hệ thống đang hiển thị dữ liệu giả định để xem trước luồng giao diện.</p>
-             </div>
-          </div>
-        </div>
-      )}
-
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -306,7 +225,7 @@ export default function TCoinDashboardPage() {
           </p>
         </div>
         <button
-          onClick={() => activeTab === 'wallets' ? loadWallets(walletsPage) : loadPayments(paymentsPage, paymentFilter)}
+          onClick={() => activeTab === 'wallets' ? loadWallets(walletsPage, search) : loadPayments(paymentsPage, paymentFilter)}
           disabled={loading}
           className="inline-flex items-center gap-2 rounded-lg bg-primary/10 px-4 py-2.5 text-sm font-medium text-primary transition hover:bg-primary/20 disabled:opacity-50"
         >
@@ -340,6 +259,7 @@ export default function TCoinDashboardPage() {
           onSearchChange={setSearch}
           onPageChange={setWalletsPage}
           onAdjust={(userId, userName) => setAdjustModal({ userId, userName })}
+          onViewHistory={(userId, userName) => setHistoryModal({ userId, userName })}
           formatCoin={formatCoin}
           formatDate={formatDate}
         />
@@ -372,6 +292,17 @@ export default function TCoinDashboardPage() {
           onReasonChange={setAdjustReason}
           onConfirm={handleAdjust}
           onClose={() => { setAdjustModal(null); setAdjustAmount(''); setAdjustReason('') }}
+        />
+      )}
+
+      {/* Transactions & Refund Modal */}
+      {historyModal && (
+        <TransactionsModal
+          userId={historyModal.userId}
+          userName={historyModal.userName}
+          onClose={() => { setHistoryModal(null); loadWallets(walletsPage, search) }}
+          formatCoin={formatCoin}
+          formatDate={formatDate}
         />
       )}
     </div>

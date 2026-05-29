@@ -1,8 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import Link from 'next/link'
-import { AlertTriangle, RefreshCw, Home } from 'lucide-react'
+import { AlertTriangle, RefreshCw, Home, FileCode2 } from 'lucide-react'
 
 /**
  * Global error boundary — catches ALL unhandled errors in the root layout.
@@ -19,6 +18,11 @@ export default function GlobalError({
     console.error('[GlobalError]', error)
   }, [error])
 
+  const handleReset = () => {
+    reset()
+    window.location.reload()
+  }
+
   return (
     <html lang="vi" className="dark">
       <body className="min-h-screen bg-[#060912] text-white font-sans antialiased flex items-center justify-center px-6">
@@ -31,14 +35,25 @@ export default function GlobalError({
             Ứng dụng gặp sự cố không mong muốn. Đội ngũ kỹ thuật đã được thông báo. 
             Vui lòng thử lại hoặc quay về trang chủ.
           </p>
-          {error.digest && (
+          {process.env.NODE_ENV === 'development' && (
+            <div className="mb-8 w-full max-w-3xl mx-auto overflow-auto rounded-xl bg-red-950/50 p-4 text-left border border-red-500/20 custom-scrollbar max-h-[400px]">
+              <div className="flex items-center gap-2 mb-2 text-red-400">
+                <FileCode2 className="w-4 h-4" />
+                <span className="font-mono text-sm font-bold">{error.name}: {error.message}</span>
+              </div>
+              <pre className="font-mono text-xs text-red-400/80 whitespace-pre-wrap">{error.stack}</pre>
+            </div>
+          )}
+
+          {error.digest && process.env.NODE_ENV !== 'development' && (
             <p className="mb-6 text-xs text-white/30 font-mono">
               Mã lỗi: {error.digest}
             </p>
           )}
+
           <div className="flex flex-wrap items-center justify-center gap-3">
             <button
-              onClick={reset}
+              onClick={handleReset}
               className="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-3 text-sm font-bold text-white shadow-lg shadow-primary/20 transition hover:bg-primary/90 hover:scale-[1.02] active:scale-[0.98]"
             >
               <RefreshCw className="h-4 w-4" />

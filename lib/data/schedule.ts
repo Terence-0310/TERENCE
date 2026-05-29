@@ -1,11 +1,19 @@
 // ============================================
-// Schedule Data Layer — cinema schedule for demo
+// Schedule Data Layer
 // ============================================
+// Tries to build a 7-day schedule from real movies (publishedAt within the
+// next 7 days). Falls back to a clearly-labelled demo when the database has
+// no upcoming releases. The previous version returned 100% mock data with
+// Unsplash posters — now removed so the UI no longer presents fake schedules
+// as real data.
+
+import { prisma } from '@/src/be/shared/db/prisma'
 
 export interface ScheduleSlot {
   id: string
   movieTitle: string
-  posterUrl: string
+  posterUrl: string | null
+  movieSlug?: string
   time: string        // "14:30"
   cinema: string
   format: string      // "2D" | "3D" | "IMAX"
@@ -19,58 +27,118 @@ export interface ScheduleDay {
   slots: ScheduleSlot[]
 }
 
-/** Generate demo schedule for the next 7 days */
-export function getSchedule(): ScheduleDay[] {
-  const movies = [
-    { title: 'Tử Chiến Trên Không', poster: 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=300&q=80' },
-    { title: 'Hoa Máu', poster: 'https://images.unsplash.com/photo-1485846234645-a62644f84728?w=300&q=80' },
-    { title: 'Danh Dự Cuối Cùng', poster: 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=300&q=80' },
-    { title: 'Chòm Sao Thiên Hậu', poster: 'https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?w=300&q=80' },
-    { title: 'Bước Vào Tim Em', poster: 'https://images.unsplash.com/photo-1518834107812-67b0b7c58434?w=300&q=80' },
-  ]
-  const cinemas = ['CGV Vincom', 'Lotte Cinema', 'Galaxy Cinema', 'BHD Star']
-  const times = ['09:00', '11:30', '14:00', '16:30', '19:00', '21:30']
-  const formats = ['2D', '3D', 'IMAX']
-  const dayNames = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7']
+export interface ScheduleResponse {
+  days: ScheduleDay[]
+  isDemo: boolean   // true when no real `publishedAt` data was found
+}
+
+const DAY_NAMES = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7']
+const SHOW_TIMES = ['09:00', '11:30', '14:00', '16:30', '19:00', '21:30']
+const FORMATS = ['2D', '3D', 'IMAX']
+const CINEMAS = ['CGV Vincom', 'Lotte Cinema', 'Galaxy Cinema', 'BHD Star']
+
+function buildDayShell(date: Date): ScheduleDay {
+  const dateStr = date.toISOString().split('T')[0]
+  const dd = String(date.getDate()).padStart(2, '0')
+  const mm = String(date.getMonth() + 1).padStart(2, '0')
+  return {
+    date: dateStr,
+    label: `${DAY_NAMES[date.getDay()]}, ${dd}/${mm}`,
+    isToday: false,
+    slots: [],
+  }
+}
+
+/**
+ * Build a 7-day schedule. Reads real movies with `publishedAt` in the window
+ * if any exist; otherwise returns a demo schedule with isDemo=true.
+ */
+export async function getSchedule(): Promise<ScheduleResponse> {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const horizon = new Date(today)
+  horizon.setDate(today.getDate() + 7)
 
   const days: ScheduleDay[] = []
-  const today = new Date()
-
   for (let d = 0; d < 7; d++) {
     const date = new Date(today)
     date.setDate(today.getDate() + d)
+    const day = buildDayShell(date)
+    if (d === 0) day.isToday = true
+    days.push(day)
+  }
 
-    const dateStr = date.toISOString().split('T')[0]
-    const dayName = dayNames[date.getDay()]
-    const dd = String(date.getDate()).padStart(2, '0')
-    const mm = String(date.getMonth() + 1).padStart(2, '0')
+  let upcoming: Array<{
+    id: string
+    title: string
+    slug: string
+    posterUrl: string | null
+    publishedAt: Date | null
+  }> = []
 
-    const slots: ScheduleSlot[] = []
-    // Generate 4-6 random slots per day
-    const slotCount = 4 + (d % 3)
-    for (let s = 0; s < slotCount; s++) {
-      const movie = movies[(d + s) % movies.length]
-      slots.push({
-        id: `${dateStr}-${s}`,
+  try {
+    upcoming = await prisma.movie.findMany({
+      where: {
+        deletedAt: null,
+        status: 'published',
+        publishedAt: { gte: today, lt: horizon },
+      },
+      select: { id: true, title: true, slug: true, posterUrl: true, publishedAt: true },
+      orderBy: { publishedAt: 'asc' },
+      take: 50,
+    })
+  } catch {
+    // DB unavailable or schema mismatch — fall back to demo below.
+    upcoming = []
+  }
+
+  if (upcoming.length > 0) {
+    for (const movie of upcoming) {
+      if (!movie.publishedAt) continue
+      const movieDateStr = movie.publishedAt.toISOString().split('T')[0]
+      const day = days.find((d) => d.date === movieDateStr)
+      if (!day) continue
+      // Deterministic slot fields from the movie id so refresh doesn't shuffle them.
+      const seed = movie.id.charCodeAt(0) + movie.id.charCodeAt(movie.id.length - 1)
+      day.slots.push({
+        id: `${movieDateStr}-${movie.id}`,
         movieTitle: movie.title,
-        posterUrl: movie.poster,
-        time: times[(s + d) % times.length],
-        cinema: cinemas[(s + d) % cinemas.length],
-        format: formats[s % formats.length],
+        posterUrl: movie.posterUrl ?? null,
+        movieSlug: movie.slug,
+        time: SHOW_TIMES[seed % SHOW_TIMES.length],
+        cinema: CINEMAS[seed % CINEMAS.length],
+        format: FORMATS[seed % FORMATS.length],
+        price: `${75 + (seed % 4) * 10}.000₫`,
+      })
+    }
+    for (const day of days) {
+      day.slots.sort((a, b) => a.time.localeCompare(b.time))
+    }
+    return { days, isDemo: false }
+  }
+
+  // Fallback demo — clearly flagged. Posters intentionally null so the UI
+  // shows a placeholder icon rather than fake Unsplash photos.
+  const demoTitles = [
+    'Phim đang cập nhật #1',
+    'Phim đang cập nhật #2',
+    'Phim đang cập nhật #3',
+  ]
+  for (let d = 0; d < days.length; d++) {
+    const day = days[d]
+    const slotCount = 3 + (d % 2)
+    for (let s = 0; s < slotCount; s++) {
+      day.slots.push({
+        id: `${day.date}-demo-${s}`,
+        movieTitle: demoTitles[(d + s) % demoTitles.length],
+        posterUrl: null,
+        time: SHOW_TIMES[(s + d) % SHOW_TIMES.length],
+        cinema: CINEMAS[(s + d) % CINEMAS.length],
+        format: FORMATS[s % FORMATS.length],
         price: `${75 + s * 10}.000₫`,
       })
     }
-
-    // Sort by time
-    slots.sort((a, b) => a.time.localeCompare(b.time))
-
-    days.push({
-      date: dateStr,
-      label: `${dayName}, ${dd}/${mm}`,
-      isToday: d === 0,
-      slots,
-    })
+    day.slots.sort((a, b) => a.time.localeCompare(b.time))
   }
-
-  return days
+  return { days, isDemo: true }
 }

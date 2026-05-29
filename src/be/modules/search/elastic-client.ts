@@ -88,17 +88,43 @@ export async function closeClient() {
 
 // ─── Index Mapping ──────────────────────────────────────────────
 
+/**
+ * Movies index mapping.
+ *
+ * Design notes:
+ *   - Every Vietnamese-bearing field also has an `*Ascii` sibling holding
+ *     the diacritics-stripped form. ES `asciifolding` alone gives us
+ *     "people will find người" if they type "nguoi", but the explicit
+ *     keyword + text pair lets the search query do tier-based scoring
+ *     (exact ASCII match boost 90 vs analysed match boost 60, etc.).
+ *   - `.keyword` sub-fields exist on every short text field so we can do
+ *     case-insensitive exact match (via `term` on the keyword + normalised
+ *     query).
+ *   - `description` has NO ASCII sibling — we already de-prioritise it
+ *     with boost 3, an ASCII variant would waste shard size.
+ */
 export const MOVIES_INDEX_MAPPING = {
   settings: {
     number_of_shards: 1,
     number_of_replicas: 0,
     analysis: {
       analyzer: {
+        // Standard tokenizer + lowercase + asciifolding gives us
+        // "nguoi nhen" tokens for "Người Nhện" — Vietnamese-friendly
+        // without needing the (paid) ICU plugin.
         vietnamese_analyzer: {
           type: 'custom' as const,
           tokenizer: 'standard',
           filter: ['lowercase', 'asciifolding'],
         },
+        // Lowercase-only — preserves diacritics for the `_keyword` sibling
+        // case-insensitive comparison (used in fielded keyword term queries).
+        lowercase_keyword: {
+          type: 'custom' as const,
+          tokenizer: 'keyword',
+          filter: ['lowercase'],
+        },
+        // Edge n-gram for autocomplete *Suggest fields.
         autocomplete_analyzer: {
           type: 'custom' as const,
           tokenizer: 'autocomplete_tokenizer',
@@ -113,34 +139,115 @@ export const MOVIES_INDEX_MAPPING = {
       tokenizer: {
         autocomplete_tokenizer: {
           type: 'edge_ngram' as const,
-          min_gram: 2,
+          min_gram: 1,
           max_gram: 20,
           token_chars: ['letter' as const, 'digit' as const],
+        },
+      },
+      normalizer: {
+        // Lowercase-only normaliser for `*Ascii` keyword fields — values
+        // are already ASCII-folded at index time, we just want
+        // case-insensitive term match.
+        ascii_keyword: {
+          type: 'custom' as const,
+          char_filter: [],
+          filter: ['lowercase'],
         },
       },
     },
   },
   mappings: {
     properties: {
-      id:             { type: 'keyword' as const },
-      slug:           { type: 'keyword' as const },
-      title:          { type: 'text' as const, analyzer: 'vietnamese_analyzer', fields: { keyword: { type: 'keyword' as const } } },
-      originalTitle:  { type: 'text' as const, analyzer: 'vietnamese_analyzer', fields: { keyword: { type: 'keyword' as const } } },
-      titleSuggest:   { type: 'text' as const, analyzer: 'autocomplete_analyzer', search_analyzer: 'autocomplete_search_analyzer' },
-      description:    { type: 'text' as const, analyzer: 'vietnamese_analyzer' },
-      actors:         { type: 'text' as const, analyzer: 'vietnamese_analyzer', fields: { keyword: { type: 'keyword' as const } } },
-      directors:      { type: 'text' as const, analyzer: 'vietnamese_analyzer', fields: { keyword: { type: 'keyword' as const } } },
-      categories:     { type: 'keyword' as const },
-      countries:      { type: 'keyword' as const },
+      // ── identifiers ─────────────────────────────────────────────
+      id:   { type: 'keyword' as const },
+      slug: { type: 'keyword' as const },
+
+      // ── primary titles (analysed + .keyword + ascii sibling) ────
+      title: {
+        type: 'text' as const,
+        analyzer: 'vietnamese_analyzer',
+        fields: { keyword: { type: 'keyword' as const, normalizer: 'ascii_keyword' } },
+      },
+      titleAscii: {
+        type: 'text' as const,
+        analyzer: 'standard',
+        fields: { keyword: { type: 'keyword' as const, normalizer: 'ascii_keyword' } },
+      },
+      originalTitle: {
+        type: 'text' as const,
+        analyzer: 'vietnamese_analyzer',
+        fields: { keyword: { type: 'keyword' as const, normalizer: 'ascii_keyword' } },
+      },
+      originalTitleAscii: {
+        type: 'text' as const,
+        analyzer: 'standard',
+        fields: { keyword: { type: 'keyword' as const, normalizer: 'ascii_keyword' } },
+      },
+      // Autocomplete-only field (edge_ngram); kept for fast prefix match.
+      titleSuggest: {
+        type: 'text' as const,
+        analyzer: 'autocomplete_analyzer',
+        search_analyzer: 'autocomplete_search_analyzer',
+      },
+
+      // ── people (actors / directors) ─────────────────────────────
+      actorText:        { type: 'text' as const, analyzer: 'vietnamese_analyzer' },
+      actorTextAscii:   { type: 'text' as const, analyzer: 'standard' },
+      directorText:     { type: 'text' as const, analyzer: 'vietnamese_analyzer' },
+      directorTextAscii:{ type: 'text' as const, analyzer: 'standard' },
+      actorsSuggest:    { type: 'text' as const, analyzer: 'autocomplete_analyzer', search_analyzer: 'autocomplete_search_analyzer' },
+
+      // Characters (role names in the movie) — kept for niche queries.
+      characters:        { type: 'text' as const, analyzer: 'vietnamese_analyzer' },
+      charactersSuggest: { type: 'text' as const, analyzer: 'autocomplete_analyzer', search_analyzer: 'autocomplete_search_analyzer' },
+
+      // ── classification (genres / countries) ─────────────────────
+      categories:        { type: 'keyword' as const },
+      countries:         { type: 'keyword' as const },
+      categoryText:      { type: 'text' as const, analyzer: 'vietnamese_analyzer' },
+      categoryTextAscii: { type: 'text' as const, analyzer: 'standard' },
+      countryText:       { type: 'text' as const, analyzer: 'vietnamese_analyzer' },
+      countryTextAscii:  { type: 'text' as const, analyzer: 'standard' },
+
+      // ── description ─────────────────────────────────────────────
+      // No ASCII sibling — boost is already very low (3); savings > value.
+      description:       { type: 'text' as const, analyzer: 'vietnamese_analyzer' },
+      shortDescription:  { type: 'text' as const, analyzer: 'vietnamese_analyzer' },
+      content:           { type: 'text' as const, analyzer: 'vietnamese_analyzer' },
+      contentAscii:      { type: 'text' as const, analyzer: 'standard' },
+
+      // ── reviews (user-written) ──────────────────────────────────
+      // Aggregated text of approved reviews — title + body concatenated.
+      // Indexed at the same low boost as description so review-only hits
+      // never dominate title matches, but a query phrase that appears
+      // verbatim in a review can still surface that movie.
+      reviewText:      { type: 'text' as const, analyzer: 'vietnamese_analyzer' },
+      reviewTextAscii: { type: 'text' as const, analyzer: 'standard' },
+
+      // ── subtitle / dialogue ─────────────────────────────────────
+      // Plain-text extract of subtitle cues (.vtt → text). Populated
+      // by `npm run search:sync-subtitles` — NOT by the normal indexer
+      // (subtitle download per-movie is too slow for bulk reindex).
+      // Empty for movies without subtitle tracks.
+      subtitleText:      { type: 'text' as const, analyzer: 'vietnamese_analyzer' },
+      subtitleTextAscii: { type: 'text' as const, analyzer: 'standard' },
+
+      // ── misc text ───────────────────────────────────────────────
+      tags:        { type: 'text' as const, analyzer: 'vietnamese_analyzer' },
+      seoKeywords: { type: 'text' as const, analyzer: 'vietnamese_analyzer' },
+
+      // ── numeric / flags ─────────────────────────────────────────
       year:           { type: 'integer' as const },
       tmdbId:         { type: 'integer' as const },
       contentType:    { type: 'keyword' as const },
       quality:        { type: 'keyword' as const },
       language:       { type: 'keyword' as const },
+      // Not indexed — only fetched for response building.
       thumbUrl:       { type: 'keyword' as const, index: false },
       posterUrl:      { type: 'keyword' as const, index: false },
       rating:         { type: 'float' as const },
       viewCount:      { type: 'integer' as const },
+      popularity:     { type: 'float' as const },
       episodeCurrent: { type: 'keyword' as const },
       episodeTotal:   { type: 'integer' as const },
       isActive:       { type: 'boolean' as const },

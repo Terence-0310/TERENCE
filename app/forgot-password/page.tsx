@@ -13,12 +13,26 @@ export default function ForgotPasswordPage() {
   const [success, setSuccess] = useState('')
   const [email, setEmail] = useState('')
 
+  // Client-side validation mirrors server zod schema (email format).
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsLoading(true)
     setError('')
     setSuccess('')
-    
+
+    const trimmed = email.trim()
+    if (!trimmed) {
+      setError('Vui lòng nhập email.')
+      return
+    }
+    if (!EMAIL_RE.test(trimmed)) {
+      setError('Email không hợp lệ.')
+      return
+    }
+
+    setIsLoading(true)
+
     try {
       const res = await fetch('/api/auth/forgot-password', {
         method: 'POST',
@@ -32,10 +46,6 @@ export default function ForgotPasswordPage() {
         setError(data.error || 'Có lỗi xảy ra. Vui lòng thử lại.')
       } else {
         setSuccess(data.message || 'Link khôi phục mật khẩu đã được gửi đến email của bạn.')
-        // In dev mode, we might want to log the token or mock URL if needed.
-        if (data.devToken) {
-           console.log(`[DEV MODE] Password reset token for testing: ${data.devToken}`)
-        }
       }
     } catch {
       setError('Lỗi kết nối. Vui lòng thử lại.')

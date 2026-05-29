@@ -8,11 +8,26 @@
 // Renders as a client component because it depends on localStorage.
 
 import { useContinueWatching } from '@/src/fe/features/movies/hooks/useContinueWatching'
-import { ChevronRight, Play, X, Clock } from 'lucide-react'
+import { Play, X, Clock } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
+import { useState } from 'react'
 import { formatTime } from '@/lib/player/time-format'
 import { Carousel } from '@/src/fe/components/shared/Carousel'
+
+function FallbackImage({ src, alt, className, sizes }: { src: string; alt: string; className: string; sizes: string }) {
+  const [imgError, setImgError] = useState(false)
+  return (
+    <Image
+      src={imgError ? '/placeholder.jpg' : src}
+      alt={alt}
+      fill
+      className={className}
+      sizes={sizes}
+      onError={() => setImgError(true)}
+    />
+  )
+}
 
 export function ContinueWatchingRow() {
   const { items, removeEpisode } = useContinueWatching({ limit: 10 })
@@ -53,10 +68,9 @@ export function ContinueWatchingRow() {
               <Link href={watchUrl} className="block">
                 {/* Thumbnail */}
                 <div className="relative aspect-video overflow-hidden rounded-xl bg-zinc-900 border border-white/5">
-                  <Image
+                  <FallbackImage
                     src={imageUrl}
                     alt={item.movieTitle}
-                    fill
                     className="object-cover transition-transform duration-300 group-hover:scale-105"
                     sizes="(max-width: 640px) 200px, (max-width: 768px) 220px, (max-width: 1024px) 260px, 280px"
                   />
@@ -65,8 +79,8 @@ export function ContinueWatchingRow() {
 
                   {/* Play icon on hover */}
                   <div className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity group-hover:opacity-100">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/90 shadow-lg shadow-primary/30">
-                      <Play className="h-5 w-5 text-white fill-white ml-0.5" />
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary shadow-[0_0_20px_rgba(45,212,191,0.4)] transition-transform hover:scale-110">
+                      <Play className="h-5 w-5 text-teal-950 fill-teal-950 ml-0.5" />
                     </div>
                   </div>
 

@@ -3,11 +3,13 @@
 // ============================================
 
 import { prisma } from '@/lib/db'
+import { withCache } from '@/src/lib/redis'
 import type {
   EpisodePlaybackData,
   MoviePlaybackData,
 } from '@/lib/player/types'
 import { mapMovie, mapEpisode, mapSource, mapSubtitle } from './watch.mapper'
+import { searchMovies } from '@/src/be/modules/search/movie-search-service'
 import type { PlayableSource, PlayableSubtitle } from '@/lib/player/types'
 
 // ── URL validation ──
@@ -40,49 +42,51 @@ export async function getMoviePlaybackData(
   movieIdOrSlug: string,
   episodeSlug?: string,
 ): Promise<MoviePlaybackData | null> {
-  // Try by ID first, then by slug
-  const movie = await prisma.movie.findFirst({
-    where: {
-      OR: [{ id: movieIdOrSlug }, { slug: movieIdOrSlug }],
-      isActive: true,
-    },
-  })
+  return withCache(`playback:${movieIdOrSlug}:${episodeSlug || 'main'}`, 3600, async () => {
+    // Try by ID first, then by slug
+    const movie = await prisma.movie.findFirst({
+      where: {
+        OR: [{ id: movieIdOrSlug }, { slug: movieIdOrSlug }],
+        isActive: true,
+      },
+    })
 
-  if (!movie) return null
+    if (!movie) return null
 
-  // Get published episodes
-  const episodes = await prisma.episode.findMany({
-    where: {
-      movieId: movie.id,
-      isActive: true,
-      isPublished: true,
-      status: 'active',
-    },
-    orderBy: [{ episodeOrder: 'asc' }, { episodeNumber: 'asc' }],
-  })
+    // Get published episodes
+    const episodes = await prisma.episode.findMany({
+      where: {
+        movieId: movie.id,
+        isActive: true,
+        isPublished: true,
+        status: 'active',
+      },
+      orderBy: [{ episodeOrder: 'asc' }, { episodeNumber: 'asc' }],
+    })
 
-  const playableEpisodes = episodes.map(mapEpisode)
+    const playableEpisodes = episodes.map(mapEpisode)
 
-  // Determine current episode
-  let currentEpisodeData: EpisodePlaybackData | null = null
-  if (episodes.length > 0) {
-    let targetEpisode = episodes[0] // default to first
-    if (episodeSlug) {
-      const found = episodes.find(
-        (ep) => ep.episodeSlug === episodeSlug || ep.slug === episodeSlug,
-      )
-      if (found) targetEpisode = found
+    // Determine current episode
+    let currentEpisodeData: EpisodePlaybackData | null = null
+    if (episodes.length > 0) {
+      let targetEpisode = episodes[0] // default to first
+      if (episodeSlug) {
+        const found = episodes.find(
+          (ep) => ep.episodeSlug === episodeSlug || ep.slug === episodeSlug,
+        )
+        if (found) targetEpisode = found
+      }
+
+      currentEpisodeData = await getEpisodePlaybackData(targetEpisode.id, episodes)
     }
 
-    currentEpisodeData = await getEpisodePlaybackData(targetEpisode.id, episodes)
-  }
-
-  return {
-    movie: mapMovie(movie),
-    episodes: playableEpisodes,
-    currentEpisode: currentEpisodeData,
-    totalEpisodes: episodes.length,
-  }
+    return {
+      movie: mapMovie(movie),
+      episodes: playableEpisodes,
+      currentEpisode: currentEpisodeData,
+      totalEpisodes: episodes.length,
+    }
+  })
 }
 
 /**
@@ -211,19 +215,26 @@ export async function getMoviePlaybackByTmdbId(
  * Search for a movie by title — used as final fallback when TMDB ID
  * doesn't match any DB record.
  *
- * Strategy:
- * 1. Convert title to slug and try exact slug match
- * 2. Try case-insensitive title match
- * 3. Try partial title match (first significant word ≥ 3 chars)
+ * Strategy (strict, to keep poster ↔ playback in sync):
+ * 1. Exact slug match
+ * 2. Case-insensitive exact title match
+ * 3. ES search filtered by strict slug-token set equality + year hint
+ *
+ * Hints are used to reject obviously-wrong candidates: if the DB movie
+ * already carries a different tmdbId, or its year is far from the
+ * requested year, we refuse to substitute it.
  *
  * Only returns movies that have at least one episode with a streamUrl.
  */
 export async function getMoviePlaybackByTitle(
   title: string,
   episodeSlug?: string,
+  hints?: { year?: number | null; tmdbId?: number | null },
 ): Promise<MoviePlaybackData | null> {
   // Generate slug from title
   const slug = toSlug(title)
+  const hintYear = hints?.year ?? null
+  const hintTmdbId = hints?.tmdbId ?? null
 
   // 1. Exact slug match
   const bySlug = await prisma.movie.findFirst({
@@ -233,52 +244,75 @@ export async function getMoviePlaybackByTitle(
       episodes: { some: { streamUrl: { not: null } } },
     },
   })
-  if (bySlug) return getMoviePlaybackData(bySlug.id, episodeSlug)
+  if (bySlug && acceptCandidate(bySlug, hintYear, hintTmdbId)) {
+    return getMoviePlaybackData(bySlug.id, episodeSlug)
+  }
 
   // 2. Case-insensitive title match
   const byTitle = await prisma.movie.findFirst({
     where: {
-      title: { equals: title, mode: 'insensitive' } as any,
+      title: { equals: title, mode: 'insensitive' },
       isActive: true,
       episodes: { some: { streamUrl: { not: null } } },
     },
   })
-  if (byTitle) return getMoviePlaybackData(byTitle.id, episodeSlug)
-
-  // 3. Slug-contains match (e.g., "one-piece-film-gold" contains "one-piece")
-  //    Try progressively shorter slug prefixes
-  const slugParts = slug.split('-')
-  if (slugParts.length >= 2) {
-    // Try matching first 2-3 significant words
-    for (let len = Math.min(slugParts.length, 4); len >= 2; len--) {
-      const partialSlug = slugParts.slice(0, len).join('-')
-      if (partialSlug.length < 4) continue // too short, skip
-
-      const byPartialSlug = await prisma.movie.findFirst({
-        where: {
-          slug: { startsWith: partialSlug, mode: 'insensitive' } as any,
-          isActive: true,
-          episodes: { some: { streamUrl: { not: null } } },
-        },
-        orderBy: { updatedAt: 'desc' },
-      })
-      if (byPartialSlug) return getMoviePlaybackData(byPartialSlug.id, episodeSlug)
-    }
+  if (byTitle && acceptCandidate(byTitle, hintYear, hintTmdbId)) {
+    return getMoviePlaybackData(byTitle.id, episodeSlug)
   }
 
-  // 4. Title contains search — find DB movies whose title appears in search title
-  const searchTitle = title.split(':')[0].split('(')[0].trim()
-  const byContains = await prisma.movie.findFirst({
-    where: {
-      title: { contains: searchTitle, mode: 'insensitive' } as any,
-      isActive: true,
-      episodes: { some: { streamUrl: { not: null } } },
-    },
-    orderBy: { updatedAt: 'desc' },
-  })
-  if (byContains) return getMoviePlaybackData(byContains.id, episodeSlug)
+  // 3. Elasticsearch Full-Text Search — fuzzy bridge with strict guards.
+  //    Requires identical set of significant tokens (≥2) AND matching year.
+  //    Previously used a subset check that false-matched "Wonder" → "Wonder Park".
+  try {
+    const searchResult = await searchMovies(title, 1, 5)
+    for (const item of searchResult.items) {
+      if (!isSameSlugTokens(slug, item.slug)) continue
+      if (!yearMatches(item.year, hintYear)) continue
+      if (!tmdbIdMatches(item.tmdbId, hintTmdbId)) continue
+      return getMoviePlaybackData(item.id, episodeSlug)
+    }
+  } catch {
+    // Ignore ES errors
+  }
 
   return null
+}
+
+// True iff two slugs share the SAME set of significant (≥3 char) tokens.
+// Requires both slugs to carry ≥2 significant tokens to avoid single-word
+// false positives like "wonder" ↔ "wonder-park".
+function isSameSlugTokens(a: string, b: string | null | undefined): boolean {
+  if (!a || !b) return false
+  const aTokens = a.split('-').filter(t => t.length >= 3)
+  const bTokens = b.split('-').filter(t => t.length >= 3)
+  if (aTokens.length < 2 || bTokens.length < 2) return false
+  if (aTokens.length !== bTokens.length) return false
+  const bSet = new Set(bTokens)
+  return aTokens.every(t => bSet.has(t))
+}
+
+// Year hint: accept candidate if either side is unknown, otherwise require
+// ±1 year (covers re-releases / region-specific release year drift).
+function yearMatches(candidateYear: number | null | undefined, hintYear: number | null): boolean {
+  if (hintYear == null || candidateYear == null) return true
+  return Math.abs(candidateYear - hintYear) <= 1
+}
+
+// TMDB id hint: if the DB candidate is already enriched with a *different*
+// tmdbId, refuse the match — it's a different movie, no matter how similar
+// the title looks.
+function tmdbIdMatches(candidateTmdbId: number | null | undefined, hintTmdbId: number | null): boolean {
+  if (hintTmdbId == null || candidateTmdbId == null) return true
+  return candidateTmdbId === hintTmdbId
+}
+
+// Direct-Prisma candidate check (same guards as ES path).
+function acceptCandidate(
+  candidate: { year: number | null; tmdbId: number | null },
+  hintYear: number | null,
+  hintTmdbId: number | null,
+): boolean {
+  return yearMatches(candidate.year, hintYear) && tmdbIdMatches(candidate.tmdbId, hintTmdbId)
 }
 
 // ── Multi-Server Sources ──
@@ -286,6 +320,55 @@ export async function getMoviePlaybackByTitle(
 export interface ServerSource {
   name: string
   episodes: { name: string; slug: string; url: string }[]
+}
+
+/**
+ * Shared helper to group episodes into server sources.
+ * @param singleSourcePerEpisode If true, picks only the first valid video source per episode.
+ */
+function _buildServerSourcesMap(episodes: any[], singleSourcePerEpisode: boolean): ServerSource[] {
+  const serverMap = new Map<string, { name: string; slug: string; url: string }[]>()
+
+  for (const ep of episodes) {
+    const serverName = ep.serverName || 'Server 1'
+    const epName = ep.episodeName || `Tập ${ep.episodeNumber}`
+    const epSlug = ep.episodeSlug || `tap-${ep.episodeNumber}`
+
+    let foundSource = false
+
+    // Try VideoSource records first
+    for (const src of ep.videoSources || []) {
+      if (!isValidUrl(src.url)) continue
+      if (src.sourceType === 'iframe' || src.sourceType === 'youtube') continue
+      if (src.sourceType === 'hls' && !isHlsUrl(src.url)) continue
+
+      if (!serverMap.has(serverName)) {
+        serverMap.set(serverName, [])
+      }
+      serverMap.get(serverName)!.push({ name: epName, slug: epSlug, url: src.url })
+      foundSource = true
+
+      if (singleSourcePerEpisode) break
+    }
+
+    // Fallback to legacy streamUrl
+    if (!foundSource && ep.streamUrl && isValidUrl(ep.streamUrl)) {
+      const isEmbed = ep.streamType?.includes('iframe') || ep.streamType?.includes('embed') || ep.streamType?.includes('youtube')
+      if (!isEmbed) {
+        const isHls = ep.streamType === 'hls' || ep.streamType === 'm3u8'
+        if (!isHls || isHlsUrl(ep.streamUrl)) {
+          if (!serverMap.has(serverName)) serverMap.set(serverName, [])
+          serverMap.get(serverName)!.push({ name: epName, slug: epSlug, url: ep.streamUrl })
+        }
+      }
+    }
+  }
+
+  const servers: ServerSource[] = []
+  for (const [name, eps] of serverMap) {
+    if (eps.length > 0) servers.push({ name, episodes: eps })
+  }
+  return servers
 }
 
 /**
@@ -315,55 +398,7 @@ export async function getMultiServerSources(
     orderBy: [{ episodeOrder: 'asc' }],
   })
 
-  // Group by serverName
-  const serverMap = new Map<string, { name: string; slug: string; url: string }[]>()
-
-  for (const ep of episodes) {
-    const serverName = ep.serverName || 'Server 1'
-    const epName = ep.episodeName || `Tập ${ep.episodeNumber}`
-    const epSlug = ep.episodeSlug || `tap-${ep.episodeNumber}`
-
-    // Try VideoSource records first
-    for (const src of ep.videoSources) {
-      if (!isValidUrl(src.url)) continue
-      if (src.sourceType === 'iframe' || src.sourceType === 'youtube') continue
-      if (src.sourceType === 'hls' && !isHlsUrl(src.url)) continue
-
-      if (!serverMap.has(serverName)) {
-        serverMap.set(serverName, [])
-      }
-      serverMap.get(serverName)!.push({
-        name: epName,
-        slug: epSlug,
-        url: src.url,
-      })
-    }
-
-    // Fallback to legacy streamUrl
-    if (!serverMap.has(serverName) && ep.streamUrl && isValidUrl(ep.streamUrl)) {
-      const isEmbed = ep.streamType?.includes('iframe') || ep.streamType?.includes('embed') || ep.streamType?.includes('youtube')
-      if (isEmbed) continue
-      
-      const isHls = ep.streamType === 'hls' || ep.streamType === 'm3u8'
-      if (isHls && !isHlsUrl(ep.streamUrl)) continue
-
-      serverMap.set(serverName, [{
-        name: epName,
-        slug: epSlug,
-        url: ep.streamUrl,
-      }])
-    }
-  }
-
-  // Convert to array
-  const servers: ServerSource[] = []
-  for (const [name, eps] of serverMap) {
-    if (eps.length > 0) {
-      servers.push({ name, episodes: eps })
-    }
-  }
-
-  return servers
+  return _buildServerSourcesMap(episodes, false)
 }
 
 /**
@@ -390,55 +425,7 @@ export async function getAllMovieServers(
     orderBy: [{ episodeOrder: 'asc' }, { episodeNumber: 'asc' }],
   })
 
-  // Group by serverName
-  const serverMap = new Map<string, { name: string; slug: string; url: string }[]>()
-
-  for (const ep of episodes) {
-    const serverName = ep.serverName || 'Server 1'
-    const epName = ep.episodeName || `Tập ${ep.episodeNumber}`
-    const epSlug = ep.episodeSlug || `tap-${ep.episodeNumber}`
-
-    let streamUrl: string | null = null
-
-    // Try VideoSource records first
-    for (const src of ep.videoSources) {
-      if (!isValidUrl(src.url)) continue
-      if (src.sourceType === 'iframe' || src.sourceType === 'youtube') continue
-      if (src.sourceType === 'hls' && !isHlsUrl(src.url)) continue
-      streamUrl = src.url
-      break
-    }
-
-    // Fallback to legacy streamUrl
-    if (!streamUrl && ep.streamUrl && isValidUrl(ep.streamUrl)) {
-      const isEmbed = ep.streamType?.includes('iframe') || ep.streamType?.includes('embed') || ep.streamType?.includes('youtube')
-      if (isEmbed) continue
-
-      const isHls = ep.streamType === 'hls' || ep.streamType === 'm3u8'
-      if (isHls && !isHlsUrl(ep.streamUrl)) continue
-      streamUrl = ep.streamUrl
-    }
-
-    if (streamUrl) {
-      if (!serverMap.has(serverName)) {
-        serverMap.set(serverName, [])
-      }
-      serverMap.get(serverName)!.push({
-        name: epName,
-        slug: epSlug,
-        url: streamUrl,
-      })
-    }
-  }
-
-  const servers: ServerSource[] = []
-  for (const [name, eps] of serverMap) {
-    if (eps.length > 0) {
-      servers.push({ name, episodes: eps })
-    }
-  }
-
-  return servers
+  return _buildServerSourcesMap(episodes, true)
 }
 
 // ── Slug helper ──

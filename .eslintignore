@@ -1,0 +1,18 @@
+# Vendor / generated / build output — not authored here.
+node_modules
+.next
+dist
+build
+coverage
+
+# Public assets and bundled minified libs (164 noisy vendor warnings came from here).
+public/**
+**/*.min.js
+**/*.min.css
+
+# Prisma generated client.
+**/generated/**
+
+# Compiled output of the docs scripts.
+docs/BCCC_CNPM/fill_measurement.js
+docs/BCCC_CNPM/fill_tests.js

@@ -4,6 +4,9 @@
 // ============================================
 
 import { TMDB_CONFIG } from './config'
+import { logger } from '@/src/be/shared/utils/logger'
+
+const log = logger.child({ module: 'tmdb-legacy-client' })
 
 /** Default request timeout in milliseconds */
 const REQUEST_TIMEOUT_MS = 10_000
@@ -45,6 +48,11 @@ export async function tmdbFetch<T>(
     timeout = REQUEST_TIMEOUT_MS,
   } = options
 
+  if (endpoint.includes('NaN') || endpoint.includes('undefined') || endpoint.includes('null')) {
+    log.error({ endpoint }, `Blocked invalid endpoint fetch: ${endpoint}`)
+    throw new Error(`[TMDB] Invalid endpoint: ${endpoint}`)
+  }
+
   const url = new URL(`${TMDB_CONFIG.baseUrl}${endpoint}`)
 
   // Auth + language
@@ -80,7 +88,7 @@ export async function tmdbFetch<T>(
 
       if (!response.ok) {
         // Safe log: never log full URL (contains api_key)
-        console.error(`[TMDB] HTTP ${response.status} — ${endpoint}`)
+        log.error({ status: response.status, endpoint }, `HTTP ${response.status} — ${endpoint}`)
         
         // Don't retry 4xx client errors (not-found, unauthorized, etc.)
         if (response.status >= 400 && response.status < 500) {
@@ -101,7 +109,7 @@ export async function tmdbFetch<T>(
       if (error instanceof TmdbApiError) throw error
 
       if (error instanceof DOMException && error.name === 'AbortError') {
-        console.error(`[TMDB] Timeout after ${timeout}ms — ${endpoint} (attempt ${attempt + 1})`)
+        log.error({ timeout, endpoint, attempt: attempt + 1 }, `Timeout after ${timeout}ms — ${endpoint} (attempt ${attempt + 1})`)
         lastError = new TmdbTimeoutError(endpoint)
         if (attempt < MAX_RETRIES) {
           await sleep(300 * (attempt + 1))
@@ -111,7 +119,7 @@ export async function tmdbFetch<T>(
       }
 
       // Network or unknown error — safe log (no secrets)
-      console.error(`[TMDB] Fetch failed — ${endpoint}: ${(error as Error).message} (attempt ${attempt + 1})`)
+      log.error({ endpoint, err: (error as Error).message, attempt: attempt + 1 }, `Fetch failed — ${endpoint}: ${(error as Error).message} (attempt ${attempt + 1})`)
       lastError = error
       if (attempt < MAX_RETRIES) {
         await sleep(300 * (attempt + 1))

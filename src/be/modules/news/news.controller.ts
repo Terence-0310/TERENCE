@@ -8,7 +8,7 @@ import {
   getNewsByCategory,
   getRelatedMovieNews,
   searchNewsByKeyword,
-} from '@/src/be/modules/news/articles'
+} from '@/src/be/modules/news/news.service'
 
 const VALID_TYPES = ['all', 'trailer', 'review', 'breaking'] as const
 

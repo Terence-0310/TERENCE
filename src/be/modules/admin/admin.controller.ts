@@ -3,6 +3,9 @@ import { requireAdmin, parsePagination } from '@/src/be/modules/admin/api-helper
 import { AdminService } from '@/src/be/modules/admin/admin.service'
 import { prisma } from '@/src/be/shared/db/prisma'
 import { ok, serverError, paginated } from '@/src/be/shared/api-handler'
+import { logger } from '@/src/be/shared/utils/logger'
+
+const log = logger.child({ module: 'admin-controller' })
 
 export class AdminController {
   // GET /api/admin/summary
@@ -68,7 +71,7 @@ export class AdminController {
         },
       })
     } catch (error) {
-      console.error('Admin summary error:', error)
+      log.error({ err: error instanceof Error ? error.message : error }, 'Admin summary error')
       return serverError()
     }
   }
@@ -156,7 +159,7 @@ export class AdminController {
         recentlyUpdatedMovies: recentlyUpdated,
       })
     } catch (error) {
-      console.error('Admin reports error:', error)
+      log.error({ err: error instanceof Error ? error.message : error }, 'Admin reports error')
       return serverError()
     }
   }
@@ -226,7 +229,7 @@ export class AdminController {
 
       return paginated(parsedData, total, page, limit)
     } catch (error) {
-      console.error('Admin logs error:', error)
+      log.error({ err: error instanceof Error ? error.message : error }, 'Admin logs error')
       return serverError()
     }
   }

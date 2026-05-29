@@ -3,7 +3,6 @@
 // ============================================
 
 import { EpisodesRepository } from './episodes.repository'
-import { prisma } from '@/src/be/shared/db/prisma'
 import type { Prisma } from '@prisma/client'
 
 export const EpisodesService = {

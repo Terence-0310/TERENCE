@@ -13,6 +13,20 @@ import { Play, Clock, X, Loader2 } from 'lucide-react'
 import { getContinueWatching as getLocalContinueWatching } from '@/lib/watch-history/service'
 import { formatTime } from '@/lib/player/time-format'
 
+function FallbackImage({ src, alt, className, sizes }: { src: string; alt: string; className: string; sizes: string }) {
+  const [imgError, setImgError] = useState(false)
+  return (
+    <Image
+      src={imgError ? '/placeholder.jpg' : src}
+      alt={alt}
+      fill
+      className={className}
+      sizes={sizes}
+      onError={() => setImgError(true)}
+    />
+  )
+}
+
 interface ContinueItem {
   movieId: string
   movieSlug: string
@@ -119,10 +133,9 @@ export function ContinueWatchingSection() {
               <Link href={watchUrl} className="block">
                 <div className="relative aspect-[2/3] overflow-hidden rounded-xl bg-white/5 border border-white/[0.06]">
                   {(item.posterUrl || item.thumbUrl) ? (
-                    <Image
+                    <FallbackImage
                       src={item.posterUrl || item.thumbUrl || ''}
                       alt={item.movieTitle}
-                      fill
                       className="object-cover transition-transform duration-300 group-hover:scale-105"
                       sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
                     />

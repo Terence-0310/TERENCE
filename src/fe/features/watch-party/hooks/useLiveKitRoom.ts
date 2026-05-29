@@ -12,13 +12,12 @@ import {
   Room,
   RoomEvent,
   Track,
-  RemoteParticipant,
-  RemoteTrack,
-  RemoteTrackPublication,
-  LocalParticipant,
   ConnectionState,
   type Participant,
 } from 'livekit-client'
+import { logger } from '@/src/fe/lib/logger'
+
+const log = logger.child({ module: 'useLiveKitRoom' })
 
 export interface LiveKitParticipant {
   identity: string
@@ -137,7 +136,9 @@ export function useLiveKitRoom(options: UseLiveKitRoomOptions): UseLiveKitRoomRe
         throw new Error(errData.error || 'Failed to get token')
       }
 
-      const { token, wsUrl } = await tokenRes.json()
+      // The `/api/livekit/token` route returns `{ token, url }` — keep this
+      // destructure aligned with the route or LiveKit silently fails to connect.
+      const { token, url: wsUrl } = await tokenRes.json()
 
       if (!wsUrl || !token) {
         throw new Error('LiveKit not configured')
@@ -253,11 +254,18 @@ export function useLiveKitRoom(options: UseLiveKitRoomOptions): UseLiveKitRoomRe
       setConnectionState('connected')
       updateLocalParticipant()
     } catch (err: unknown) {
-      console.error('[useLiveKitRoom] Connect error:', err)
+      log.error({ err: err instanceof Error ? err.message : err }, 'Connect error')
       const message = err instanceof Error ? err.message : 'Connection failed'
       setError(message)
       setConnectionState('disconnected')
-      roomRef.current = null
+      if (roomRef.current) {
+        try { roomRef.current.disconnect() } catch {}
+        roomRef.current = null
+      }
+      // Rethrow so the caller (usePartyCall.joinCall → CallContainer.handleJoin)
+      // can show a toast and roll back the UI stage instead of silently looking
+      // like the user got "kicked out" of the join flow.
+      throw err instanceof Error ? err : new Error(message)
     }
   }, [roomCode, userName, userId, enabled, updateLocalParticipant, updateRemoteParticipants])
 

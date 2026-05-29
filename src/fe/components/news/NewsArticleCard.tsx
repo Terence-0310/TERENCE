@@ -20,11 +20,16 @@ export function NewsArticleCard({ article, compact = false }: NewsArticleCardPro
   const handleImgError = useCallback(() => setImgError(true), [])
   const showImage = article.image && !imgError
 
+  // Internal articles (DB-backed NewsPost) start with `/news/`. External
+  // articles (GNews, fallbacks) open in a new tab. Picking the link target
+  // per-article keeps clicks on our own posts inside the SPA.
+  const isInternal = typeof article.url === 'string' && article.url.startsWith('/')
+
   return (
     <a
       href={article.url}
-      target="_blank"
-      rel="noopener noreferrer"
+      target={isInternal ? undefined : '_blank'}
+      rel={isInternal ? undefined : 'noopener noreferrer'}
       className="group relative overflow-hidden rounded-2xl border border-white/[0.06] bg-card/30 hover:bg-card/50 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/30 flex flex-col"
     >
       {/* Image */}

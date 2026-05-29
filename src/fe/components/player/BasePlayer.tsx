@@ -44,6 +44,18 @@ import {
 } from 'lucide-react'
 import { formatTime } from '@/lib/player/time-format'
 
+// ── Vendor-prefixed fullscreen extensions (Safari / older WebKit) ──
+type WebkitFullscreenDocument = Document & {
+  webkitFullscreenElement?: Element | null
+  webkitExitFullscreen?: () => void
+}
+type WebkitFullscreenElement = HTMLElement & {
+  webkitRequestFullscreen?: () => void
+}
+type WebkitFullscreenVideo = HTMLVideoElement & {
+  webkitEnterFullscreen?: () => void
+}
+
 // ── Props ──
 
 export interface BasePlayerProps {
@@ -131,17 +143,33 @@ export function BasePlayer({
   // ── Fullscreen ──
   const toggleFullscreen = useCallback(() => {
     const container = containerRef.current
+    const video = videoRef.current
     if (!container) return
+    
+    const doc = document as WebkitFullscreenDocument
+    const containerEl = container as WebkitFullscreenElement
+    const videoEl = video as WebkitFullscreenVideo | null
     // Let the fullscreenchange event update state — no optimistic setState
-    if (!document.fullscreenElement) {
-      container.requestFullscreen().catch(() => {})
+    if (!document.fullscreenElement && !doc.webkitFullscreenElement) {
+      if (container.requestFullscreen) {
+        container.requestFullscreen().catch(() => {})
+      } else if (containerEl.webkitRequestFullscreen) {
+        containerEl.webkitRequestFullscreen()
+      } else if (videoEl && typeof videoEl.webkitEnterFullscreen === 'function') {
+        // Fallback for iOS Safari which only allows fullscreen on the <video> element itself
+        videoEl.webkitEnterFullscreen()
+      }
     } else {
-      document.exitFullscreen().catch(() => {})
+      if (document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {})
+      } else if (doc.webkitExitFullscreen) {
+        doc.webkitExitFullscreen()
+      }
     }
-  }, [])
+  }, [videoRef])
 
   useEffect(() => {
-    const cb = () => setIsFullscreen(!!document.fullscreenElement)
+    const cb = () => setIsFullscreen(!!document.fullscreenElement || !!(document as WebkitFullscreenDocument).webkitFullscreenElement)
     document.addEventListener('fullscreenchange', cb)
     // Safari support
     document.addEventListener('webkitfullscreenchange', cb)

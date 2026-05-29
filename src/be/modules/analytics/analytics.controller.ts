@@ -2,6 +2,9 @@ import { NextRequest } from 'next/server'
 import { AnalyticsService } from './analytics.service'
 import { AuthService } from '@/src/be/modules/auth'
 import { ok, badRequest, serverError } from '@/src/be/shared/api-handler'
+import { logger } from '@/src/be/shared/utils/logger'
+
+const log = logger.child({ module: 'analytics-controller' })
 
 export class AnalyticsController {
   /**
@@ -38,7 +41,7 @@ export class AnalyticsController {
 
       return ok({ ok: true })
     } catch (error) {
-      console.error('Analytics tracking error:', error)
+      log.error({ err: error instanceof Error ? error.message : error }, 'Analytics tracking error')
       return serverError('Failed to record tracking')
     }
   }

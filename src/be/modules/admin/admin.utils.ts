@@ -2,18 +2,20 @@
 // Admin Shared — Role guard + AdminLog helper
 // ============================================
 
-import { AuthService } from '@/src/be/modules/auth'
 import { prisma } from '@/src/be/shared/db/prisma'
 import { NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 
 import { requireAdmin as baseRequireAdmin } from '@/src/be/shared/guards/require-auth'
+import { logger } from '@/src/be/shared/utils/logger'
+
+const log = logger.child({ module: 'admin-utils' })
 
 /**
  * Verify admin session using 5-level RBAC. Returns session format or NextResponse error.
  * @param minRole optional, not used anymore because baseRequireAdmin handles dashboard.access correctly.
  */
-export async function requireAdmin(minRole: string = 'editor') {
+export async function requireAdmin(_minRole: string = 'editor') {
   const result = await baseRequireAdmin()
   if (result instanceof Response) {
     return { error: result as NextResponse }
@@ -54,7 +56,7 @@ export async function logAdminAction(
       },
     })
   } catch (err) {
-    console.error('[AdminLog] Failed to write log:', err)
+    log.error({ err: err instanceof Error ? err.message : err }, 'Failed to write log')
   }
 }
 

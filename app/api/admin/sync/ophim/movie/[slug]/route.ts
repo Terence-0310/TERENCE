@@ -5,6 +5,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin, isUser } from '@/src/be/modules/admin/admin.guard'
 import { syncMovieBySlug } from '@/src/be/modules/ophim/ophim-sync-service'
+import { logger } from '@/src/be/shared/utils/logger'
+
+const log = logger.child({ module: 'admin-sync-ophim-movie' })
 
 export async function POST(
   _req: NextRequest,
@@ -26,7 +29,7 @@ export async function POST(
       data: result,
     })
   } catch (error) {
-    console.error('[Admin] OPhim movie sync error:', error)
+    log.error({ err: error instanceof Error ? error.message : error }, 'OPhim movie sync error')
     return NextResponse.json({ success: false, error: 'Sync failed' }, { status: 500 })
   }
 }

@@ -47,8 +47,8 @@ export function UpcomingMovieCard({ movie }: UpcomingMovieCardProps) {
 
         {movie.voteAverage !== undefined && movie.voteAverage > 0 && (
           <div className="absolute top-2 right-2">
-            <span className="inline-flex items-center gap-0.5 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-bold text-yellow-400">
-              <Star className="h-2.5 w-2.5 fill-yellow-400" />
+            <span className="inline-flex items-center gap-0.5 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-bold text-primary">
+              <Star className="h-2.5 w-2.5 fill-primary" />
               {movie.voteAverage.toFixed(1)}
             </span>
           </div>

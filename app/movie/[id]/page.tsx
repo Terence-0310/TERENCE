@@ -6,7 +6,64 @@ import { getMovieDetail } from '@/src/be/services/tmdb/movie-service'
 import { MovieRow } from '@/src/fe/components/shared/MovieRow'
 import { MovieComments } from '@/src/fe/components/shared/MovieComments'
 import { RelatedNews } from '@/src/fe/components/news/RelatedNews'
+import { prisma } from '@/src/be/shared/db/prisma'
+import { generateSlug } from '@/src/be/modules/admin/validators'
 import type { Metadata } from 'next'
+
+/**
+ * Lazy-persist a TMDB-only movie into our DB on first view so it becomes
+ * commentable AND appears in Elasticsearch search results. Mirrors the
+ * pattern used by ensureTmdbSeriesMovie() in app/tv/[id]/page.tsx.
+ *
+ * Side effect: fire-and-forget Elasticsearch index push so the new row is
+ * searchable immediately. Failures here are non-fatal — the page still
+ * renders, and the daily 2 AM reindex cron will eventually pick it up.
+ */
+async function ensureTmdbMovieRow(movie: Awaited<ReturnType<typeof getMovieDetail>>) {
+  const existing = await prisma.movie.findFirst({ where: { tmdbId: movie.id } })
+  if (existing) return existing
+
+  const base = generateSlug(movie.title) || `movie-${movie.id}`
+  let slug = base
+  if (await prisma.movie.findUnique({ where: { slug } })) {
+    slug = `${base}-${movie.id}`
+  }
+
+  let created
+  try {
+    created = await prisma.movie.create({
+      data: {
+        tmdbId: movie.id,
+        slug,
+        title: movie.title,
+        originalTitle: movie.originalTitle || null,
+        description: movie.overview || null,
+        contentType: 'movie',
+        year: movie.year > 0 ? movie.year : null,
+        posterUrl: movie.posterUrl || null,
+        backdropUrl: movie.backdropUrl || null,
+        rating: movie.voteAverage || 0,
+        isActive: true,
+        isPublished: true,
+        status: 'published',
+        metadataSource: 'tmdb',
+      },
+    })
+  } catch {
+    // Race with another concurrent visit — re-read.
+    created = await prisma.movie.findFirst({ where: { tmdbId: movie.id } })
+  }
+
+  // Fire-and-forget ES index. Don't block the page render on this.
+  if (created?.id) {
+    const movieId = created.id
+    import('@/src/be/modules/search/movie-search-indexer')
+      .then(({ indexMovie }) => indexMovie(movieId))
+      .catch(() => {})
+  }
+
+  return created
+}
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -14,20 +71,26 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { id } = await params
-  try {
-    const movie = await getMovieDetail(Number(id))
-    return {
-      title: `${movie.title} (${movie.year}) — Terence`,
-      description: movie.overview?.slice(0, 155) || `Xem ${movie.title} trên Terence`,
-      openGraph: {
-        title: `${movie.title} — Terence`,
-        description: movie.overview || '',
-        images: movie.backdropUrl ? [{ url: movie.backdropUrl, width: 1280, height: 720 }] : [],
-      },
+  // Only hit TMDB when id is numeric — non-numeric ids are DB slugs and
+  // would log a noisy "Blocked invalid endpoint fetch: /movie/NaN".
+  const numericId = Number(id)
+  if (!isNaN(numericId) && numericId > 0) {
+    try {
+      const movie = await getMovieDetail(numericId)
+      return {
+        title: `${movie.title} (${movie.year}) — Terence`,
+        description: movie.overview?.slice(0, 155) || `Xem ${movie.title} trên Terence`,
+        openGraph: {
+          title: `${movie.title} — Terence`,
+          description: movie.overview || '',
+          images: movie.backdropUrl ? [{ url: movie.backdropUrl, width: 1280, height: 720 }] : [],
+        },
+      }
+    } catch {
+      // fall through
     }
-  } catch {
-    return { title: 'Phim — Terence' }
   }
+  return { title: 'Phim — Terence' }
 }
 
 export default async function MovieDetailPage({ params }: PageProps) {
@@ -48,6 +111,11 @@ export default async function MovieDetailPage({ params }: PageProps) {
   } catch {
     notFound()
   }
+
+  // Persist TMDB metadata into our DB on first view so the title becomes
+  // searchable + commentable. Indexing into Elasticsearch is fire-and-forget
+  // inside ensureTmdbMovieRow.
+  ensureTmdbMovieRow(movie).catch(() => {})
 
   const director = movie.crew?.find((c: any) => c.job === 'Director')
 

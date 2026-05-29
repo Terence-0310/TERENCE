@@ -58,6 +58,7 @@ export default function LogsPage() {
   const [logs, setLogs] = useState<LogItem[]>([])
   const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 30, total: 0, totalPages: 0 })
   const [loading, setLoading] = useState(true)
+  const [apiError, setApiError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [actionFilter, setActionFilter] = useState('')
   const [targetTypeFilter, setTargetTypeFilter] = useState('')
@@ -67,6 +68,7 @@ export default function LogsPage() {
 
   const fetchLogs = useCallback(async (page = 1) => {
     setLoading(true)
+    setApiError(null)
     const params = new URLSearchParams({ page: String(page), limit: '30' })
     if (search) params.set('search', search)
     if (actionFilter) params.set('action', actionFilter)
@@ -76,9 +78,18 @@ export default function LogsPage() {
     try {
       const res = await fetch(`/api/admin/logs?${params}`)
       const json = await res.json()
-      setLogs(json.data || [])
-      setPagination(json.pagination || { page: 1, limit: 30, total: 0, totalPages: 0 })
-    } catch { setLogs([]) }
+      if (json.success) {
+        setLogs(json.data || [])
+        setPagination(json.pagination || { page: 1, limit: 30, total: 0, totalPages: 0 })
+      } else {
+        setLogs([])
+        setApiError(`Lỗi ${res.status}: ${json.error || 'Không thể tải dữ liệu'}`)
+      }
+    } catch (err) {
+      console.error('[logs] fetch error:', err)
+      setLogs([])
+      setApiError('Lỗi kết nối đến máy chủ')
+    }
     setLoading(false)
   }, [search, actionFilter, targetTypeFilter, dateFrom, dateTo])
 
@@ -190,6 +201,11 @@ export default function LogsPage() {
           <CardTitle className="text-lg">Lịch sử hoạt động ({pagination.total})</CardTitle>
         </CardHeader>
         <CardContent>
+          {apiError && (
+            <div className="mb-4 rounded-lg bg-red-500/10 border border-red-500/30 px-4 py-3 text-sm text-red-400">
+              {apiError}
+            </div>
+          )}
           {loading ? (
             <div className="flex justify-center py-12">
               <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full" />

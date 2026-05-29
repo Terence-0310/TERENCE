@@ -3,16 +3,21 @@
 // ============================================
 
 import { NextRequest, NextResponse } from 'next/server'
-import { AuthService } from '@/src/be/modules/auth'
 import { deleteWatchRecord } from '@/src/be/modules/watch/watch-history-service'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { logger } from '@/src/be/shared/utils/logger'
+
+const log = logger.child({ module: 'watch-history-id' })
 
 export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await AuthService.getSession()
-    if (!session?.user?.id) {
+    const session = await getServerSession(authOptions)
+    const userId = session?.user?.id
+    if (!userId) {
       return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 })
     }
 
@@ -21,7 +26,7 @@ export async function DELETE(
       return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 })
     }
 
-    const deleted = await deleteWatchRecord(id, session.user.id)
+    const deleted = await deleteWatchRecord(id, userId)
 
     if (!deleted) {
       return NextResponse.json({ success: false, error: 'Record not found' }, { status: 404 })
@@ -33,7 +38,7 @@ export async function DELETE(
     if (message.includes('Not authorized')) {
       return NextResponse.json({ success: false, error: message }, { status: 403 })
     }
-    console.error('[API] /v1/watch-history/[id] DELETE error:', error)
+    log.error({ err: error instanceof Error ? error.message : error }, '/v1/watch-history/[id] DELETE error')
     return NextResponse.json({ success: false, error: 'Internal Server Error' }, { status: 500 })
   }
 }

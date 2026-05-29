@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { Play } from 'lucide-react'
@@ -35,6 +35,7 @@ export function ServerEpisodeList({
               <Link
                 key={ep.slug}
                 href={`/watch/${movieId}?ep=${ep.slug}`}
+                prefetch={false}
                 className={`flex items-center justify-center rounded-lg p-2 text-sm font-semibold transition-colors ${
                   isCurrent
                     ? 'bg-primary text-white shadow-lg shadow-primary/20'
@@ -55,25 +56,27 @@ export function ServerEpisodeList({
               <Link
                 key={ep.slug}
                 href={`/watch/${movieId}?ep=${ep.slug}`}
+                prefetch={false}
                 className={`group relative flex-shrink-0 flex flex-col gap-2 rounded-xl p-2 transition-all ${
                   isCurrent
-                    ? 'bg-[#31CDB8]/10 border border-[#31CDB8]/30 max-w-[200px]'
+                    ? 'bg-primary/10 border border-primary/30 max-w-[200px]'
                     : 'hover:bg-white/5 border border-transparent max-w-[200px]'
                 }`}
               >
-                <div className="relative h-[80px] w-[142px] overflow-hidden rounded-lg bg-[#0A0E17]">
+                <div className="relative h-[80px] w-[142px] overflow-hidden rounded-lg bg-background">
                   <Image 
                     src={backdropUrl} 
                     alt="" 
                     fill 
+                    sizes="142px"
                     className={`object-cover transition duration-300 ${isCurrent ? 'opacity-100 scale-105' : 'opacity-70 group-hover:opacity-100 group-hover:scale-105'}`} 
                   />
                   <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors" />
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    {isCurrent && <Play className="h-6 w-6 fill-[#31CDB8] text-[#31CDB8] drop-shadow-md" />}
+                    {isCurrent && <Play className="h-6 w-6 fill-primary text-primary drop-shadow-md" />}
                   </div>
                 </div>
-                <span className={`text-[13px] font-medium px-1 truncate ${isCurrent ? 'text-[#31CDB8]' : 'text-white/90'}`}>
+                <span className={`text-[13px] font-medium px-1 truncate ${isCurrent ? 'text-primary' : 'text-white/90'}`}>
                   {ep.title || `Tập ${ep.number}`}
                 </span>
               </Link>
@@ -84,38 +87,60 @@ export function ServerEpisodeList({
   }
 
   // 1. Group DB episodes by serverName
-  // We use useMemo to only group once
+  // Optimize algorithm using simple Dictionary mapping
   const serverGroups = useMemo(() => {
-    const map = new Map<string, PlayableEpisode[]>()
-    for (const ep of episodeList) {
+    const dict: Record<string, PlayableEpisode[]> = {}
+    for (let i = 0; i < episodeList.length; i++) {
+      const ep = episodeList[i]
       const srvName = ep.serverName || 'Máy chủ 1'
-      if (!map.has(srvName)) map.set(srvName, [])
-      map.get(srvName)!.push(ep)
+      if (!dict[srvName]) dict[srvName] = []
+      dict[srvName].push(ep)
     }
-    return Array.from(map.entries()).map(([serverName, episodes]) => ({
+    
+    return Object.entries(dict).map(([serverName, episodes]) => ({
       serverName,
-      episodes
+      // Ensure episodes are sorted properly
+      episodes: episodes.sort((a, b) => (a.episodeNumber || 0) - (b.episodeNumber || 0))
     }))
   }, [episodeList])
 
-  // 2. State for active tab.
-  // Default to the server of the currently playing episode.
-  const initialActiveServer = useMemo(() => {
+  const [activeServer, setActiveServer] = useState<string>('')
+  const [activeChunk, setActiveChunk] = useState<number>(0)
+
+  // 2. Sync state when currentEpisode changes or when initialized
+  useEffect(() => {
     if (currentEpisodeId) {
       const ep = episodeList.find(e => e.id === currentEpisodeId)
-      if (ep && ep.serverName) return ep.serverName
+      if (ep) {
+        setActiveServer(ep.serverName || '')
+      }
+    } else if (currentEpisodeSlug) {
+      const ep = episodeList.find(e => e.episodeSlug === currentEpisodeSlug)
+      if (ep) {
+        setActiveServer(ep.serverName || '')
+      }
+    } else if (!activeServer && serverGroups.length > 0) {
+      setActiveServer(serverGroups[0].serverName)
     }
-    if (serverGroups.length > 0) {
-      return serverGroups[0].serverName
-    }
-    return 'Máy chủ 1'
-  }, [currentEpisodeId, episodeList, serverGroups])
+  }, [currentEpisodeId, currentEpisodeSlug, episodeList, serverGroups, activeServer])
 
-  const [activeServer, setActiveServer] = useState<string>(initialActiveServer)
+  // Sync chunk when server or current episode changes
+  useEffect(() => {
+    if (!activeServer) return
+    const currentActiveEpisodes = episodeList.filter(ep => ep.serverName === activeServer)
+    const currentIdx = currentActiveEpisodes.findIndex(ep => ep.id === currentEpisodeId || ep.episodeSlug === currentEpisodeSlug)
+    if (currentIdx >= 0) {
+      setActiveChunk(Math.floor(currentIdx / 100))
+    } else {
+      setActiveChunk(0)
+    }
+  }, [activeServer, currentEpisodeId, currentEpisodeSlug, episodeList])
 
   // 3. Render tabs if multiple servers
   const hasMultipleServers = serverGroups.length > 1
-  const activeEpisodes = serverGroups.find(g => g.serverName === activeServer)?.episodes || []
+  const activeEpisodes = useMemo(() => {
+    return serverGroups.find(g => g.serverName === activeServer)?.episodes || []
+  }, [serverGroups, activeServer])
 
   return (
     <div className="w-full flex-col flex gap-4">
@@ -129,7 +154,7 @@ export function ServerEpisodeList({
                 onClick={() => setActiveServer(group.serverName)}
                 className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all border ${
                   isActive 
-                    ? 'bg-[#31CDB8]/20 text-[#31CDB8] border-[#31CDB8]/40 shadow-[0_0_15px_rgba(49,205,184,0.1)]' 
+                    ? 'bg-primary/20 text-primary border-primary/40 shadow-[0_0_15px_rgba(45,212,191,0.1)]' 
                     : 'bg-white/5 text-white/50 border-white/[0.04] hover:bg-white/10 hover:text-white/80'
                 }`}
               >
@@ -141,15 +166,38 @@ export function ServerEpisodeList({
       )}
 
       {/* Render Episodes for the active server */}
+      {activeEpisodes.length > 100 && (
+        <div className="flex flex-wrap gap-2 mb-4">
+          {Array.from({ length: Math.ceil(activeEpisodes.length / 100) }).map((_, i) => {
+            const start = i * 100 + 1
+            const end = Math.min((i + 1) * 100, activeEpisodes.length)
+            return (
+              <button
+                key={i}
+                onClick={() => setActiveChunk(i)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                  activeChunk === i 
+                    ? 'bg-primary text-white shadow-md' 
+                    : 'bg-white/5 text-white/50 hover:bg-white/10 hover:text-white'
+                }`}
+              >
+                Tập {start} - {end}
+              </button>
+            )
+          })}
+        </div>
+      )}
+
       {activeEpisodes.length > 30 ? (
         <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-12 lg:grid-cols-16 gap-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-          {activeEpisodes.map((ep) => {
+          {activeEpisodes.slice(activeChunk * 100, (activeChunk + 1) * 100).map((ep) => {
             const slug = ep.episodeSlug || `tap-${ep.episodeNumber}`
             const isCurrent = currentEpisodeId === ep.id
             return (
               <Link
                 key={ep.id}
                 href={`/watch/${movieSlug}?ep=${slug}`}
+                prefetch={false}
                 className={`flex items-center justify-center rounded-lg p-2 text-sm font-semibold transition-colors ${
                   isCurrent
                     ? 'bg-primary text-white shadow-[0_0_15px_rgba(45,212,191,0.3)] border border-primary/50'
@@ -171,18 +219,20 @@ export function ServerEpisodeList({
               <Link
                 key={ep.id}
                 href={`/watch/${movieSlug}?ep=${slug}`}
+                prefetch={false}
                 className={`group relative flex-shrink-0 flex flex-col gap-2 rounded-xl p-2 transition-all ${
                   isCurrent
-                    ? 'bg-[#31CDB8]/10 border border-[#31CDB8]/30 max-w-[200px]'
+                    ? 'bg-primary/10 border border-primary/30 max-w-[200px]'
                     : 'hover:bg-white/5 border border-transparent max-w-[200px]'
                 }`}
               >
-                <div className="relative h-[80px] w-[142px] overflow-hidden rounded-lg bg-[#0A0E17]">
+                <div className="relative h-[80px] w-[142px] overflow-hidden rounded-lg bg-background">
                   {ep.thumbnailUrl || backdropUrl ? (
                     <Image 
                       src={ep.thumbnailUrl || backdropUrl} 
                       alt="" 
                       fill 
+                      sizes="142px"
                       className={`object-cover transition duration-300 ${isCurrent ? 'opacity-100 scale-105' : 'opacity-70 group-hover:opacity-100 group-hover:scale-105'}`} 
                     />
                   ) : (
@@ -192,10 +242,10 @@ export function ServerEpisodeList({
                   )}
                   <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors" />
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    {isCurrent && <Play className="h-6 w-6 fill-[#31CDB8] text-[#31CDB8] drop-shadow-md" />}
+                    {isCurrent && <Play className="h-6 w-6 fill-primary text-primary drop-shadow-md" />}
                   </div>
                 </div>
-                <span className={`text-[13px] font-medium px-1 truncate ${isCurrent ? 'text-[#31CDB8]' : 'text-white/90'}`}>
+                <span className={`text-[13px] font-medium px-1 truncate ${isCurrent ? 'text-primary' : 'text-white/90'}`}>
                   {ep.episodeName || `Tập ${ep.episodeNumber}`}
                 </span>
               </Link>

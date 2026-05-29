@@ -1,13 +1,15 @@
-'use client'
 // ============================================
 // TrendingRankings — 3-column ranking section
 // ============================================
-// Fetches data via Server Component (SSR) for optimal LCP.
+// Server Component: fetches data via Prisma (SSR) for optimal LCP.
 // Sôi nổi nhất | Yêu thích nhất | Bình luận mới
 
 import { TrendingUp, Play } from 'lucide-react'
 import Link from 'next/link'
 import { prisma } from '@/src/be/shared/db/prisma'
+import { logger } from '@/src/fe/lib/logger'
+
+const log = logger.child({ module: 'TrendingRankings' })
 
 interface RankedMovie {
   rank: number
@@ -33,13 +35,13 @@ export async function TrendingRankings() {
   try {
     const [tMovies, lMovies, rReviews] = await Promise.all([
       prisma.movie.findMany({
-        where: { isActive: true, isPublished: true },
+        where: { isActive: true, isPublished: true, OR: [{ posterUrl: { not: null } }, { thumbUrl: { not: null } }] },
         orderBy: { viewCount: 'desc' },
         take: 5,
         select: { id: true, title: true, slug: true, posterUrl: true, thumbUrl: true, viewCount: true }
       }),
       prisma.movie.findMany({
-        where: { isActive: true, isPublished: true },
+        where: { isActive: true, isPublished: true, OR: [{ posterUrl: { not: null } }, { thumbUrl: { not: null } }] },
         orderBy: {
           favorites: { _count: 'desc' }
         },
@@ -59,9 +61,9 @@ export async function TrendingRankings() {
 
     trending = tMovies.map((m, i) => ({ rank: i + 1, movie: { id: m.id, title: m.title, slug: m.slug, posterUrl: m.posterUrl || m.thumbUrl }, viewCount: m.viewCount }))
     mostLiked = lMovies.map((m, i) => ({ rank: i + 1, movie: { id: m.id, title: m.title, slug: m.slug, posterUrl: m.posterUrl || m.thumbUrl }, favoriteCount: m._count?.favorites || 0 }))
-    recentReviews = rReviews as any[]
+    recentReviews = rReviews
   } catch (err) {
-    console.error('TrendingRankings fetch error:', err)
+    log.error({ err: err instanceof Error ? err.message : err }, 'TrendingRankings fetch error')
   }
 
   const hasData = trending.length > 0 || mostLiked.length > 0 || recentReviews.length > 0
@@ -153,10 +155,6 @@ function RankingColumn({
                   }
                   alt={item.movie.title}
                   className="h-8 w-8 rounded object-cover border border-white/10 shrink-0"
-                  onError={(e) => { 
-                    e.currentTarget.onerror = null; 
-                    e.currentTarget.src = '/placeholder.jpg';
-                  }}
                 />
               )}
 

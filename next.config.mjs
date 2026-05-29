@@ -1,8 +1,17 @@
+// `output: 'standalone'` is required for the Docker/Linux production image
+// (the Dockerfile copies `.next/standalone`). On Windows it breaks the build
+// with `EINVAL` while copying traced chunk files whose names contain `node:`
+// (the `:` is illegal in Windows filenames), made worse by the Vietnamese +
+// `[ ]` characters in the project path. So enable standalone everywhere EXCEPT
+// local Windows builds. Force it on with NEXT_OUTPUT_STANDALONE=1 if needed.
+const enableStandalone =
+  process.env.NEXT_OUTPUT_STANDALONE === '1' || process.platform !== 'win32'
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'standalone',
+  ...(enableStandalone ? { output: 'standalone' } : {}),
   images: {
-    unoptimized: false,
+    unoptimized: true,
     remotePatterns: [
       {
         protocol: 'https',
@@ -13,10 +22,6 @@ const nextConfig = {
         hostname: '**',
       },
     ],
-    // Optimize image sizes for common breakpoints
-    deviceSizes: [640, 750, 828, 1080, 1200, 1920],
-    imageSizes: [16, 32, 48, 64, 96, 128, 256],
-    formats: ['image/avif', 'image/webp'],
   },
   // Pass server-only env vars to server components / API routes
   env: {

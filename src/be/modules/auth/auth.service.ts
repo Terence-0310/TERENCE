@@ -5,6 +5,10 @@
 import bcrypt from 'bcryptjs'
 import { cookies, headers } from 'next/headers'
 import * as AuthRepository from './auth.repository'
+import { generateToken, sendVerificationEmail } from '@/lib/mail'
+import { logger } from '@/src/be/shared/utils/logger'
+
+const log = logger.child({ module: 'auth-service' })
 
 const SALT_ROUNDS = 12
 const SESSION_COOKIE = 'terence_session'
@@ -20,15 +24,34 @@ export interface PublicUser {
 
 export const AuthService = {
   // ── Password ──────────────────────────────
+  /**
+   * Hashes a plain text password using bcrypt.
+   * 
+   * @param password - The plain text password to hash
+   * @returns The hashed password string
+   */
   async hashPassword(password: string): Promise<string> {
     return bcrypt.hash(password, SALT_ROUNDS)
   },
 
+  /**
+   * Verifies a plain text password against a hashed password.
+   * 
+   * @param password - The plain text password
+   * @param hash - The hashed password stored in the database
+   * @returns True if the password matches, false otherwise
+   */
   async verifyPassword(password: string, hash: string): Promise<boolean> {
     return bcrypt.compare(password, hash)
   },
 
   // ── Session ───────────────────────────────
+  /**
+   * Creates a new user session, invalidates expired ones, and sets a cookie.
+   * 
+   * @param userId - The ID of the user to create a session for
+   * @returns The generated session ID
+   */
   async createSession(userId: string): Promise<string> {
     await AuthRepository.deleteExpiredSessions(userId)
     const expiresAt = new Date(Date.now() + SESSION_MAX_AGE)
@@ -46,6 +69,13 @@ export const AuthService = {
     return session.id
   },
 
+  /**
+   * Finds a session by ID and verifies if it is still valid.
+   * Invalidates the session if it has expired.
+   * 
+   * @param sessionId - The session ID to check
+   * @returns The valid session object or null if invalid/expired
+   */
   async findValidSession(sessionId: string) {
     const session = await AuthRepository.findSessionById(sessionId)
     if (!session) return null
@@ -56,6 +86,11 @@ export const AuthService = {
     return session
   },
 
+  /**
+   * Retrieves the current session from cookies or authorization header.
+   * 
+   * @returns The current valid session or null if not authenticated
+   */
   async getSession() {
     // 1. Cookie
     const cookieStore = await cookies()
@@ -78,6 +113,9 @@ export const AuthService = {
     return null
   },
 
+  /**
+   * Deletes the current active session and removes the session cookie.
+   */
   async deleteSession() {
     const cookieStore = await cookies()
     const sessionId = cookieStore.get(SESSION_COOKIE)?.value
@@ -87,6 +125,12 @@ export const AuthService = {
     cookieStore.delete(SESSION_COOKIE)
   },
 
+  /**
+   * Extracts the session ID from a raw cookie string.
+   * 
+   * @param cookieHeader - The raw cookie header string
+   * @returns The extracted session ID or null
+   */
   getSessionIdFromCookie(cookieHeader: string | null): string | null {
     if (!cookieHeader) return null
     const match = cookieHeader.split(';').find((c) => c.trim().startsWith(`${SESSION_COOKIE}=`))
@@ -94,18 +138,54 @@ export const AuthService = {
   },
 
   // ── Current User ──────────────────────────
+  /**
+   * Retrieves the currently authenticated user based on session or NextAuth.
+   * 
+   * @returns The public user profile or null if not authenticated
+   */
   async getCurrentUser(): Promise<PublicUser | null> {
-    // 1. Try NextAuth session first (primary)
+    // 1. Try NextAuth JWT token directly from cookies (Next.js 16 compatible)
+    try {
+      const cookieStore = await cookies()
+      const isSecure = !!cookieStore.get('__Secure-next-auth.session-token')
+      const cookieName = isSecure ? '__Secure-next-auth.session-token' : 'next-auth.session-token'
+      const sessionToken = cookieStore.get(cookieName)?.value
+
+      if (sessionToken) {
+        const { getToken } = await import('next-auth/jwt')
+        const mockReq = new Request('http://localhost', {
+          headers: { cookie: `${cookieName}=${sessionToken}` },
+        })
+        // TS: getToken's req type is the Node IncomingMessage / NextRequest union; a plain Request works at runtime when cookie header is set.
+        const token = await getToken({
+          req: mockReq as unknown as Parameters<typeof getToken>[0]['req'],
+          secret: process.env.NEXTAUTH_SECRET,
+        })
+        if (token) {
+          return {
+            id: (token.id as string) || (token.sub as string) || '',
+            email: (token.email as string) || '',
+            name: (token.name as string) || '',
+            role: (token.role as string) || 'USER',
+            avatar: (token.picture as string) || null,
+          }
+        }
+      }
+    } catch {
+      // fall through to getServerSession
+    }
+
+    // 2. Fallback: getServerSession (may not work reliably in Next.js 16)
     try {
       const { getServerSession } = await import('next-auth/next');
       const { authOptions } = await import('@/lib/auth');
       const nextSession = await getServerSession(authOptions);
       if (nextSession?.user) {
         return {
-          id: (nextSession.user as any).id || '',
+          id: nextSession.user.id || '',
           email: nextSession.user.email || '',
           name: nextSession.user.name || '',
-          role: (nextSession.user as any).role || 'USER',
+          role: nextSession.user.role || 'USER',
           avatar: nextSession.user.image || null,
         }
       }
@@ -123,6 +203,21 @@ export const AuthService = {
       name: session.user.name,
       role: session.user.role,
       avatar: session.user.avatar,
+    }
+  },
+
+  // ── Verification ──────────────────────────
+  async triggerEmailVerification(email: string, name: string): Promise<boolean> {
+    try {
+      await AuthRepository.deleteVerificationTokensByIdentifier(email)
+      const token = generateToken()
+      // Token valid for 24h
+      await AuthRepository.createVerificationToken(email, token, new Date(Date.now() + 24 * 60 * 60 * 1000))
+      await sendVerificationEmail(email, token, name)
+      return true
+    } catch (e) {
+      log.error({ err: e instanceof Error ? e.message : e }, 'Failed to trigger email verification')
+      return false
     }
   }
 }

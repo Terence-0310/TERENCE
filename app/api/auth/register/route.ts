@@ -1,87 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/src/be/shared/db/prisma";
-import { AuthService } from "@/src/be/modules/auth";
-import { generateToken, sendVerificationEmail } from "@/lib/mail";
-import { z } from "zod";
+import { signup } from "@/src/be/modules/auth/auth.controller";
+import { logger } from '@/src/be/shared/utils/logger'
 
-const registerSchema = z.object({
-  name: z.string().min(1, "Vui lòng nhập tên"),
-  email: z.string().email("Email không hợp lệ"),
-  password: z.string().min(6, "Mật khẩu phải có ít nhất 6 ký tự"),
-  captchaToken: z.string().optional(),
-});
+const log = logger.child({ module: 'auth-register' })
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const result = registerSchema.safeParse(body);
-
-    if (!result.success) {
-      return NextResponse.json({ error: result.error.errors[0].message }, { status: 400 });
-    }
-
-    const { name, email, password, captchaToken } = result.data;
-
-
-
-    const existingUser = await prisma.user.findUnique({
-      where: { email: email.toLowerCase() },
-    });
-
-    if (existingUser) {
-      return NextResponse.json({ error: "Email đã được sử dụng" }, { status: 400 });
-    }
-
-    const hashedPassword = await AuthService.hashPassword(password);
-
-    const user = await prisma.user.create({
-      data: {
-        name,
-        email: email.toLowerCase(),
-        passwordHash: hashedPassword,
-        role: "USER",
-        isActive: true,
-        isEmailVerified: false,
-      },
-      select: { id: true, name: true, email: true, role: true },
-    });
-
-    // ── Send verification email (non-blocking) ──
-    let emailSent = false;
-    const isSystemEmail = email.toLowerCase().endsWith("@terence.vn");
-    
-    if (!isSystemEmail) {
-      try {
-        // Clean up any stale tokens for this email
-        await prisma.verificationToken.deleteMany({
-          where: { identifier: email.toLowerCase() },
-        });
-
-        const token = generateToken();
-        await prisma.verificationToken.create({
-          data: {
-            identifier: email.toLowerCase(),
-            token,
-            expires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24h
-          },
-        });
-
-        await sendVerificationEmail(email.toLowerCase(), token, name);
-        emailSent = true;
-      } catch (mailError) {
-        // Log but don't block registration
-        console.error("Failed to send verification email during registration:", mailError);
-      }
-    }
-
-    return NextResponse.json({
-      user,
-      message: "Tạo tài khoản thành công! Bạn có thể trải nghiệm ngay và xác thực Email sau từ màn hình trang cá nhân.",
-      emailSent,
-    });
+    return await signup(body);
   } catch (error) {
-    console.error("Register Error:", error);
+    log.error({ err: error instanceof Error ? error.message : error }, 'Register Error')
     return NextResponse.json({ error: "Lỗi hệ thống" }, { status: 500 });
   }
 }
-

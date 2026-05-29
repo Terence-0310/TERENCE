@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { MessageSquare, Send, Star, User, Loader2, AlertTriangle, ThumbsUp } from 'lucide-react'
+import { UserAvatar } from '@/src/fe/components/shared/UserAvatar'
 import { useAuth } from '@/src/fe/features/auth/contexts/auth-context'
 import { useAuthModal } from '@/src/fe/components/auth/auth-modal-store'
 import { toast } from 'sonner'
@@ -153,9 +154,9 @@ export function MovieComments({ movieId }: { movieId: string | number }) {
                         key={star}
                         type="button"
                         onClick={() => setRating(star)}
-                        className={`transition ${rating >= star ? 'text-yellow-400' : 'text-white/20 hover:text-yellow-400/50'}`}
+                        className={`transition ${rating >= star ? 'text-primary' : 'text-white/20 hover:text-primary/50'}`}
                       >
-                        <Star className={`h-6 w-6 ${rating >= star ? 'fill-yellow-400' : ''}`} />
+                        <Star className={`h-6 w-6 ${rating >= star ? 'fill-primary' : ''}`} />
                       </button>
                     ))}
                   </div>
@@ -201,7 +202,7 @@ export function MovieComments({ movieId }: { movieId: string | number }) {
               <span className="text-sm font-semibold text-white/70">{comments.length} bình luận</span>
               <select 
                 value={sortBy} 
-                onChange={(e) => setSortBy(e.target.value as any)}
+                onChange={(e) => setSortBy(e.target.value as 'newest' | 'helpful' | 'rating')}
                 className="bg-transparent border border-white/10 text-white text-xs rounded-lg px-3 py-1.5 focus:outline-none focus:border-primary/50"
               >
                 <option value="newest" className="bg-background text-white">Mới nhất</option>
@@ -223,13 +224,13 @@ export function MovieComments({ movieId }: { movieId: string | number }) {
             ) : (
               sortedComments.map((c: any) => (
                 <div key={c.id} className="flex gap-4 rounded-xl bg-card border border-white/[0.04] p-5 transition hover:bg-card/80">
-                  <div className="flex relative h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/20 text-primary overflow-hidden">
-                    {c.avatar ? (
-                      <img src={c.avatar} alt={c.author} className="w-full h-full object-cover" />
-                    ) : (
-                      <span className="font-bold text-sm">{(c.author || 'U').charAt(0).toUpperCase()}</span>
-                    )}
-                  </div>
+                  <UserAvatar
+                    src={c.avatar}
+                    name={c.author}
+                    frameActive={c.frameActive}
+                    badgeActive={c.badgeActive}
+                    className="h-10 w-10"
+                  />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
                       <h4 className="font-semibold text-white/90 truncate">{c.author}</h4>
@@ -239,7 +240,7 @@ export function MovieComments({ movieId }: { movieId: string | number }) {
                       {Array.from({ length: 5 }).map((_, i) => (
                         <Star
                           key={i}
-                          className={`h-3 w-3 ${i < c.rating ? 'fill-yellow-400 text-yellow-400' : 'text-white/10'}`}
+                          className={`h-3 w-3 ${i < c.rating ? 'fill-primary text-primary' : 'text-white/10'}`}
                         />
                       ))}
                     </div>
@@ -273,7 +274,7 @@ export function MovieComments({ movieId }: { movieId: string | number }) {
                   <div className="flex flex-col">
                     <div className="flex gap-0.5 mb-1">
                       {Array.from({ length: 5 }).map((_, i) => (
-                        <Star key={i} className={`h-4 w-4 ${i < Math.round(Number(stats.avg)) ? 'fill-yellow-400 text-yellow-400' : 'text-white/20'}`} />
+                        <Star key={i} className={`h-4 w-4 ${i < Math.round(Number(stats.avg)) ? 'fill-primary text-primary' : 'text-white/20'}`} />
                       ))}
                     </div>
                     <span className="text-xs text-white/50">{stats.total} bài đánh giá</span>
@@ -289,7 +290,7 @@ export function MovieComments({ movieId }: { movieId: string | number }) {
                       </div>
                       <div className="h-2 flex-1 rounded-full bg-white/5 overflow-hidden">
                         <div 
-                          className="h-full rounded-full bg-yellow-400" 
+                          className="h-full rounded-full bg-primary" 
                           style={{ width: `${row.percent}%` }}
                         />
                       </div>

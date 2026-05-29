@@ -4,6 +4,9 @@ import { serializeMovieCard, serializeMovieDetail } from './serializers'
 import { parseIntParam, parseStringParam, parseBoolParam } from './api-helpers'
 import { getUpcomingMovies } from '@/src/be/modules/news/tmdb-news'
 import { ok, serverError, badRequest, notFound, paginated } from '@/src/be/shared/api-handler'
+import { logger } from '@/src/be/shared/utils/logger'
+
+const log = logger.child({ module: 'movies-public-controller' })
 
 const ALLOWED_TYPES = ['movie', 'series', 'anime']
 const ALLOWED_SORTS = ['newest', 'oldest', 'popular', 'rating', 'year', 'title']
@@ -33,13 +36,13 @@ export class MoviesPublicController {
 
       return paginated(serialized, total, page, perPage)
     } catch (error) {
-      console.error('[MoviesPublicController] getList error:', error)
+      log.error({ err: error instanceof Error ? error.message : error }, 'getList error')
       return serverError()
     }
   }
 
   // GET /api/v1/movies/[slug]
-  static async getDetail(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
+  static async getDetail(_req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
     try {
       const { slug } = await params
 
@@ -54,29 +57,29 @@ export class MoviesPublicController {
 
       return ok(serializeMovieDetail(movie as unknown as Record<string, unknown>))
     } catch (error) {
-      console.error('[MoviesPublicController] getDetail error:', error)
+      log.error({ err: error instanceof Error ? error.message : error }, 'getDetail error')
       return serverError()
     }
   }
 
   // GET /api/v1/movies/most-liked
-  static async getMostLiked(req: NextRequest) {
+  static async getMostLiked(_req: NextRequest) {
     try {
       const data = await getMostLikedMovies()
       return ok(data)
     } catch (error) {
-      console.error('[MoviesPublicController] getMostLiked error:', error)
+      log.error({ err: error instanceof Error ? error.message : error }, 'getMostLiked error')
       return serverError('Không thể tải phim yêu thích nhất')
     }
   }
 
   // GET /api/v1/movies/trending-stats
-  static async getTrendingStats(req: NextRequest) {
+  static async getTrendingStats(_req: NextRequest) {
     try {
       const data = await getTrendingMovies()
       return ok(data)
     } catch (error) {
-      console.error('[MoviesPublicController] getTrendingStats error:', error)
+      log.error({ err: error instanceof Error ? error.message : error }, 'getTrendingStats error')
       return serverError('Không thể tải phim sôi nổi')
     }
   }

@@ -5,6 +5,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin, isUser } from '@/src/be/modules/admin/admin.guard'
 import { enrichMovie } from '@/src/be/modules/tmdb/tmdb-enrichment-service'
+import { logger } from '@/src/be/shared/utils/logger'
+
+const log = logger.child({ module: 'admin-sync-tmdb-movieId' })
 
 export async function POST(
   _req: NextRequest,
@@ -26,7 +29,7 @@ export async function POST(
       data: result,
     })
   } catch (error) {
-    console.error('[Admin] TMDB enrich error:', error)
+    log.error({ err: error instanceof Error ? error.message : error }, 'TMDB enrich error')
     return NextResponse.json({ success: false, error: 'Enrichment failed' }, { status: 500 })
   }
 }

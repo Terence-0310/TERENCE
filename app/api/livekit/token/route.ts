@@ -13,6 +13,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { generateToken, getLiveKitWsUrl, isLiveKitConfigured } from '@/lib/livekit'
 import { z } from 'zod'
+import { logger } from '@/src/be/shared/utils/logger'
+
+const log = logger.child({ module: 'livekit-token' })
 
 // ── Schema ──
 
@@ -27,23 +30,6 @@ const tokenRequestSchema = z.object({
 
 function sanitize(value: string, maxLen = 64): string {
   return value.replace(/[^a-zA-Z0-9_\-]/g, '-').substring(0, maxLen)
-}
-
-function createTokenResponse(params: {
-  roomId: string
-  userId: string
-  userName?: string
-}) {
-  return async () => {
-    const sanitizedRoom = sanitize(params.roomId)
-    const identity = sanitize(params.userId)
-    const name = params.userName || params.userId
-
-    const token = await generateToken(sanitizedRoom, identity, name)
-    const url = getLiveKitWsUrl()
-
-    return NextResponse.json({ token, url })
-  }
 }
 
 // ── GET /api/livekit/token?roomId=xxx&username=xxx&identity=xxx ──
@@ -77,7 +63,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ token, url })
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Internal server error'
-    console.error('[LiveKit Token GET] Error:', message)
+    log.error({ method: 'GET', err: message }, 'Token generation failed')
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }
@@ -121,7 +107,7 @@ export async function POST(request: NextRequest) {
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Internal server error'
     // Never log secrets, only safe error info
-    console.error('[LiveKit Token POST] Error:', message)
+    log.error({ method: 'POST', err: message }, 'Token generation failed')
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }

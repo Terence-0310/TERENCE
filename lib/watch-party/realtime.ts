@@ -14,7 +14,10 @@
 
 import { io, Socket } from 'socket.io-client'
 import type { Room as LiveKitRoom } from 'livekit-client'
-import type { WatchPartySyncEvent, WatchRoomMessage } from './types'
+import type { WatchPartySyncEvent, WatchRoomMessage, WatchRoomMember } from './types'
+import { logger } from '@/src/fe/lib/logger'
+
+const log = logger.child({ module: 'watch-party' })
 
 // ── Types ──
 
@@ -53,11 +56,18 @@ export function createRealtimeChannel(
   let lkRoom: LiveKitRoom | null = null
 
   // ── LiveKit Data Channel Handler ──
+  // Only player-sync (PLAY/PAUSE/SEEK) rides the LK DC fast-path.
+  // Chat is intentionally NOT carried over LK DC because peers who haven't
+  // joined the call have no `lkRoom` and would otherwise never see those
+  // messages — the Socket.IO broadcast is the only common transport.
   const handleLiveKitData = (payload: Uint8Array, participant: any, kind: any, topic?: string) => {
-    if (topic !== 'wp-sync' && topic !== 'wp-chat') return
+    if (topic !== 'wp-sync') return
     try {
       const strData = new TextDecoder().decode(payload)
-      const data = JSON.parse(strData) as any
+      const data = JSON.parse(strData) as WatchPartySyncEvent & {
+        senderId?: string
+        message?: { senderId?: string }
+      }
 
       // System events from server
       if (['JOIN_REQUEST', 'JOIN_APPROVED', 'JOIN_REJECTED'].includes(data.type)) {
@@ -65,10 +75,7 @@ export function createRealtimeChannel(
         return
       }
 
-      // Dispatch to local handlers
       if ((data.type === 'PLAY' || data.type === 'PAUSE' || data.type === 'SEEK') && data.senderId !== memberId) {
-        handlers.forEach((h) => h(data))
-      } else if (data.type === 'CHAT_MESSAGE' && data.message.senderId !== memberId) {
         handlers.forEach((h) => h(data))
       }
     } catch {
@@ -136,17 +143,30 @@ export function createRealtimeChannel(
       )
     })
 
-    // Chat Events (Fallback when not using SFU DataChannel)
+    // Chat Events — always via Socket.IO (LK DC is no longer used for chat,
+    // so peers without an active LK room still receive messages). Sender
+    // dedupes via message id in useWatchParty.
     socket.on('wp:chat-message', (data: WatchRoomMessage) => {
-      if (!lkRoom && data.senderId !== memberId) {
+      if (data.senderId !== memberId) {
         handlers.forEach((h) => h({ type: 'CHAT_MESSAGE', message: data }))
       }
     })
 
     // Room Membership Events (Socket-driven)
     socket.on('wp:user-joined', (data: { userId: string; displayName: string }) => {
+      // TS: WatchRoomMember has more fields than we receive from the socket; the
+      // handlers only consume id/userId/guestName/role/isOnline for the join toast.
       handlers.forEach((h) =>
-        h({ type: 'MEMBER_JOIN', member: { id: data.userId, userId: data.userId, guestName: data.displayName, role: 'viewer', isOnline: true } as any })
+        h({
+          type: 'MEMBER_JOIN',
+          member: {
+            id: data.userId,
+            userId: data.userId,
+            guestName: data.displayName,
+            role: 'viewer',
+            isOnline: true,
+          } as unknown as WatchRoomMember,
+        }),
       )
     })
 
@@ -155,7 +175,7 @@ export function createRealtimeChannel(
     })
 
     socket.on('wp:error', (data: { message: string }) => {
-      console.error('[WatchParty] Socket Error:', data.message)
+      log.error({ message: data.message }, 'Socket Error')
     })
   }
 
@@ -173,14 +193,14 @@ export function createRealtimeChannel(
   }
 
   function send(event: WatchPartySyncEvent) {
-    // ── 1. LiveKit DataChannel Fast-Path (SFU Transport) ──
-    if (lkRoom && (event.type === 'PLAY' || event.type === 'PAUSE' || event.type === 'SEEK' || event.type === 'CHAT_MESSAGE')) {
+    // ── 1. LiveKit DataChannel Fast-Path (sync-only) ──
+    // Chat deliberately falls through to the Socket.IO broadcast below so
+    // peers who haven't joined the call still receive messages.
+    if (lkRoom && (event.type === 'PLAY' || event.type === 'PAUSE' || event.type === 'SEEK')) {
       try {
         const payload = new TextEncoder().encode(JSON.stringify(event))
-        const topic = event.type === 'CHAT_MESSAGE' ? 'wp-chat' : 'wp-sync'
-        lkRoom.localParticipant.publishData(payload, { reliable: true, topic })
+        lkRoom.localParticipant.publishData(payload, { reliable: true, topic: 'wp-sync' })
 
-        // Notify server to gracefully persist state/chat without triggering a noisy broadcast fallback
         if (socket) {
           if (event.type === 'PLAY') {
             socket.emit('wp:sync-time', { roomCode, userId: memberId, currentTime: event.currentTime, isPlaying: true })
@@ -188,18 +208,11 @@ export function createRealtimeChannel(
             socket.emit('wp:sync-time', { roomCode, userId: memberId, currentTime: event.currentTime, isPlaying: false })
           } else if (event.type === 'SEEK') {
             socket.emit('wp:sync-time', { roomCode, userId: memberId, currentTime: event.currentTime, isPlaying: true })
-          } else if (event.type === 'CHAT_MESSAGE') {
-            socket.emit('wp:chat-persist', {
-              roomCode,
-              userId: memberId,
-              displayName: event.message.senderName,
-              content: event.message.content,
-            })
           }
         }
-        return // Short-circuit standard socket broadcast!
+        return
       } catch (err) {
-        console.warn('[WP] LiveKit PublishData failed, falling back to Socket.IO', err)
+        log.warn({ err: err instanceof Error ? err.message : err }, 'LiveKit PublishData failed, falling back to Socket.IO')
       }
     }
 

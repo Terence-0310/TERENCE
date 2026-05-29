@@ -7,6 +7,9 @@
 import { NextRequest } from 'next/server'
 import { suggestMovies } from '@/src/be/modules/search/movie-search-service'
 import { parseIntParam, jsonError } from '@/src/be/modules/movies/api-helpers'
+import { logger } from '@/src/be/shared/utils/logger'
+
+const log = logger.child({ module: 'search-suggest' })
 
 export async function GET(req: NextRequest) {
   try {
@@ -27,7 +30,7 @@ export async function GET(req: NextRequest) {
       meta: { query, source },
     })
   } catch (error) {
-    console.error('[API] /v1/search/suggest error:', error)
+    log.error({ err: error instanceof Error ? error.message : error }, '/v1/search/suggest error')
     return jsonError('Internal Server Error', 500)
   }
 }

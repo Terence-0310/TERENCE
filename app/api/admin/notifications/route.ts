@@ -13,6 +13,9 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/src/be/shared/db/prisma'
 import { requireAdmin } from '@/src/be/modules/admin/api-helpers'
+import { logger } from '@/src/be/shared/utils/logger'
+
+const log = logger.child({ module: 'admin-notifications' })
 
 interface Notification {
   id: string
@@ -189,7 +192,7 @@ export async function GET() {
       unreadCount: result.length,
     })
   } catch (error) {
-    console.error('Notifications API error:', error)
+    log.error({ err: error instanceof Error ? error.message : error }, 'Notifications API error')
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
   }
 }

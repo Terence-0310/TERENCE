@@ -105,7 +105,7 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
   return (
     <main className="min-h-screen bg-background pb-20">
       {/* Hero section */}
-      <div className="relative border-b border-white/[0.04] bg-[#0A0D15]/80 pt-24 pb-12 overflow-hidden">
+      <div className="relative border-b border-white/[0.04] bg-background/80 pt-24 pb-12 overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-transparent opacity-50"></div>
         <div className="absolute -top-32 -left-32 h-[500px] w-[500px] rounded-full bg-primary/20 blur-[120px] pointer-events-none"></div>
 

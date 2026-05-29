@@ -5,7 +5,7 @@
 // Sprint 4A: Extracted from tcoin/page.tsx
 // ============================================
 
-import { Search, Coins, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Search, Coins, History, ChevronLeft, ChevronRight } from 'lucide-react'
 
 interface WalletSummary {
   userId: string
@@ -27,22 +27,17 @@ interface WalletsTabProps {
   onSearchChange: (value: string) => void
   onPageChange: (page: number) => void
   onAdjust: (userId: string, userName: string) => void
+  onViewHistory: (userId: string, userName: string) => void
   formatCoin: (n: number) => string
   formatDate: (d: string) => string
 }
 
 export function WalletsTab({
   wallets, total, page, perPage, search,
-  onSearchChange, onPageChange, onAdjust, formatCoin, formatDate,
+  onSearchChange, onPageChange, onAdjust, onViewHistory, formatCoin, formatDate,
 }: WalletsTabProps) {
-  const filteredWallets = search
-    ? wallets.filter(
-        (w) =>
-          w.userName.toLowerCase().includes(search.toLowerCase()) ||
-          w.email.toLowerCase().includes(search.toLowerCase()),
-      )
-    : wallets
-
+  // Search is server-side: the parent debounces the `search` value and
+  // re-fetches with `?search=`. Render `wallets` directly (no local filter).
   const totalPages = Math.ceil(total / perPage)
 
   return (
@@ -76,7 +71,7 @@ export function WalletsTab({
             </tr>
           </thead>
           <tbody>
-            {filteredWallets.map((w) => (
+            {wallets.map((w) => (
               <tr key={w.userId} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
                 <td className="px-4 py-3">
                   <div>
@@ -100,17 +95,27 @@ export function WalletsTab({
                   {w.lastActivity ? formatDate(w.lastActivity) : '—'}
                 </td>
                 <td className="px-4 py-3 text-right">
-                  <button
-                    onClick={() => onAdjust(w.userId, w.userName)}
-                    className="inline-flex items-center gap-1 rounded-lg bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary transition hover:bg-primary/20"
-                  >
-                    <Coins className="h-3 w-3" />
-                    Điều chỉnh
-                  </button>
+                  <div className="inline-flex gap-1.5">
+                    <button
+                      onClick={() => onViewHistory(w.userId, w.userName)}
+                      className="inline-flex items-center gap-1 rounded-lg bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground transition hover:bg-muted/70"
+                      title="Lịch sử & Hoàn tiền"
+                    >
+                      <History className="h-3 w-3" />
+                      Lịch sử
+                    </button>
+                    <button
+                      onClick={() => onAdjust(w.userId, w.userName)}
+                      className="inline-flex items-center gap-1 rounded-lg bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary transition hover:bg-primary/20"
+                    >
+                      <Coins className="h-3 w-3" />
+                      Điều chỉnh
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
-            {filteredWallets.length === 0 && (
+            {wallets.length === 0 && (
               <tr>
                 <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
                   Không tìm thấy dữ liệu

@@ -4,6 +4,9 @@
 // Server-side only. Handles API calls with timeout, retry, and error handling.
 
 import type { KKPhimCatalogResponse, KKPhimDetailResponse } from './types'
+import { logger } from '@/src/be/shared/utils/logger'
+
+const log = logger.child({ module: 'kkphim-client' })
 
 const DEFAULT_BASE_URL = 'https://phimapi.com'
 const DEFAULT_TIMEOUT = 15_000  // 15 seconds
@@ -61,7 +64,7 @@ async function fetchWithRetry<T>(url: string, timeoutMs: number): Promise<T> {
       // Don't retry on last attempt
       if (attempt < MAX_RETRIES) {
         const delay = RETRY_DELAY_MS * attempt
-        console.warn(`[KKPhim] Attempt ${attempt}/${MAX_RETRIES} failed for ${url}. Retrying in ${delay}ms...`)
+        log.warn({ attempt, maxRetries: MAX_RETRIES, url, delay }, `Attempt ${attempt}/${MAX_RETRIES} failed. Retrying in ${delay}ms...`)
         await new Promise(resolve => setTimeout(resolve, delay))
       }
     }
@@ -77,7 +80,7 @@ export async function fetchVietnameseCatalog(page: number = 1): Promise<KKPhimCa
   // PhimAPI supports list by country!
   const url = `${baseUrl}/v1/api/quoc-gia/viet-nam?page=${page}`
 
-  console.log(`[KKPhim] Fetching VIETNAM page ${page}...`)
+  log.info({ page }, 'Fetching VIETNAM page')
   const data = await fetchWithRetry<any>(url, timeout)
 
   if (!data.status || !data.data || !Array.isArray(data.data.items)) {
@@ -105,14 +108,14 @@ export async function fetchCatalogPage(page: number = 1): Promise<KKPhimCatalogR
   const { baseUrl, timeout } = getConfig()
   const url = `${baseUrl}/danh-sach/phim-moi-cap-nhat?page=${page}`
 
-  console.log(`[KKPhim] Fetching catalog page ${page}...`)
+  log.info({ page }, 'Fetching catalog page')
   const data = await fetchWithRetry<KKPhimCatalogResponse>(url, timeout)
 
   if (!data.status || !Array.isArray(data.items)) {
     throw new Error(`[KKPhim] Invalid catalog response for page ${page}`)
   }
 
-  console.log(`[KKPhim] Got ${data.items.length} items (page ${page}/${data.pagination.totalPages})`)
+  log.info({ count: data.items.length, page, totalPages: data.pagination.totalPages }, `Got ${data.items.length} items`)
   return data
 }
 
@@ -124,7 +127,7 @@ export async function fetchMovieDetail(slug: string): Promise<KKPhimDetailRespon
   const { baseUrl, timeout } = getConfig()
   const url = `${baseUrl}/phim/${encodeURIComponent(slug)}`
 
-  console.log(`[KKPhim] Fetching movie detail: ${slug}`)
+  log.info({ slug }, 'Fetching movie detail')
   const data = await fetchWithRetry<KKPhimDetailResponse>(url, timeout)
 
   if (!data.status || !data.movie) {

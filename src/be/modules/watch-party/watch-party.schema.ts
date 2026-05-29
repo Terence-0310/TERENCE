@@ -109,6 +109,8 @@ export type SendMessageBody = z.infer<typeof sendMessageSchema>
 export const updateRoomSchema = z.object({
   title: z.string().min(1).max(200).optional(),
   isLocked: z.boolean().optional(),
+  // TCoin room-theme perk: host-selected theme id (validated against the registry).
+  theme: z.string().max(40).optional(),
   participantId: z.string().optional() // required if we want to enforce host-only check
 })
 

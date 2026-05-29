@@ -23,6 +23,7 @@ export function mapMovie(m: any): PlayableMovie {
     year: m.year,
     quality: m.quality,
     rating: m.rating,
+    earlyAccessUntil: m.earlyAccessUntil ? new Date(m.earlyAccessUntil).toISOString() : null,
   }
 }
 

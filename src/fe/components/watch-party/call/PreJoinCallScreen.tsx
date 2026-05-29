@@ -8,7 +8,7 @@
 // Separated from in-call UI for clean UX.
 
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Mic, MicOff, Video, VideoOff, Phone, Loader2, Settings, AlertCircle } from 'lucide-react'
+import { Mic, MicOff, Video, VideoOff, Phone, Loader2, AlertCircle } from 'lucide-react'
 
 interface PreJoinCallScreenProps {
   userName: string
@@ -114,7 +114,7 @@ export function PreJoinCallScreen({
   const hasVideo = localStream?.getVideoTracks().some((t) => t.readyState === 'live') ?? false
 
   return (
-    <div className="flex flex-col items-center gap-5 p-6 rounded-2xl bg-[#0a0e1a] border border-white/[0.08]">
+    <div className="flex flex-col items-center gap-5 p-6 rounded-2xl bg-background border border-white/[0.08]">
       {/* Video Preview */}
       <div className="relative w-full max-w-[320px] aspect-video rounded-xl overflow-hidden bg-zinc-900 border border-white/[0.06]">
         {isLoading ? (

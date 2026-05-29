@@ -69,7 +69,7 @@ export async function joinRoom(request: NextRequest) {
         movieId: result.room.movieId,
         episodeId: result.room.episodeId,
         maxMembers: result.room.maxMembers,
-        isLocked: (result.room as any).isLocked,
+        isLocked: result.room.isLocked,
         roomType: result.room.maxMembers <= 2 ? 'duo' : result.room.maxMembers <= 4 ? 'small_group' : 'group_chat',
       },
       participant: {
@@ -136,6 +136,9 @@ export async function getRoom(request: NextRequest, context: RouteContext) {
     const room = await service.getRoom(roomCode.toUpperCase())
     const messages = await service.getMessages(roomCode.toUpperCase(), 50)
 
+    const now = Date.now()
+    const isActive = (d: Date | null | undefined) => !!d && new Date(d).getTime() > now
+
     return NextResponse.json({
       room: {
         id: room.id,
@@ -147,18 +150,24 @@ export async function getRoom(request: NextRequest, context: RouteContext) {
         hostUserId: room.hostUserId,
         host: room.host,
         maxMembers: room.maxMembers,
-        isLocked: (room as any).isLocked,
+        isLocked: room.isLocked,
+        theme: room.theme ?? null,
         roomType: room.maxMembers <= 2 ? 'duo' : room.maxMembers <= 4 ? 'small_group' : 'group_chat',
         createdAt: room.createdAt,
         lastSyncedAt: room.lastSyncedAt,
       },
       participants: room.participants.map((p) => ({
         id: p.id,
+        userId: p.userId,
         displayName: p.displayName,
+        guestName: p.displayName,
+        avatar: p.user?.avatar ?? null,
+        frameActive: isActive(p.user?.avatarFrameUntil),
+        badgeActive: isActive(p.user?.exclusiveBadgeUntil),
         role: p.role,
         isOnline: p.isOnline,
         joinedAt: p.joinedAt,
-        status: (p as any).status,
+        status: p.status,
       })),
       state: room.state ? {
         playbackTime: room.state.playbackTime,
@@ -323,6 +332,7 @@ export async function updateRoom(request: NextRequest, context: RouteContext) {
       roomCode: roomCode.toUpperCase(),
       title: parsed.data.title,
       isLocked: parsed.data.isLocked,
+      theme: parsed.data.theme,
       participantId: parsed.data.participantId
     })
 
@@ -332,7 +342,8 @@ export async function updateRoom(request: NextRequest, context: RouteContext) {
         id: updated.id,
         roomCode: updated.roomCode,
         isLocked: updated.isLocked,
-        title: updated.title
+        title: updated.title,
+        theme: updated.theme ?? null
       }
     })
   } catch (err: unknown) {

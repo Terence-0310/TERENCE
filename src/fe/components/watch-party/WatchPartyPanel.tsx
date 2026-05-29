@@ -8,14 +8,19 @@
 // Uses CallContainer for pre-join → in-call flow.
 
 import { useState, useRef, useEffect } from 'react'
+import useSWR from 'swr'
 import {
   Users, MessageCircle, Send, X, Copy, Check,
-  Crown, Lock, Unlock, CheckCircle2, XCircle, ShieldBan, MicOff
+  Crown, Lock, Unlock, MicOff, ShieldBan, BadgeCheck, Palette
 } from 'lucide-react'
 import type { WatchRoom, WatchRoomMember, WatchRoomMessage } from '@/lib/watch-party/types'
 import type { UsePartyCallReturn } from '@/src/fe/features/watch-party/hooks/usePartyCall'
 import { CallContainer } from '@/src/fe/components/watch-party/call/CallContainer'
+import { HostApprovalList } from '@/src/fe/components/watch-party/HostApprovalList'
 import { resolveThumbnail } from '@/src/be/modules/news/image-resolver'
+import { Switch } from '@/src/fe/components/ui/switch'
+import { UserAvatar } from '@/src/fe/components/shared/UserAvatar'
+import { ROOM_THEMES, getRoomTheme } from '@/lib/watch-party/themes'
 
 // ── Props ──
 
@@ -34,6 +39,7 @@ interface WatchPartyPanelProps {
   // New features
   pendingRequests?: {userId: string; displayName: string; socketId: string}[]
   onToggleLock?: (locked: boolean) => void
+  onSetTheme?: (theme: string) => void
   onApproveJoin?: (userId: string, targetSocketId: string) => void
   onRejectJoin?: (userId: string, targetSocketId: string) => void
   onKickMember?: (targetId: string) => void
@@ -55,6 +61,7 @@ export function WatchPartyPanel({
   call,
   pendingRequests = [],
   onToggleLock,
+  onSetTheme,
   onApproveJoin,
   onRejectJoin,
   onKickMember,
@@ -63,7 +70,19 @@ export function WatchPartyPanel({
   const [chatInput, setChatInput] = useState('')
   const [activeTab, setActiveTab] = useState<'chat' | 'members'>('chat')
   const [copied, setCopied] = useState(false)
+  const [showThemes, setShowThemes] = useState(false)
   const chatContainerRef = useRef<HTMLDivElement>(null)
+
+  // Host's TCoin room-theme perk — gates the theme picker.
+  const { data: perkData } = useSWR(
+    isHost ? '/api/tcoin/my-perks' : null,
+    (url: string) => fetch(url).then((r) => r.json()),
+  )
+  const canUseRoomTheme = !!perkData?.data?.roomThemeActive
+
+  // Applied room theme + a lookup so chat can show each sender's perks.
+  const theme = getRoomTheme(room.theme)
+  const memberById = new Map(members.map((m) => [m.id, m]))
 
   // Auto-scroll chat safely without hijacking main window scroll
   useEffect(() => {
@@ -80,8 +99,10 @@ export function WatchPartyPanel({
   }
 
   function handleCopyCode() {
-    const url = `${window.location.origin}/xem-chung/${room.code}`
-    navigator.clipboard.writeText(url).then(() => {
+    // Copy ONLY the room code so the user can paste it straight into the
+    // "Vào phòng" input. The full share URL has its own dedicated button
+    // (or can be reconstructed by appending the code to /xem-chung/).
+    navigator.clipboard.writeText(room.code).then(() => {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     })
@@ -99,7 +120,7 @@ export function WatchPartyPanel({
   const movieThumb = resolveThumbnail({ directUrl: room.posterUrl })
 
   return (
-    <div className="flex h-full w-full flex-col bg-[#0B1120]">
+    <div className="flex h-full w-full flex-col bg-background" style={theme.panelStyle}>
       {/* ── Header with movie info ── */}
       <div className="flex items-center gap-3 border-b border-white/[0.06] px-4 py-3">
         {/* Movie poster mini */}
@@ -125,16 +146,6 @@ export function WatchPartyPanel({
           </div>
         </div>
         
-        {isHost && (
-          <button
-            onClick={() => onToggleLock?.(!room.isLocked)}
-            className={`rounded-lg p-1.5 transition ${room.isLocked ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' : 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'}`}
-            title={room.isLocked ? "Mở khoá phòng" : "Khoá phòng (Cần phê duyệt)"}
-          >
-            {room.isLocked ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4" />}
-          </button>
-        )}
-
         <button
           onClick={onClose}
           className="ml-1 rounded-lg p-1.5 text-white/40 transition hover:bg-white/10 hover:text-white"
@@ -144,26 +155,87 @@ export function WatchPartyPanel({
       </div>
 
       {/* ── Room Code ── */}
-      <div className="border-b border-white/[0.04] px-5 py-3">
+      <div className="border-b border-white/[0.04] px-5 py-2.5">
         <button
           onClick={handleCopyCode}
-          className="group relative flex w-full items-center justify-between overflow-hidden rounded-[14px] bg-gradient-to-r from-[#2DD4BF]/10 to-[#2DD4BF]/[0.02] border border-[#2DD4BF]/20 px-4 py-2.5 transition-all duration-300 hover:border-[#2DD4BF]/40 hover:shadow-[0_0_15px_rgba(45,212,191,0.15)]"
+          className="flex w-full items-center justify-between rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-left transition hover:border-primary/30 hover:bg-white/[0.04]"
         >
-          {/* Subtle animated background glow */}
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/[0.02] to-transparent -translate-x-full animate-[shimmer_2s_infinite] group-hover:block hidden" />
-          
-          <span className="text-[13px] text-white/60 font-medium">
-            Mã phòng: <span className="ml-1 font-mono text-[15px] font-bold text-[#2DD4BF] drop-shadow-[0_0_8px_rgba(45,212,191,0.5)]">{room.code}</span>
-          </span>
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-black/20 backdrop-blur-md border border-white-5">
-            {copied ? (
-              <Check className="h-3.5 w-3.5 text-emerald-400" />
-            ) : (
-              <Copy className="h-3.5 w-3.5 text-white/50 transition-colors group-hover:text-white" />
-            )}
+          <span className="text-[11px] uppercase tracking-wider text-white/40">Mã phòng</span>
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-[13px] font-bold tracking-wider text-primary">{room.code}</span>
+            {copied
+              ? <Check className="h-3.5 w-3.5 text-emerald-400" />
+              : <Copy className="h-3.5 w-3.5 text-white/40" />}
           </div>
         </button>
       </div>
+
+      {/* ── Room Settings (Host Only) ── */}
+      {isHost && (
+        <div className="border-b border-white/[0.04] px-5 py-3 flex items-center justify-between bg-white/[0.01]">
+          <div className="flex items-center gap-3">
+            <div className={`flex h-8 w-8 items-center justify-center rounded-lg border shadow-sm transition-colors duration-300 ${room.isLocked ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'}`}>
+              {room.isLocked ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4" />}
+            </div>
+            <div>
+              <p className="text-[13px] font-bold text-white/90">Phòng riêng tư</p>
+              <p className="text-[11px] text-white/50">{room.isLocked ? 'Chỉ người được duyệt mới có thể vào' : 'Ai có mã phòng cũng có thể vào'}</p>
+            </div>
+          </div>
+          <Switch
+            checked={room.isLocked}
+            onCheckedChange={(checked) => onToggleLock?.(checked)}
+            className={room.isLocked ? "data-[state=checked]:bg-red-500" : "data-[state=unchecked]:bg-white/20"}
+          />
+        </div>
+      )}
+
+      {/* ── Room Theme (Host Only — TCoin perk) ── */}
+      {isHost && (
+        <div className="border-b border-white/[0.04] px-5 py-3 bg-white/[0.01]">
+          <button
+            onClick={() => setShowThemes((v) => !v)}
+            className="flex w-full items-center justify-between"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary">
+                <Palette className="h-4 w-4" />
+              </div>
+              <div className="text-left">
+                <p className="text-[13px] font-bold text-white/90">Theme phòng</p>
+                <p className="text-[11px] text-white/50">{getRoomTheme(room.theme).name}</p>
+              </div>
+            </div>
+            <span className="text-[11px] font-semibold text-primary">{showThemes ? 'Đóng' : 'Đổi'}</span>
+          </button>
+          {showThemes && (
+            <div className="mt-3">
+              {!canUseRoomTheme ? (
+                <p className="rounded-lg border border-dashed border-white/10 px-3 py-2 text-[11px] leading-snug text-white/50">
+                  Đổi ưu đãi <span className="font-semibold text-primary">“Theme phòng xem chung” (80 TCoin)</span> trong trang TCoin để tuỳ chỉnh giao diện phòng.
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {ROOM_THEMES.map((t) => {
+                    const active = (room.theme || 'default') === t.id
+                    return (
+                      <button
+                        key={t.id}
+                        onClick={() => onSetTheme?.(t.id)}
+                        title={t.name}
+                        className={`h-9 w-9 rounded-lg border-2 transition ${active ? 'border-primary scale-110' : 'border-white/10 hover:border-white/30'}`}
+                        style={t.id === 'default'
+                          ? { background: 'repeating-conic-gradient(#1f2937 0% 25%, #111827 0% 50%) 50% / 10px 10px' }
+                          : t.panelStyle}
+                      />
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Call Container (pre-join → in-call) ── */}
       <CallContainer
@@ -178,21 +250,21 @@ export function WatchPartyPanel({
           onClick={() => setActiveTab('chat')}
           className={`relative flex-1 py-3 text-xs font-medium transition ${
             activeTab === 'chat'
-              ? 'text-[#2DD4BF]'
+              ? 'text-primary'
               : 'text-white/50 hover:text-white/70'
           }`}
         >
           <MessageCircle className="mr-1.5 inline h-3.5 w-3.5" />
           Chat
           {activeTab === 'chat' && (
-            <div className="absolute bottom-0 left-1/2 h-[2px] w-2/3 -translate-x-1/2 bg-[#2DD4BF] rounded-t-full" />
+            <div className="absolute bottom-0 left-1/2 h-[2px] w-2/3 -translate-x-1/2 bg-primary rounded-t-full" />
           )}
         </button>
         <button
           onClick={() => setActiveTab('members')}
           className={`relative flex-1 py-3 text-xs font-medium transition ${
             activeTab === 'members'
-              ? 'text-[#2DD4BF]'
+              ? 'text-primary'
               : 'text-white/50 hover:text-white/70'
           }`}
         >
@@ -204,7 +276,7 @@ export function WatchPartyPanel({
             </span>
           )}
           {activeTab === 'members' && (
-            <div className="absolute bottom-0 left-1/2 h-[2px] w-2/3 -translate-x-1/2 bg-[#2DD4BF] rounded-t-full" />
+            <div className="absolute bottom-0 left-1/2 h-[2px] w-2/3 -translate-x-1/2 bg-primary rounded-t-full" />
           )}
         </button>
       </div>
@@ -233,7 +305,14 @@ export function WatchPartyPanel({
                         : 'mr-6 bg-white/[0.04] border border-white/[0.06]'
                     }`}>
                       <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-semibold text-primary/80">{msg.senderName}</span>
+                        <span className="flex items-center gap-1 text-[11px] font-semibold text-primary/80">
+                          {msg.senderName}
+                          {(msg.senderId && memberById.get(msg.senderId)?.badgeActive) && (
+                            <span title="Huy hiệu đặc biệt">
+                              <BadgeCheck className="h-3 w-3 text-amber-400 drop-shadow-[0_0_4px_rgba(251,191,36,0.6)]" />
+                            </span>
+                          )}
+                        </span>
                         <span className="text-[9px] text-white/20">
                           {new Date(msg.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
                         </span>
@@ -253,12 +332,12 @@ export function WatchPartyPanel({
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
                   placeholder="Nhập tin nhắn..."
-                  className="flex-1 rounded-[12px] border border-white/[0.08] bg-white/[0.03] px-3.5 py-2.5 text-[13px] text-white outline-none placeholder:text-white/30 transition-all focus:border-[#2DD4BF]/50 focus:bg-white/[0.05] focus:shadow-[0_0_15px_rgba(45,212,191,0.1)]"
+                  className="flex-1 rounded-[12px] border border-white/[0.08] bg-white/[0.03] px-3.5 py-2.5 text-[13px] text-white outline-none placeholder:text-white/30 transition-all focus:border-primary/50 focus:bg-white/[0.05] focus:shadow-[0_0_15px_rgba(45,212,191,0.1)]"
                 />
                 <button
                   type="submit"
                   disabled={!chatInput.trim()}
-                  className="group flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-gradient-to-r from-[#2DD4BF]/20 to-[#2DD4BF]/10 text-[#2DD4BF] border border-[#2DD4BF]/30 transition-all hover:bg-[#2DD4BF]/30 hover:scale-105 hover:shadow-[0_0_15px_rgba(45,212,191,0.2)] disabled:opacity-30 disabled:hover:scale-100 disabled:hover:shadow-none"
+                  className="group flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-gradient-to-r from-primary/20 to-primary/10 text-primary border border-primary/30 transition-all hover:bg-primary/30 hover:scale-105 hover:shadow-[0_0_15px_rgba(45,212,191,0.2)] disabled:opacity-30 disabled:hover:scale-100 disabled:hover:shadow-none"
                 >
                   <Send className="h-4 w-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
                 </button>
@@ -269,24 +348,11 @@ export function WatchPartyPanel({
           /* Members tab */
           <div className="overflow-y-auto px-4 py-3 space-y-4 scrollbar-hide">
             {isHost && pendingRequests.length > 0 && (
-               <div className="space-y-2">
-                 <h4 className="text-[11px] font-bold uppercase tracking-wider text-white/40 mb-2">Yêu cầu tham gia</h4>
-                 {pendingRequests.map(req => (
-                   <div key={req.userId} className="flex items-center justify-between rounded-xl border border-primary/20 bg-primary/[0.05] px-3 py-2.5">
-                     <div className="flex items-center gap-2 max-w-[60%]">
-                       <span className="truncate text-[13px] font-medium text-white">{req.displayName}</span>
-                     </div>
-                     <div className="flex items-center gap-1.5 shrink-0">
-                       <button onClick={() => onApproveJoin?.(req.userId, req.socketId)} className="p-1 rounded-md bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/40 transition">
-                         <CheckCircle2 className="h-4 w-4" />
-                       </button>
-                       <button onClick={() => onRejectJoin?.(req.userId, req.socketId)} className="p-1 rounded-md bg-red-500/20 text-red-400 hover:bg-red-500/40 transition">
-                         <XCircle className="h-4 w-4" />
-                       </button>
-                     </div>
-                   </div>
-                 ))}
-               </div>
+              <HostApprovalList 
+                requests={pendingRequests}
+                onApprove={onApproveJoin}
+                onReject={onRejectJoin}
+              />
             )}
             
             <div className="space-y-1.5">
@@ -312,10 +378,14 @@ export function WatchPartyPanel({
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="relative shrink-0">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-[#2DD4BF]/20 to-[#2DD4BF]/5 text-xs font-bold text-[#2DD4BF] border border-[#2DD4BF]/20 shadow-inner">
-                        {(m.guestName || 'U').charAt(0).toUpperCase()}
-                      </div>
-                      <div className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[#0B1120] ${
+                      <UserAvatar
+                        src={m.avatar}
+                        name={m.guestName}
+                        frameActive={m.frameActive}
+                        badgeActive={m.badgeActive}
+                        className="h-9 w-9 text-xs"
+                      />
+                      <div className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-border ${
                         m.isOnline ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]' : 'bg-white/20'
                       }`} />
                     </div>
@@ -360,12 +430,11 @@ export function WatchPartyPanel({
       </div>
 
       {/* ── Footer ── */}
-      <div className="border-t border-white/[0.04] p-4 bg-gradient-to-t from-black/40 to-transparent">
+      <div className="border-t border-white/[0.04] px-4 py-3">
         <button
           onClick={onLeave}
-          className="group relative w-full overflow-hidden rounded-[14px] border border-red-500/30 bg-red-500/10 py-3 text-[13px] font-bold text-red-500 transition hover:border-red-500/50 hover:bg-red-500/20 hover:shadow-[0_0_20px_rgba(239,68,68,0.2)]"
+          className="w-full rounded-lg border border-red-500/20 bg-red-500/5 py-2 text-[12px] font-semibold text-red-400/90 transition hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-400"
         >
-          <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-red-500/10 to-transparent skew-x-12 transition-transform duration-700 ease-out group-hover:translate-x-full" />
           Rời khỏi phòng
         </button>
       </div>

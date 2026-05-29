@@ -9,6 +9,9 @@
 
 import { useRef, useState, useEffect, useCallback } from 'react'
 import { io, Socket } from 'socket.io-client'
+import { logger } from '@/src/fe/lib/logger'
+
+const log = logger.child({ module: 'WatchSync' })
 
 // ── Types ──
 
@@ -139,7 +142,7 @@ export function useWatchSync(options: UseWatchSyncOptions): UseWatchSyncReturn {
 
     // ── Connection events ──
     socket.on('connect', () => {
-      console.log(`[WatchSync] Connected: ${socket.id}`)
+      log.info({ socketId: socket.id }, 'Connected')
       setStatus('connected')
 
       // Join the room
@@ -152,12 +155,12 @@ export function useWatchSync(options: UseWatchSyncOptions): UseWatchSyncReturn {
     })
 
     socket.on('disconnect', () => {
-      console.log('[WatchSync] Disconnected')
+      log.info({}, 'Disconnected')
       setStatus('disconnected')
     })
 
     socket.on('connect_error', (err) => {
-      console.error('[WatchSync] Connection error:', err.message)
+      log.error({ err: err.message }, 'Connection error')
       setStatus('error')
     })
 

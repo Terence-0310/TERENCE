@@ -1,5 +1,8 @@
 import type { VideoSourceProvider } from './provider'
 import type { MovieDetail, Episode, PlaybackSource } from '@/types/movie'
+import { logger } from '@/src/be/shared/utils/logger'
+
+const log = logger.child({ module: 'ophim-video-provider' })
 
 interface OPhimSearchResult {
   status: string
@@ -47,7 +50,7 @@ export class OPhimVideoProvider implements VideoSourceProvider {
     return !!slug
   }
 
-  getSourceType(movie: MovieDetail): 'hls' | 'mp4' | 'youtube' | 'iframe' | 'none' {
+  getSourceType(_movie: MovieDetail): 'hls' | 'mp4' | 'youtube' | 'iframe' | 'none' {
     return 'hls' // Default assumption, actual type returned by getPlayback
   }
 
@@ -128,15 +131,11 @@ export class OPhimVideoProvider implements VideoSourceProvider {
       const json = await res.json() as OPhimSearchResult
 
       if (json.status === 'success' && json.data?.items?.length > 0) {
-        // Find best match: check year and exact title match
-        let bestMatch = json.data.items[0]
-        
-        // Let's refine matching if multiple results
-        const sameYear = json.data.items.find(i => i.year === movie.year)
-        if (sameYear) bestMatch = sameYear
-
-        this.searchCache.set(movie.id, bestMatch.slug)
-        return bestMatch.slug
+        const picked = this.pickRelatedItem(json.data.items, query, movie)
+        if (picked) {
+          this.searchCache.set(movie.id, picked.slug)
+          return picked.slug
+        }
       }
 
       // Try alternative: Vietnamese title if original failed
@@ -144,17 +143,66 @@ export class OPhimVideoProvider implements VideoSourceProvider {
         const res2 = await fetch(`https://ophim1.com/v1/api/tim-kiem?keyword=${encodeURIComponent(movie.title)}`)
         const json2 = await res2.json() as OPhimSearchResult
         if (json2.status === 'success' && json2.data?.items?.length > 0) {
-          this.searchCache.set(movie.id, json2.data.items[0].slug)
-          return json2.data.items[0].slug
+          const picked2 = this.pickRelatedItem(json2.data.items, movie.title, movie)
+          if (picked2) {
+            this.searchCache.set(movie.id, picked2.slug)
+            return picked2.slug
+          }
         }
       }
 
       this.searchCache.set(movie.id, null)
       return null
     } catch (err) {
-      console.error('[OPhimVideoProvider] Search error:', err)
+      log.error({ err: err instanceof Error ? err.message : err, movieId: movie.id }, 'Search error')
       return null
     }
+  }
+
+  // Choose an OPhim item only when its name/origin_name has the SAME set of
+  // significant slug tokens AND a matching production year. Strict equality
+  // (not subset) prevents poster↔playback mismatches like "Wonder" being
+  // resolved to OPhim's "Wonder Park".
+  private pickRelatedItem(
+    items: OPhimSearchResult['data']['items'],
+    query: string,
+    movie: MovieDetail,
+  ): OPhimSearchResult['data']['items'][number] | null {
+    const querySlug = this.toSlug(query)
+    const candidates = items.filter((it) => {
+      const tokenMatch =
+        this.isSameSlugTokens(querySlug, this.toSlug(it.origin_name || '')) ||
+        this.isSameSlugTokens(querySlug, this.toSlug(it.name || ''))
+      if (!tokenMatch) return false
+      // Year guard: if both sides know the year, require a ±1 match.
+      if (movie.year && it.year && Math.abs(it.year - movie.year) > 1) return false
+      return true
+    })
+    if (candidates.length === 0) return null
+    const sameYear = candidates.find((it) => it.year === movie.year)
+    return sameYear || candidates[0]
+  }
+
+  private toSlug(text: string): string {
+    return text
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .replace(/đ/g, 'd')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+  }
+
+  // Same-set token equality with a ≥2 significant-token floor — matches
+  // src/be/modules/watch/playback.service.ts:isSameSlugTokens.
+  private isSameSlugTokens(a: string, b: string): boolean {
+    if (!a || !b) return false
+    const aTokens = a.split('-').filter((t) => t.length >= 3)
+    const bTokens = b.split('-').filter((t) => t.length >= 3)
+    if (aTokens.length < 2 || bTokens.length < 2) return false
+    if (aTokens.length !== bTokens.length) return false
+    const bSet = new Set(bTokens)
+    return aTokens.every((t) => bSet.has(t))
   }
 
   // Helper to fetch movie details from OPhim
@@ -173,7 +221,7 @@ export class OPhimVideoProvider implements VideoSourceProvider {
       }
       return null
     } catch (err) {
-      console.error('[OPhimVideoProvider] Detail error:', err)
+      log.error({ err: err instanceof Error ? err.message : err, slug }, 'Detail error')
       return null
     }
   }

@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Eye, EyeOff, Mail, Lock, Phone } from 'lucide-react'
+import { Eye, EyeOff, Lock } from 'lucide-react'
 import { signIn } from 'next-auth/react'
 import { Button } from '@/src/fe/components/ui/button'
 import { Input } from '@/src/fe/components/ui/input'

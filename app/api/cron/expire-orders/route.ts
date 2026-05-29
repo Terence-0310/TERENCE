@@ -1,6 +1,9 @@
 import { NextRequest } from 'next/server'
 import { expireStaleOrders } from '@/src/be/services/topup-order.service'
 import { ok, serverError, unauthorized } from '@/src/be/shared/api-handler'
+import { logger } from '@/src/be/shared/utils/logger'
+
+const log = logger.child({ module: 'cron-expire-orders' })
 
 // ----------------------------------------------------------------------
 // POST /api/cron/expire-orders
@@ -34,7 +37,7 @@ async function executeCron(req: NextRequest) {
       message: `Đã huỷ ${result.count} đơn hàng quá hạn 15 phút.` 
     })
   } catch (error) {
-    console.error('[Cron] Lỗi huỷ đơn hàng quá hạn:', error)
+    log.error({ err: error instanceof Error ? error.message : error }, 'Lỗi huỷ đơn hàng quá hạn')
     return serverError('Failed to expire orders')
   }
 }

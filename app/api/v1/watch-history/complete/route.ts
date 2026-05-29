@@ -5,11 +5,16 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { markComplete } from '@/src/be/modules/watch/watch.service'
-import { AuthService } from '@/src/be/modules/auth'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { logger } from '@/src/be/shared/utils/logger'
+
+const log = logger.child({ module: 'watch-history-complete' })
 
 export async function POST(request: NextRequest) {
-  const session = await AuthService.getSession()
-  if (!session?.userId) {
+  const session = await getServerSession(authOptions)
+  const userId = session?.user?.id
+  if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -29,12 +34,14 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  await markComplete(session.userId, movieId, episodeId || null)
+  await markComplete(userId, movieId, episodeId || null)
 
-  // Award TCoin for watch completion (fire-and-forget)
+  // Award TCoin for watch completion (fire-and-forget — failures must not block completion)
   import('@/src/be/modules/tcoin/tcoin.service')
-    .then(({ rewardWatchComplete }) => rewardWatchComplete(session.userId, movieId))
-    .catch(() => {}) // Non-critical
+    .then(({ rewardWatchComplete }) => rewardWatchComplete(userId, movieId))
+    .catch((err) => {
+      log.error({ userId, movieId, err: err instanceof Error ? err.message : err }, 'rewardWatchComplete failed')
+    })
 
   return NextResponse.json({ ok: true })
 }

@@ -58,7 +58,12 @@ services:
       - DIRECT_URL=postgresql://postgres:postgres@db-test:5432/terence_test?schema=public
       - ELASTICSEARCH_HOST=http://elasticsearch-test:9200
       - ELASTICSEARCH_API_KEY=
-    command: sh -c "npx prisma generate && npm run test"
+    # Generate the client, then sync the schema into the throwaway test DB via
+    # `db push` (the project's standard path — `prisma migrate` is unusable
+    # because the legacy migrations were authored for SQLite). This materialises
+    # every table/column, incl. the TCoin perk fields, so DB-backed integration
+    # tests run against an up-to-date schema.
+    command: sh -c "npx prisma generate && npx prisma db push --schema=src/dta/prisma/schema.prisma --skip-generate --accept-data-loss && npm run test"
     depends_on:
       db-test:
         condition: service_healthy

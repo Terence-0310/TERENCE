@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   Plus, Search, Edit, Trash2, Eye, RefreshCw, Star, TrendingUp, Award,
-  Globe, EyeOff, Archive, RotateCcw, ArrowUpDown, AlertTriangle, ImageOff, Film,
+  Globe, EyeOff, Archive, RotateCcw, ImageOff, Film, AlertTriangle,
 } from 'lucide-react'
 import { Button } from '@/src/fe/components/ui/button'
 import { Input } from '@/src/fe/components/ui/input'
@@ -22,20 +22,10 @@ interface Movie {
 
 interface Pagination { page: number; limit: number; total: number; totalPages: number }
 
-const MOCK_MOVIES: Movie[] = [
-  { id: 'mock-1', title: 'Spider-Man: No Way Home', slug: 'spider-man-no-way-home', contentType: 'movie', status: 'published', viewCount: 1542000, posterUrl: 'https://placehold.co/500x750/0f172a/2dd4bf?text=Spider-Man:++No+Way+Home', year: 2021, quality: 'HD', isFeatured: true, isTrending: true, isRecommended: true, sourceStatus: 'active', deletedAt: null, createdAt: new Date().toISOString(), _count: { episodes: 1 } },
-  { id: 'mock-2', title: 'Stranger Things (Mùa 4)', slug: 'stranger-things-s4', contentType: 'series', status: 'published', viewCount: 985400, posterUrl: 'https://placehold.co/500x750/1e293b/2dd4bf?text=Stranger+Things++SS4', year: 2022, quality: 'FHD', isFeatured: false, isTrending: true, isRecommended: true, sourceStatus: 'active', deletedAt: null, createdAt: new Date().toISOString(), _count: { episodes: 9 } },
-  { id: 'mock-3', title: 'Demon Slayer: Mugen Train', slug: 'demon-slayer-mugen-train', contentType: 'anime', status: 'published', viewCount: 852000, posterUrl: 'https://placehold.co/500x750/020617/2dd4bf?text=Demon+Slayer++Mugen+Train', year: 2020, quality: 'FHD', isFeatured: true, isTrending: false, isRecommended: true, sourceStatus: 'active', deletedAt: null, createdAt: new Date().toISOString(), _count: { episodes: 1 } },
-  { id: 'mock-4', title: 'The Batman', slug: 'the-batman', contentType: 'movie', status: 'draft', viewCount: 0, posterUrl: 'https://placehold.co/500x750/334155/2dd4bf?text=The+Batman', year: 2022, quality: 'CAM', isFeatured: false, isTrending: false, isRecommended: false, sourceStatus: 'missing', deletedAt: null, createdAt: new Date().toISOString(), _count: { episodes: 0 } },
-  { id: 'mock-5', title: 'Avatar: The Way of Water', slug: 'avatar-the-way-of-water', contentType: 'movie', status: 'published', viewCount: 2450000, posterUrl: 'https://placehold.co/500x750/111827/2dd4bf?text=Avatar:++The+Way+of+Water', year: 2022, quality: '4K', isFeatured: true, isTrending: true, isRecommended: true, sourceStatus: 'active', deletedAt: null, createdAt: new Date().toISOString(), _count: { episodes: 1 } },
-]
-
-const MOCK_PAGINATION: Pagination = { page: 1, limit: 20, total: 12480, totalPages: 624 }
-
 export default function MoviesPage() {
   const router = useRouter()
-  const [movies, setMovies] = useState<Movie[]>(MOCK_MOVIES)
-  const [pagination, setPagination] = useState<Pagination>(MOCK_PAGINATION)
+  const [movies, setMovies] = useState<Movie[]>([])
+  const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 20, total: 0, totalPages: 0 })
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [typeFilter, setTypeFilter] = useState('all')
@@ -62,20 +52,20 @@ export default function MoviesPage() {
     try {
       const res = await fetch(`/api/admin/movies?${params}`)
       const json = await res.json()
-      if (json.data && json.data.length > 0) {
-        setMovies(json.data)
-        setPagination(json.pagination)
+      const payload = json.success ? json.data : json
+      if (payload.data && payload.data.length > 0) {
+        setMovies(payload.data)
+        setPagination(payload.pagination)
+      } else if (payload.data && payload.data.length === 0) {
+        setMovies([])
+        setPagination(payload.pagination)
       } else {
-        // Fallback for empty DB - Simulate pagination
-        const offsetMovies = page % 2 === 0 ? [...MOCK_MOVIES].reverse() : MOCK_MOVIES;
-        setMovies(offsetMovies)
-        setPagination({ ...MOCK_PAGINATION, page })
+        setMovies([])
+        setPagination({ page: 1, limit: 20, total: 0, totalPages: 0 })
       }
     } catch { 
-      // Error Fallback - Simulate pagination
-      const offsetMovies = page % 2 === 0 ? [...MOCK_MOVIES].reverse() : MOCK_MOVIES;
-      setMovies(offsetMovies)
-      setPagination({ ...MOCK_PAGINATION, page })
+      setMovies([])
+      setPagination({ page: 1, limit: 20, total: 0, totalPages: 0 })
     }
     setLoading(false)
   }
@@ -88,24 +78,6 @@ export default function MoviesPage() {
   const doAction = async (id: string, action: string, confirm_msg?: string) => {
     if (confirm_msg && !confirm(confirm_msg)) return
     
-    // Simulate real state mutations for mock demo
-    if (id.startsWith('mock-')) {
-      setMovies(prev => prev.map(m => {
-        if (m.id !== id) return m;
-        switch (action) {
-          case 'feature': return { ...m, isFeatured: !m.isFeatured };
-          case 'trending': return { ...m, isTrending: !m.isTrending };
-          case 'recommend': return { ...m, isRecommended: !m.isRecommended };
-          case 'publish': return { ...m, status: 'published' };
-          case 'hide': return { ...m, status: 'hidden' };
-          case 'archive': return { ...m, status: 'archived' };
-          case 'restore': return { ...m, deletedAt: null };
-          default: return m;
-        }
-      }));
-      return;
-    }
-
     await fetch(`/api/admin/movies/${id}/${action}`, { method: 'POST' })
     fetchMovies(pagination.page)
   }
@@ -113,11 +85,6 @@ export default function MoviesPage() {
   const handleDelete = async (id: string, title: string) => {
     if (!confirm(`Xóa mềm phim "${title}"?`)) return
     
-    if (id.startsWith('mock-')) {
-       setMovies(prev => prev.map(m => m.id === id ? { ...m, deletedAt: new Date().toISOString() } : m));
-       return;
-    }
-
     await fetch(`/api/admin/movies/${id}`, { method: 'DELETE' })
     fetchMovies(pagination.page)
   }
@@ -201,11 +168,55 @@ export default function MoviesPage() {
         </CardHeader>
         <CardContent>
           <div className="relative min-h-[400px]">
-            {loading && (
-              <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-card/60 backdrop-blur-[2px] rounded-lg">
-                <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full" />
+            {loading && movies.length === 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-border">
+                      <th className="text-left py-3 px-4 font-medium text-muted-foreground w-1/3">Phim</th>
+                      <th className="text-left py-3 px-4 font-medium text-muted-foreground">Loại</th>
+                      <th className="text-left py-3 px-4 font-medium text-muted-foreground">Views</th>
+                      <th className="text-left py-3 px-4 font-medium text-muted-foreground">Trạng thái</th>
+                      <th className="text-left py-3 px-4 font-medium text-muted-foreground">Tập</th>
+                      <th className="text-left py-3 px-4 font-medium text-muted-foreground">Cờ</th>
+                      <th className="text-right py-3 px-4 font-medium text-muted-foreground">Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[1, 2, 3, 4, 5].map((i) => (
+                      <tr key={i} className="border-b border-border">
+                        <td className="py-4 px-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-12 h-16 rounded-lg bg-muted animate-pulse shrink-0" />
+                            <div className="space-y-2 flex-1">
+                              <div className="h-4 w-48 bg-muted rounded animate-pulse" />
+                              <div className="h-3 w-32 bg-muted rounded animate-pulse" />
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-4 px-4"><div className="h-4 w-16 bg-muted rounded animate-pulse" /></td>
+                        <td className="py-4 px-4"><div className="h-4 w-12 bg-muted rounded animate-pulse" /></td>
+                        <td className="py-4 px-4"><div className="h-6 w-20 bg-muted rounded-full animate-pulse" /></td>
+                        <td className="py-4 px-4"><div className="h-4 w-8 bg-muted rounded animate-pulse" /></td>
+                        <td className="py-4 px-4">
+                          <div className="flex gap-1">
+                            <div className="h-4 w-4 bg-muted rounded animate-pulse" />
+                            <div className="h-4 w-4 bg-muted rounded animate-pulse" />
+                          </div>
+                        </td>
+                        <td className="py-4 px-4">
+                          <div className="flex justify-end gap-1">
+                            <div className="h-8 w-8 bg-muted rounded animate-pulse" />
+                            <div className="h-8 w-8 bg-muted rounded animate-pulse" />
+                            <div className="h-8 w-8 bg-muted rounded animate-pulse" />
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            )}
+            ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
@@ -225,14 +236,14 @@ export default function MoviesPage() {
                       <td className="py-4 px-4">
                         <div className="flex items-center gap-3">
                           <div className="w-12 h-16 rounded-lg bg-primary/20 flex items-center justify-center overflow-hidden shrink-0">
-                            {movie.posterUrl ? <img src={movie.posterUrl} alt="" className="w-full h-full object-cover" /> :
+                            {movie.posterUrl ? <img src={movie.posterUrl} alt={`Poster phim ${movie.title}`} loading="lazy" className="w-full h-full object-cover" /> :
                               <ImageOff className="w-5 h-5 text-muted-foreground" />}
                           </div>
                           <div className="min-w-0">
                             <p className="font-medium truncate max-w-[200px]">{movie.title}</p>
                             <p className="text-xs text-muted-foreground truncate">{movie.slug}</p>
                             {movie.sourceStatus !== 'active' && movie.sourceStatus !== 'pending' &&
-                              <span className={`text-xs ${srcIcon(movie.sourceStatus)}`}>⚠ {movie.sourceStatus}</span>}
+                              <span className={`text-xs flex items-center gap-1 mt-0.5 ${srcIcon(movie.sourceStatus)}`}><AlertTriangle className="w-3 h-3" /> {movie.sourceStatus}</span>}
                           </div>
                         </div>
                       </td>
@@ -316,6 +327,7 @@ export default function MoviesPage() {
                 </tbody>
               </table>
             </div>
+            )}
           </div>
 
           <div className="flex items-center justify-between mt-6 pt-4 border-t border-border">

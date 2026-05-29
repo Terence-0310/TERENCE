@@ -37,12 +37,12 @@ function AuthContextInner({ children }: { children: ReactNode }) {
   const { data: session, status } = useSession()
 
   const user: User | null = session?.user ? {
-    id: (session as any).user?.id,
+    id: session.user.id,
     email: session.user.email || '',
     name: session.user.name || '',
-    role: ((session as any).user?.role as any) || 'user',
+    role: (session.user.role as User['role']) || 'user',
     avatar: session.user.image,
-    isEmailVerified: (session as any).user?.isEmailVerified ?? false,
+    isEmailVerified: session.user.isEmailVerified ?? false,
   } : null
 
   useEffect(() => {

@@ -14,11 +14,14 @@
 // Canonical base client: lib/tmdb/client.ts
 
 import { tmdbFetch as canonicalFetch, TmdbApiError } from '@/src/be/modules/tmdb/legacy/client'
+import { logger } from '@/src/be/shared/utils/logger'
 import type {
   TmdbSearchResponse, TmdbSearchMovieResult, TmdbSearchTvResult,
   TmdbExternalIds, TmdbVideosResponse, TmdbCreditsResponse,
   TmdbMovieDetail, TmdbTvDetail,
 } from './types'
+
+const log = logger.child({ module: 'tmdb-client' })
 
 const DEFAULT_IMAGE_BASE = 'https://image.tmdb.org/t/p'
 const MAX_RATE_LIMIT_RETRIES = 3
@@ -43,7 +46,7 @@ async function tmdbFetch<T>(path: string, params: Record<string, string> = {}): 
         attempt < MAX_RATE_LIMIT_RETRIES - 1
       ) {
         const waitMs = 2000 * (attempt + 1)
-        console.warn(`[TMDB] Rate limited on ${path}. Retrying in ${waitMs / 1000}s... (attempt ${attempt + 1})`)
+        log.warn({ path, waitMs, attempt: attempt + 1 }, `Rate limited on ${path}. Retrying in ${waitMs / 1000}s... (attempt ${attempt + 1})`)
         await new Promise(r => setTimeout(r, waitMs))
         continue
       }

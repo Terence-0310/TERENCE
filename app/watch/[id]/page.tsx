@@ -1,19 +1,23 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
-import { ArrowLeft, Play, Film, Share2, Heart, Users, Star, Clock, Tv } from 'lucide-react'
+import { ArrowLeft, Film, Users, Star, Clock } from 'lucide-react'
 import { WatchPageClient } from '@/src/fe/components/player/WatchPageClient'
 import { WatchPageContainer } from '@/src/fe/components/player/WatchPageContainer'
 import { ServerEpisodeList } from '@/src/fe/components/watch/ServerEpisodeList'
+import { WatchActionButtons } from '@/src/fe/components/watch/WatchActionButtons'
 
 import { getMovieDetail } from '@/src/be/services/tmdb/movie-service'
 import { getTvDetail } from '@/src/be/services/tmdb/tv-service'
 import { getMoviePlaybackData, getMoviePlaybackByTmdbId, getMoviePlaybackByTitle, getMultiServerSources } from '@/src/be/modules/watch/playback.service'
 import { resolveMovieSource } from '@/src/be/services/video-source'
 import { MovieRow } from '@/src/fe/components/shared/MovieRow'
-import { AuthService } from '@/src/be/modules/auth'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { getActivePerks } from '@/src/be/modules/tcoin/tcoin.service'
+import { Lock } from 'lucide-react'
 import type { Metadata } from 'next'
-import type { PlayableSource, EpisodePlaybackData } from '@/lib/player/types'
+import type { EpisodePlaybackData } from '@/lib/player/types'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -22,21 +26,30 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { id } = await params
-  try {
-    const movie = await getMovieDetail(Number(id))
-    return { title: `Xem ${movie.title} — Terence` }
-  } catch {
-    return { title: 'Xem phim — Terence' }
+  // Only hit TMDB when id is numeric — otherwise it's a DB slug and TMDB
+  // would log a noisy "Blocked invalid endpoint fetch: /movie/NaN".
+  const numericId = Number(id)
+  if (!isNaN(numericId) && numericId > 0) {
+    try {
+      const movie = await getMovieDetail(numericId)
+      return { title: `Xem ${movie.title} — Terence` }
+    } catch {
+      // fall through
+    }
   }
+  return { title: 'Xem phim — Terence' }
 }
 
 export default async function WatchPage({ params, searchParams }: PageProps) {
   const { id } = await params
   const { ep: episodeSlug } = await searchParams
 
-  // Check auth for progress features
-  // Auth session available for future progress-tracking features
-  await AuthService.getSession()
+  // Auth session — drives TCoin perks (HD quality, early access).
+  const session = await getServerSession(authOptions)
+  const userId = session?.user?.id ?? null
+  const perks = userId ? await getActivePerks(userId) : null
+  const canUseHD = !!perks?.hdUpgrade
+  const canEarlyAccess = !!perks?.earlyAccess
 
   // ── Step 1: Try DB-backed playback first ──
   let dbPlayback = await getMoviePlaybackData(id, episodeSlug || undefined)
@@ -76,13 +89,14 @@ export default async function WatchPage({ params, searchParams }: PageProps) {
     }
   }
 
-  // ── Step 1b: If still no DB match, try title-based fuzzy search ──
-  // This bridges TMDB movies (e.g. "One Piece Film: Gold") to OPhim DB (slug "one-piece")
+  // ── Step 1b: If still no DB match, try title-based search with strict
+  // year + tmdbId guards. The hints prevent substituting a different
+  // movie just because its title shares tokens (poster ↔ playback mismatch).
   if (!dbPlayback && tmdbMovie) {
-    dbPlayback = await getMoviePlaybackByTitle(tmdbMovie.title, episodeSlug || undefined)
-    // Also try original title if different
+    const hints = { year: tmdbMovie.year ?? null, tmdbId: tmdbMovie.id ?? null }
+    dbPlayback = await getMoviePlaybackByTitle(tmdbMovie.title, episodeSlug || undefined, hints)
     if (!dbPlayback && tmdbMovie.originalTitle && tmdbMovie.originalTitle !== tmdbMovie.title) {
-      dbPlayback = await getMoviePlaybackByTitle(tmdbMovie.originalTitle, episodeSlug || undefined)
+      dbPlayback = await getMoviePlaybackByTitle(tmdbMovie.originalTitle, episodeSlug || undefined, hints)
     }
   }
 
@@ -171,6 +185,18 @@ export default async function WatchPage({ params, searchParams }: PageProps) {
 
   const hasAnySource = !!episodeData?.primarySource
 
+  // ── Early-access embargo ──
+  // While earlyAccessUntil is in the future, only TCoin early-access perk
+  // holders may watch. Everyone else sees a locked overlay with the time left.
+  const earlyAccessUntil = dbPlayback?.movie?.earlyAccessUntil
+    ? new Date(dbPlayback.movie.earlyAccessUntil)
+    : null
+  const earlyAccessLocked =
+    !!earlyAccessUntil && earlyAccessUntil.getTime() > Date.now() && !canEarlyAccess
+  const earlyAccessHoursLeft = earlyAccessUntil
+    ? Math.max(1, Math.ceil((earlyAccessUntil.getTime() - Date.now()) / 3_600_000))
+    : 0
+
   // ── Step 5: Get multi-server sources for fallback ──
   let multiServerSources: Awaited<ReturnType<typeof getMultiServerSources>> = []
   if (dbPlayback?.movie?.id && episodeData?.episode) {
@@ -185,7 +211,7 @@ export default async function WatchPage({ params, searchParams }: PageProps) {
   }
 
   return (
-    <main className="min-h-screen bg-[#0F172A] pb-20">
+    <main className="min-h-screen bg-background pb-20">
       <div className="mx-auto max-w-[1400px] px-4 md:px-8 pt-8">
         
         {/* ═══════ BACK LINK ═══════ */}
@@ -231,7 +257,35 @@ export default async function WatchPage({ params, searchParams }: PageProps) {
             }
             playerArea={
               <>
-                {hasAnySource && episodeData ? (
+                {earlyAccessLocked ? (
+                  /* Early-access embargo — perk-gated */
+                  <div className="relative flex h-full flex-col items-center justify-center bg-zinc-900/60">
+                    {backdropUrl && backdropUrl !== '/placeholder.jpg' && (
+                      <>
+                        <Image src={backdropUrl} alt="" fill className="object-cover opacity-20 blur-sm" />
+                        <div className="absolute inset-0 bg-black/70" />
+                      </>
+                    )}
+                    <div className="relative z-10 flex max-w-md flex-col items-center gap-5 px-6 text-center">
+                      <div className="flex h-20 w-20 items-center justify-center rounded-full border border-primary/20 bg-primary/10">
+                        <Lock className="h-9 w-9 text-primary" />
+                      </div>
+                      <div>
+                        <h2 className="text-lg font-bold text-white/90">Phim đang chiếu sớm</h2>
+                        <p className="mt-2 text-sm leading-relaxed text-white/50">
+                          Phim này mở công khai sau khoảng <span className="font-semibold text-white/80">{earlyAccessHoursLeft} giờ</span> nữa.
+                          Đổi <span className="font-semibold text-primary">100 TCoin</span> cho ưu đãi “Xem sớm 24h” để xem ngay bây giờ.
+                        </p>
+                      </div>
+                      <Link
+                        href="/tcoin"
+                        className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-primary/20 transition hover:bg-primary/90"
+                      >
+                        Mở khoá với TCoin
+                      </Link>
+                    </div>
+                  </div>
+                ) : hasAnySource && episodeData ? (
                   <WatchPageClient
                     episodeData={episodeData}
                     movieId={dbPlayback?.movie?.id || ''}
@@ -241,6 +295,7 @@ export default async function WatchPage({ params, searchParams }: PageProps) {
                     thumbUrl={posterUrl || undefined}
                     trailerUrl={tmdbMovie?.trailer?.embedUrl}
                     additionalServers={multiServerSources}
+                    canUseHD={canUseHD}
                   />
                 ) : legacySource?.available && legacySource.playback && (legacySource.playback.type === 'iframe' || legacySource.playback.type === 'youtube') ? (
                   /* Legacy source has an unplayable iframe/youtube type, so just render it directly */
@@ -371,12 +426,7 @@ export default async function WatchPage({ params, searchParams }: PageProps) {
                   Chi tiết
                 </Link>
               )}
-              <button className="rounded-lg bg-white/5 p-2.5 text-white/50 border border-white/[0.06] transition hover:bg-white/10 hover:text-white" title="Yêu thích">
-                <Heart className="h-4 w-4" />
-              </button>
-              <button className="rounded-lg bg-white/5 p-2.5 text-white/50 border border-white/[0.06] transition hover:bg-white/10 hover:text-white" title="Chia sẻ">
-                <Share2 className="h-4 w-4" />
-              </button>
+              <WatchActionButtons shareTitle={`Xem ${dbPlayback?.movie?.title || tmdbMovie?.title || 'phim'} — Terence`} />
               <Link
                 href="/xem-chung"
                 className="inline-flex items-center gap-1.5 rounded-lg bg-primary/10 px-4 py-2.5 text-xs font-medium text-primary border border-primary/20 transition hover:bg-primary/20"
@@ -391,7 +441,7 @@ export default async function WatchPage({ params, searchParams }: PageProps) {
 
       {/* ═══════ EPISODES LIST (BOTTOM) ═══════ */}
       {(episodeList.length > 1 || providerEps.length > 0) && (
-        <section id="episode-list" className="border-t border-white/[0.04] bg-[#0A0E17]/30">
+        <section id="episode-list" className="border-t border-white/[0.04] bg-background/30">
           <div className="mx-auto max-w-[1400px] px-4 md:px-8 py-8">
             <h3 className="mb-6 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><line x1="9" x2="9" y1="3" y2="21"/></svg>

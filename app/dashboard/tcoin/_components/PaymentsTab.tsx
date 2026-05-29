@@ -45,17 +45,24 @@ export function PaymentsTab({
     <div className="space-y-4">
       {/* Filters */}
       <div className="flex items-center gap-2 flex-wrap">
-        {['', 'pending', 'completed', 'failed'].map((s) => (
+        {[
+          { value: '', label: 'Tất cả' },
+          { value: 'PENDING', label: 'Chờ xử lý' },
+          { value: 'PAID', label: 'Đã thanh toán' },
+          { value: 'EXPIRED', label: 'Hết hạn' },
+          { value: 'FAILED', label: 'Thất bại' },
+          { value: 'CANCELED', label: 'Đã huỷ' },
+        ].map((s) => (
           <button
-            key={s}
-            onClick={() => onFilterChange(s)}
+            key={s.value}
+            onClick={() => onFilterChange(s.value)}
             className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
-              filter === s
+              filter === s.value
                 ? 'bg-primary text-white'
                 : 'bg-card border border-border text-muted-foreground hover:bg-muted'
             }`}
           >
-            {s === '' ? 'Tất cả' : s === 'pending' ? '⏳ Chờ xử lý' : s === 'completed' ? '✅ Hoàn thành' : '❌ Thất bại'}
+            {s.label}
           </button>
         ))}
       </div>
@@ -96,7 +103,7 @@ export function PaymentsTab({
                   {formatDate(o.createdAt)}
                 </td>
                 <td className="px-4 py-3 text-right">
-                  {o.status === 'pending' && (
+                  {o.status === 'PENDING' && (
                     <button
                       onClick={() => onConfirmOrder(o.id)}
                       className="inline-flex items-center gap-1 rounded-lg bg-green-500/10 px-3 py-1.5 text-xs font-medium text-green-400 transition hover:bg-green-500/20"
@@ -154,9 +161,11 @@ export function PaymentsTab({
 
 function StatusBadge({ status }: { status: string }) {
   const configs: Record<string, { icon: React.ElementType; color: string; bg: string; label: string }> = {
-    pending: { icon: Clock, color: 'text-yellow-400', bg: 'bg-yellow-400/10', label: 'Chờ xử lý' },
-    completed: { icon: CheckCircle2, color: 'text-green-400', bg: 'bg-green-400/10', label: 'Hoàn thành' },
-    failed: { icon: XCircle, color: 'text-red-400', bg: 'bg-red-400/10', label: 'Thất bại' },
+    PENDING:  { icon: Clock,        color: 'text-yellow-400',  bg: 'bg-yellow-400/10',  label: 'Chờ xử lý' },
+    PAID:     { icon: CheckCircle2, color: 'text-green-400',   bg: 'bg-green-400/10',   label: 'Đã thanh toán' },
+    EXPIRED:  { icon: AlertCircle,  color: 'text-orange-400',  bg: 'bg-orange-400/10',  label: 'Hết hạn' },
+    FAILED:   { icon: XCircle,      color: 'text-red-400',     bg: 'bg-red-400/10',     label: 'Thất bại' },
+    CANCELED: { icon: XCircle,      color: 'text-gray-400',    bg: 'bg-gray-400/10',    label: 'Đã huỷ' },
   }
   const cfg = configs[status] || { icon: AlertCircle, color: 'text-gray-400', bg: 'bg-gray-400/10', label: status }
   const Icon = cfg.icon

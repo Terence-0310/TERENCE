@@ -26,6 +26,7 @@ export const ROLE_PERMISSION_MATRIX: Record<string, RolePermissionConfig[]> = {
     { permission: PERMISSIONS.USER_BLOCK, scope: 'all' },
     { permission: PERMISSIONS.USER_ROLE_UPDATE, scope: 'all' },
     { permission: PERMISSIONS.PAYMENT_READ, scope: 'all' },
+    { permission: PERMISSIONS.PAYMENT_UPDATE, scope: 'all' },
     { permission: PERMISSIONS.ADMINLOG_READ, scope: 'all' },
     { permission: PERMISSIONS.SETTINGS_READ, scope: 'all' },
     // KHÔNG có settings.update

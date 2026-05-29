@@ -6,6 +6,9 @@ import { NextRequest } from 'next/server'
 import { getEpisodesByMovieSlug } from '@/src/be/modules/movies/movie-service'
 import { serializeEpisode, groupEpisodesByServer } from '@/src/be/modules/movies/serializers'
 import { jsonOk, jsonError } from '@/src/be/modules/movies/api-helpers'
+import { logger } from '@/src/be/shared/utils/logger'
+
+const log = logger.child({ module: 'movies-slug-episodes' })
 
 export async function GET(
   _req: NextRequest,
@@ -31,7 +34,7 @@ export async function GET(
       servers: grouped,
     })
   } catch (error) {
-    console.error('[API] /v1/movies/[slug]/episodes error:', error)
+    log.error({ err: error instanceof Error ? error.message : error }, '/v1/movies/[slug]/episodes error')
     return jsonError('Internal Server Error', 500)
   }
 }

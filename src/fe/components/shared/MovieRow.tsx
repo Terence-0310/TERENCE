@@ -1,4 +1,3 @@
-'use client'
 
 import { ChevronRight } from 'lucide-react'
 import Link from 'next/link'
@@ -29,8 +28,9 @@ export function MovieRow({ title, accent, movies, href, loading, showRank, lands
       {/* RoPhim-style elevated background */}
       <div className="bg-[var(--surface-elevated)] rounded-none md:rounded-2xl mx-0 md:mx-5 lg:mx-8 py-8 px-5 md:px-8">
         <div className="flex flex-col md:flex-row items-start gap-3 md:gap-8">
-          {/* Left: Title + View All link (Unified for Desktop/Mobile) */}
-          <div className="flex flex-row md:flex-col items-center md:items-start justify-between md:justify-start gap-3 w-full md:w-auto md:min-w-[140px] shrink-0 pt-2 mb-3 md:mb-0">
+          {/* Left: Title + View All link — fixed width so cards start at the same x across rows
+              (longer titles wrap inside the column instead of pushing the cards rightward). */}
+          <div className="flex flex-row md:flex-col items-center md:items-start justify-between md:justify-start gap-3 w-full md:w-[160px] lg:w-[180px] shrink-0 pt-2 mb-3 md:mb-0">
             <h2 className="text-lg md:text-xl font-bold md:font-black leading-tight tracking-tight text-white">
               {titleParts.map((part, idx) =>
                 accent && part.toLowerCase() === accent.toLowerCase() ? (
@@ -67,7 +67,7 @@ export function MovieRow({ title, accent, movies, href, loading, showRank, lands
                 : movies.map((movie, i) => (
                     <div
                       key={movie.id}
-                      className={`snap-start flex-shrink-0 animate-card-reveal ${landscape ? 'w-[200px] sm:w-[240px] md:w-[260px] lg:w-[280px]' : 'w-[130px] sm:w-[150px] md:w-[170px] lg:w-[190px]'}`}
+                      className={`snap-start flex-shrink-0 animate-card-reveal relative hover:z-[60] ${landscape ? 'w-[200px] sm:w-[240px] md:w-[260px] lg:w-[280px]' : 'w-[130px] sm:w-[150px] md:w-[170px] lg:w-[190px]'}`}
                       style={{ '--i': i } as React.CSSProperties}
                     >
                       <MovieCard

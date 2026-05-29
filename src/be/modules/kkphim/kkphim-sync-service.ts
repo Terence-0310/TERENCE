@@ -22,11 +22,13 @@ import {
 import { fetchCatalogPage, fetchMovieDetail, fetchVietnameseCatalog } from './kkphim-client'
 import { mapMovie, mapEpisodes, mapCategories, mapCountries } from './kkphim-mapper'
 import type { SyncResult } from './types'
+import { logger } from '@/src/be/shared/utils/logger'
+
+const log = logger.child({ module: 'kkphim-sync' })
 
 // ─── Source Constants ───────────────────────────────────────────
 
 const SOURCE = 'kkphim'
-const LOG_PREFIX = '[KKPhim Sync]'
 
 // ─── Source-bound helpers ───────────────────────────────────────
 
@@ -224,7 +226,7 @@ export async function syncCatalog(
     const maxPage = endPage || startPage
     const actualEnd = Math.min(maxPage, firstPage.pagination.totalPages)
 
-    console.log(`${LOG_PREFIX} Syncing ${vietnamOnly ? 'VIETNAMESE' : 'GENERAL'} pages ${startPage} to ${actualEnd} (total: ${firstPage.pagination.totalItems} movies in catalog)`)
+    log.info({ vietnamOnly, startPage, endPage: actualEnd, totalItems: firstPage.pagination.totalItems }, `Syncing ${vietnamOnly ? 'VIETNAMESE' : 'GENERAL'} pages ${startPage} to ${actualEnd}`)
 
     // 2. Process pages
     for (let page = startPage; page <= actualEnd; page++) {
@@ -250,13 +252,13 @@ export async function syncCatalog(
 
           // Progress log every 10 movies
           if (stats.total % 10 === 0) {
-            console.log(`${LOG_PREFIX} Progress: ${stats.total} total, ${stats.processed} synced, ${stats.failed} failed`)
+            log.info({ total: stats.total, processed: stats.processed, failed: stats.failed }, 'Progress')
           }
 
         } catch (error) {
           stats.failed++
           const errorMsg = error instanceof Error ? error.message : String(error)
-          console.error(`${LOG_PREFIX} Error syncing ${item.slug}: ${errorMsg}`)
+          log.error({ slug: item.slug, err: errorMsg }, 'Error syncing movie')
 
           results.push({
             action: 'fail',
@@ -272,16 +274,12 @@ export async function syncCatalog(
 
     await completeSyncJob(job.id, stats)
 
-    console.log(`\n${LOG_PREFIX} ✅ Completed!`)
-    console.log(`  Total: ${stats.total}`)
-    console.log(`  Synced: ${stats.processed}`)
-    console.log(`  Failed: ${stats.failed}`)
-    console.log(`  Skipped: ${stats.skipped}`)
+    log.info({ total: stats.total, synced: stats.processed, failed: stats.failed, skipped: stats.skipped }, 'Completed')
 
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error)
     await failSyncJob(job.id, errorMsg)
-    console.error(`${LOG_PREFIX} ❌ Job failed: ${errorMsg}`)
+    log.error({ err: errorMsg }, 'Job failed')
   }
 
   return { jobId: job.id, results }

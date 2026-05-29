@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Save, Upload, X, Image as ImageIcon, RefreshCw } from 'lucide-react'
+import { ArrowLeft, Save, Upload, RefreshCw, Lightbulb } from 'lucide-react'
 import { Button } from '@/src/fe/components/ui/button'
 import { Input } from '@/src/fe/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/src/fe/components/ui/card'
@@ -210,7 +210,7 @@ export default function NewMoviePage() {
             </div>
             <div><label className={labelCls}>Trailer URL</label><Input className={inputCls} placeholder="https://youtube.com/watch?v=..."
               value={form.trailerUrl} onChange={(e) => up('trailerUrl', e.target.value)} /></div>
-            <p className="text-xs text-muted-foreground">💡 Bạn có thể upload ảnh trực tiếp sau khi tạo phim bằng trang chỉnh sửa.</p>
+            <p className="text-xs text-muted-foreground flex items-center gap-1.5"><Lightbulb className="w-3.5 h-3.5" /> Bạn có thể upload ảnh trực tiếp sau khi tạo phim bằng trang chỉnh sửa.</p>
           </CardContent>
         </Card>
 

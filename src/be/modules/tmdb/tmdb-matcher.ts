@@ -10,7 +10,10 @@
 //   5. Normalized fuzzy match → confidence based on similarity
 
 import { searchMovies, searchTv } from './tmdb-client'
+import { logger } from '@/src/be/shared/utils/logger'
 import type { TmdbSearchMovieResult, TmdbSearchTvResult, MatchResult } from './types'
+
+const log = logger.child({ module: 'tmdb-matcher' })
 
 // Minimum confidence to auto-bind
 export const MIN_AUTO_BIND_CONFIDENCE = 0.65
@@ -232,7 +235,7 @@ export async function matchMovie(movie: MovieToMatch): Promise<MatchResult | nul
         }
       }
     } catch (error) {
-      console.warn(`[TMDB Matcher] Search failed for "${query}":`, error instanceof Error ? error.message : error)
+      log.warn({ query, err: error instanceof Error ? error.message : error }, `Search failed for "${query}"`)
     }
   }
 

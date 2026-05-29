@@ -36,30 +36,59 @@ async function main() {
   })
 
   // ── Genres (new — replaces legacy Category) ──
-  console.log('   🎭 Seeding genres...')
-  const genreData = [
-    { name: 'Hành Động', slug: 'hanh-dong', tmdbId: 28 },
-    { name: 'Phiêu Lưu', slug: 'phieu-luu', tmdbId: 12 },
-    { name: 'Hoạt Hình', slug: 'hoat-hinh', tmdbId: 16 },
-    { name: 'Hài', slug: 'hai', tmdbId: 35 },
-    { name: 'Hình Sự', slug: 'hinh-su', tmdbId: 80 },
-    { name: 'Tài Liệu', slug: 'tai-lieu', tmdbId: 99 },
-    { name: 'Chính Kịch', slug: 'chinh-kich', tmdbId: 18 },
-    { name: 'Gia Đình', slug: 'gia-dinh', tmdbId: 10751 },
-    { name: 'Giả Tưởng', slug: 'gia-tuong', tmdbId: 14 },
-    { name: 'Lịch Sử', slug: 'lich-su', tmdbId: 36 },
-    { name: 'Kinh Dị', slug: 'kinh-di', tmdbId: 27 },
-    { name: 'Âm Nhạc', slug: 'am-nhac', tmdbId: 10402 },
-    { name: 'Bí Ẩn', slug: 'bi-an', tmdbId: 9648 },
-    { name: 'Lãng Mạn', slug: 'lang-man', tmdbId: 10749 },
-    { name: 'Khoa Học Viễn Tưởng', slug: 'khoa-hoc-vien-tuong', tmdbId: 878 },
-    { name: 'Giật Gân', slug: 'giat-gan', tmdbId: 53 },
-    { name: 'Chiến Tranh', slug: 'chien-tranh', tmdbId: 10752 },
-    { name: 'Viễn Tây', slug: 'vien-tay', tmdbId: 37 },
-    { name: 'Truyền Hình', slug: 'truyen-hinh', tmdbId: 10770 },
-    { name: 'Tâm Lý', slug: 'tam-ly', tmdbId: null },
-    { name: 'Tình Cảm', slug: 'tinh-cam', tmdbId: null },
-  ]
+  console.log('   🎭 Seeding genres (Fetching from OPhim)...')
+  
+  const tmdbGenreMap: Record<string, number> = {
+    'hanh-dong': 28, 'phieu-luu': 12, 'hoat-hinh': 16, 'hai': 35, 'hai-huoc': 35,
+    'hinh-su': 80, 'tai-lieu': 99, 'chinh-kich': 18, 'gia-dinh': 10751,
+    'gia-tuong': 14, 'lich-su': 36, 'kinh-di': 27, 'am-nhac': 10402,
+    'bi-an': 9648, 'lang-man': 10749, 'khoa-hoc-vien-tuong': 878,
+    'giat-gan': 53, 'chien-tranh': 10752, 'vien-tay': 37, 'truyen-hinh': 10770,
+  }
+
+  let genreData: Array<{ name: string; slug: string; tmdbId: number | null }> = []
+  try {
+    const res = await fetch('https://ophim1.com/v1/api/the-loai')
+    if (res.ok) {
+      const data = await res.json()
+      if (data?.data?.items) {
+        genreData = data.data.items.map((i: any) => ({
+          name: i.name,
+          slug: i.slug,
+          tmdbId: tmdbGenreMap[i.slug] || null
+        }))
+      }
+    }
+  } catch (err) {
+    console.warn('     ⚠️ Failed to fetch genres from OPhim, using fallback.')
+  }
+
+  if (genreData.length === 0) {
+    // Fallback if API fails
+    genreData = [
+      { name: 'Hành Động', slug: 'hanh-dong', tmdbId: 28 },
+      { name: 'Phiêu Lưu', slug: 'phieu-luu', tmdbId: 12 },
+      { name: 'Hoạt Hình', slug: 'hoat-hinh', tmdbId: 16 },
+      { name: 'Hài', slug: 'hai', tmdbId: 35 },
+      { name: 'Hình Sự', slug: 'hinh-su', tmdbId: 80 },
+      { name: 'Tài Liệu', slug: 'tai-lieu', tmdbId: 99 },
+      { name: 'Chính Kịch', slug: 'chinh-kich', tmdbId: 18 },
+      { name: 'Gia Đình', slug: 'gia-dinh', tmdbId: 10751 },
+      { name: 'Giả Tưởng', slug: 'gia-tuong', tmdbId: 14 },
+      { name: 'Lịch Sử', slug: 'lich-su', tmdbId: 36 },
+      { name: 'Kinh Dị', slug: 'kinh-di', tmdbId: 27 },
+      { name: 'Âm Nhạc', slug: 'am-nhac', tmdbId: 10402 },
+      { name: 'Bí Ẩn', slug: 'bi-an', tmdbId: 9648 },
+      { name: 'Lãng Mạn', slug: 'lang-man', tmdbId: 10749 },
+      { name: 'Khoa Học Viễn Tưởng', slug: 'khoa-hoc-vien-tuong', tmdbId: 878 },
+      { name: 'Giật Gân', slug: 'giat-gan', tmdbId: 53 },
+      { name: 'Chiến Tranh', slug: 'chien-tranh', tmdbId: 10752 },
+      { name: 'Viễn Tây', slug: 'vien-tay', tmdbId: 37 },
+      { name: 'Truyền Hình', slug: 'truyen-hinh', tmdbId: 10770 },
+      { name: 'Tâm Lý', slug: 'tam-ly', tmdbId: null },
+      { name: 'Tình Cảm', slug: 'tinh-cam', tmdbId: null },
+    ]
+  }
 
   const genreMap: Record<string, string> = {}
   for (const g of genreData) {
@@ -73,29 +102,58 @@ async function main() {
 
 
   // ── Countries ──
-  console.log('   🌍 Seeding countries...')
-  const countryData = [
-    { name: 'Mỹ', slug: 'my', code: 'US' },
-    { name: 'Hàn Quốc', slug: 'han-quoc', code: 'KR' },
-    { name: 'Nhật Bản', slug: 'nhat-ban', code: 'JP' },
-    { name: 'Trung Quốc', slug: 'trung-quoc', code: 'CN' },
-    { name: 'Thái Lan', slug: 'thai-lan', code: 'TH' },
-    { name: 'Ấn Độ', slug: 'an-do', code: 'IN' },
-    { name: 'Anh', slug: 'anh', code: 'GB' },
-    { name: 'Pháp', slug: 'phap', code: 'FR' },
-    { name: 'Đức', slug: 'duc', code: 'DE' },
-    { name: 'Ý', slug: 'y', code: 'IT' },
-    { name: 'Tây Ban Nha', slug: 'tay-ban-nha', code: 'ES' },
-    { name: 'Việt Nam', slug: 'viet-nam', code: 'VN' },
-    { name: 'Hồng Kông', slug: 'hong-kong', code: 'HK' },
-    { name: 'Đài Loan', slug: 'dai-loan', code: 'TW' },
-    { name: 'Nga', slug: 'nga', code: 'RU' },
-    { name: 'Brazil', slug: 'brazil', code: 'BR' },
-    { name: 'Mexico', slug: 'mexico', code: 'MX' },
-    { name: 'Úc', slug: 'uc', code: 'AU' },
-    { name: 'Canada', slug: 'canada', code: 'CA' },
-    { name: 'Thụy Điển', slug: 'thuy-dien', code: 'SE' },
-  ]
+  console.log('   🌍 Seeding countries (Fetching from OPhim)...')
+
+  const countryCodeMap: Record<string, string> = {
+    'my': 'US', 'han-quoc': 'KR', 'nhat-ban': 'JP', 'trung-quoc': 'CN',
+    'thai-lan': 'TH', 'an-do': 'IN', 'anh': 'GB', 'phap': 'FR', 'duc': 'DE',
+    'y': 'IT', 'tay-ban-nha': 'ES', 'viet-nam': 'VN', 'hong-kong': 'HK',
+    'dai-loan': 'TW', 'nga': 'RU', 'brazil': 'BR', 'mexico': 'MX', 'uc': 'AU',
+    'canada': 'CA', 'thuy-dien': 'SE', 'philippines': 'PH', 'indonesia': 'ID',
+    'malaysia': 'MY', 'singapore': 'SG'
+  }
+
+  let countryData: Array<{ name: string; slug: string; code: string | null }> = []
+  try {
+    const res = await fetch('https://ophim1.com/v1/api/quoc-gia')
+    if (res.ok) {
+      const data = await res.json()
+      if (data?.data?.items) {
+        countryData = data.data.items.map((i: any) => ({
+          name: i.name,
+          slug: i.slug,
+          code: countryCodeMap[i.slug] || null
+        }))
+      }
+    }
+  } catch (err) {
+    console.warn('     ⚠️ Failed to fetch countries from OPhim, using fallback.')
+  }
+
+  if (countryData.length === 0) {
+    countryData = [
+      { name: 'Mỹ', slug: 'my', code: 'US' },
+      { name: 'Hàn Quốc', slug: 'han-quoc', code: 'KR' },
+      { name: 'Nhật Bản', slug: 'nhat-ban', code: 'JP' },
+      { name: 'Trung Quốc', slug: 'trung-quoc', code: 'CN' },
+      { name: 'Thái Lan', slug: 'thai-lan', code: 'TH' },
+      { name: 'Ấn Độ', slug: 'an-do', code: 'IN' },
+      { name: 'Anh', slug: 'anh', code: 'GB' },
+      { name: 'Pháp', slug: 'phap', code: 'FR' },
+      { name: 'Đức', slug: 'duc', code: 'DE' },
+      { name: 'Ý', slug: 'y', code: 'IT' },
+      { name: 'Tây Ban Nha', slug: 'tay-ban-nha', code: 'ES' },
+      { name: 'Việt Nam', slug: 'viet-nam', code: 'VN' },
+      { name: 'Hồng Kông', slug: 'hong-kong', code: 'HK' },
+      { name: 'Đài Loan', slug: 'dai-loan', code: 'TW' },
+      { name: 'Nga', slug: 'nga', code: 'RU' },
+      { name: 'Brazil', slug: 'brazil', code: 'BR' },
+      { name: 'Mexico', slug: 'mexico', code: 'MX' },
+      { name: 'Úc', slug: 'uc', code: 'AU' },
+      { name: 'Canada', slug: 'canada', code: 'CA' },
+      { name: 'Thụy Điển', slug: 'thuy-dien', code: 'SE' },
+    ]
+  }
 
   const countryMap: Record<string, string> = {}
   for (const c of countryData) {
@@ -182,6 +240,37 @@ async function main() {
       peopleSlugs: [{ slug: 'ly-hai', role: 'director' }],
     },
   ]
+
+  // Generate 20 random dummy movies for local dev
+  for (let i = 1; i <= 20; i++) {
+    const isSeries = Math.random() > 0.5
+    const randomGenres = [
+      genreData[Math.floor(Math.random() * genreData.length)].slug,
+      genreData[Math.floor(Math.random() * genreData.length)].slug
+    ]
+    const randomCountry = countryData[Math.floor(Math.random() * countryData.length)].slug
+    
+    movieData.push({
+      title: `Phim Local Demo ${i} - ${isSeries ? 'Series' : 'Movie'}`,
+      slug: `phim-local-demo-${i}`,
+      contentType: isSeries ? 'series' : 'movie',
+      status: 'published',
+      year: 2020 + Math.floor(Math.random() * 6),
+      quality: Math.random() > 0.5 ? 'FHD' : 'HD',
+      viewCount: Math.floor(Math.random() * 50000),
+      isFeatured: Math.random() > 0.8,
+      isRecommended: Math.random() > 0.7,
+      isPublished: true,
+      isActive: true,
+      sourceStatus: 'active',
+      language: 'vi',
+      ageRating: Math.random() > 0.5 ? 'C16' : 'P',
+      shortDescription: `Mô tả tự động cho bộ phim Demo số ${i}`,
+      genreSlugs: Array.from(new Set(randomGenres)),
+      countrySlugs: [randomCountry],
+      peopleSlugs: [],
+    } as any)
+  }
 
   for (const m of movieData) {
     const { genreSlugs, countrySlugs, peopleSlugs, ...movieFields } = m

@@ -8,6 +8,9 @@
 
 import { useRef, useCallback, useEffect } from 'react'
 import type Hls from 'hls.js'
+import { logger } from '@/src/fe/lib/logger'
+
+const log = logger.child({ module: 'useHLS' })
 
 export interface UseHLSOptions {
   /** Callback when manifest parsed and ready to play */
@@ -55,7 +58,7 @@ export function useHLS(options: UseHLSOptions = {}): UseHLSReturn {
       try {
         hlsRef.current.destroy()
       } catch (e) {
-        console.warn('[useHLS] Error destroying HLS instance:', e)
+        log.warn({ err: e instanceof Error ? e.message : e }, 'Error destroying HLS instance')
       }
       hlsRef.current = null
     }
@@ -64,8 +67,27 @@ export function useHLS(options: UseHLSOptions = {}): UseHLSReturn {
     networkRecoveryAttemptRef.current = 0
   }, [])
 
+  // Route OPhim / KKPhim master m3u8 URLs through our HLS proxy so it can
+  // inject a CODECS= attribute the upstream playlist is missing. Browser
+  // then knows the exact codec, skips auto-detection, and avoids the
+  // Chromium "audio decoder initialization failed (kUnsupportedConfig)"
+  // crash that happens on these CDN streams.
+  function maybeProxyM3U8(src: string): string {
+    if (typeof window === 'undefined') return src
+    if (!/\.m3u8(?:\?|$)/i.test(src)) return src
+    try {
+      const u = new URL(src, window.location.origin)
+      if (u.origin === window.location.origin) return src
+      if (!/opstream\d*\.com|phimimg\.com/i.test(u.hostname)) return src
+      return `/api/hls-proxy?u=${encodeURIComponent(u.href)}`
+    } catch {
+      return src
+    }
+  }
+
   // Load a source onto a video element
-  const loadSource = useCallback(async (videoElement: HTMLVideoElement, src: string) => {
+  const loadSource = useCallback(async (videoElement: HTMLVideoElement, rawSrc: string) => {
+    const src = maybeProxyM3U8(rawSrc)
     // Always destroy previous instance first
     destroy()
 
@@ -102,13 +124,21 @@ export function useHLS(options: UseHLSOptions = {}): UseHLSReturn {
       capLevelToPlayerSize: true,  // Don't load higher quality than player size
       maxBufferLength: 30,         // Max buffer ahead in seconds
       maxMaxBufferLength: 60,      // Absolute max buffer
-      enableWorker: true,          // Use web worker for demuxing
+      // Disable worker — the worker-context demuxer occasionally builds an
+      // AudioSpecificConfig that Chromium's decoder rejects with
+      // DECODER_ERROR_NOT_SUPPORTED (kUnsupportedConfig). Demuxing on the
+      // main thread sidesteps the issue at a small CPU cost.
+      enableWorker: false,
       lowLatencyMode: false,       // Not live streaming
       backBufferLength: 30,        // Keep 30s of back buffer
       maxBufferHole: 0.5,          // Max gap tolerance
       fragLoadingTimeOut: 20000,   // 20s timeout for fragment loading
       manifestLoadingTimeOut: 15000, // 15s timeout for manifest
       levelLoadingTimeOut: 15000,  // 15s timeout for level loading
+      // OPhim / KKPhim master playlists usually ship without a CODECS=
+      // attribute. Forcing AAC LC matches what these CDNs actually serve
+      // (verified via ffprobe) and avoids hls.js falling back to HE-AAC.
+      defaultAudioCodec: 'mp4a.40.2',
     })
 
     hlsRef.current = hls
@@ -141,7 +171,7 @@ export function useHLS(options: UseHLSOptions = {}): UseHLSReturn {
     hls.on(HlsLib.Events.ERROR, (_event, data) => {
       const { type, details, fatal } = data
 
-      console.warn(`[useHLS] Error — type: ${type}, details: ${details}, fatal: ${fatal}`)
+      log.warn({ type, details, fatal }, 'HLS error')
 
       optionsRef.current.onError?.(type, details, fatal)
     })
@@ -151,22 +181,22 @@ export function useHLS(options: UseHLSOptions = {}): UseHLSReturn {
   const recoverMediaError = useCallback((): boolean => {
     if (hlsRef.current && mediaRecoveryAttemptRef.current < MAX_RECOVERY_ATTEMPTS) {
       mediaRecoveryAttemptRef.current++
-      console.log(`[useHLS] Media error recovery attempt ${mediaRecoveryAttemptRef.current}/${MAX_RECOVERY_ATTEMPTS}`)
+      log.info({ attempt: mediaRecoveryAttemptRef.current, max: MAX_RECOVERY_ATTEMPTS }, 'Media error recovery attempt')
       hlsRef.current.recoverMediaError()
       return true
     }
-    console.warn('[useHLS] Media error recovery exhausted')
+    log.warn({}, 'Media error recovery exhausted')
     return false
   }, [])
 
   const recoverNetworkError = useCallback((): boolean => {
     if (hlsRef.current && networkRecoveryAttemptRef.current < MAX_RECOVERY_ATTEMPTS) {
       networkRecoveryAttemptRef.current++
-      console.log(`[useHLS] Network error recovery attempt ${networkRecoveryAttemptRef.current}/${MAX_RECOVERY_ATTEMPTS}`)
+      log.info({ attempt: networkRecoveryAttemptRef.current, max: MAX_RECOVERY_ATTEMPTS }, 'Network error recovery attempt')
       hlsRef.current.startLoad()
       return true
     }
-    console.warn('[useHLS] Network error recovery exhausted')
+    log.warn({}, 'Network error recovery exhausted')
     return false
   }, [])
 

@@ -4,7 +4,7 @@ import { Analytics } from '@vercel/analytics/next'
 import { AuthProvider } from '@/src/fe/features/auth/contexts/auth-context'
 import { LayoutWrapper } from '@/src/fe/components/layout-wrapper'
 import { ThemeProvider } from '@/src/fe/components/theme-provider'
-import { Toaster } from 'sonner'
+import { Toaster } from '@/src/fe/components/ui/sonner'
 import { EmailVerificationBanner } from '@/src/fe/components/auth/EmailVerificationBanner'
 import './globals.css'
 

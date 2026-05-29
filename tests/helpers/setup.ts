@@ -4,6 +4,7 @@
 
 // Ensure test environment variables are set
 process.env.DATABASE_URL = 'file:./test.db'
+process.env.NEXTAUTH_SECRET = 'test-secret-do-not-use-in-prod'
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ;(process.env as any).NODE_ENV = 'test'
 process.env.TMDB_API_KEY = 'test-api-key'

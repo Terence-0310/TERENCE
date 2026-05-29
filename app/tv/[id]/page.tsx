@@ -1,14 +1,72 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { Star, Calendar, Play, ArrowLeft, Tv } from 'lucide-react'
-import { getTvDetail } from '@/src/be/services/tmdb/tv-service'
+import { Star, Calendar, Play, ArrowLeft, Tv, Clock } from 'lucide-react'
+import { getTvDetail, getSeasonDetail } from '@/src/be/services/tmdb/tv-service'
 import { MovieComments } from '@/src/fe/components/shared/MovieComments'
 import { RelatedNews } from '@/src/fe/components/news/RelatedNews'
+import { prisma } from '@/src/be/shared/db/prisma'
+import { generateSlug } from '@/src/be/modules/admin/validators'
 import type { Metadata } from 'next'
 
 interface PageProps {
   params: Promise<{ id: string }>
+  searchParams: Promise<{ season?: string }>
+}
+
+/**
+ * Lazy-create a Movie row from TMDB tv detail when one doesn't exist yet.
+ * The catalog only seeds movies from OPhim sync; TMDB-only series otherwise
+ * have no DB record, which breaks anything that joins reviews/likes by Movie
+ * id. Idempotent — once created the row is found on subsequent renders.
+ */
+async function ensureTmdbSeriesMovie(series: Awaited<ReturnType<typeof getTvDetail>>) {
+  const existing = await prisma.movie.findFirst({ where: { tmdbId: series.id } })
+  if (existing) return existing
+
+  // Ensure a unique slug — append the tmdbId if the base slug collides.
+  const base = generateSlug(series.title) || `series-${series.id}`
+  let slug = base
+  if (await prisma.movie.findUnique({ where: { slug } })) {
+    slug = `${base}-${series.id}`
+  }
+
+  let created
+  try {
+    created = await prisma.movie.create({
+      data: {
+        tmdbId: series.id,
+        slug,
+        title: series.title,
+        originalTitle: series.originalTitle || null,
+        description: series.overview || null,
+        contentType: 'series',
+        year: series.year > 0 ? series.year : null,
+        posterUrl: series.posterUrl || null,
+        backdropUrl: series.backdropUrl || null,
+        rating: series.voteAverage || 0,
+        isActive: true,
+        isPublished: true,
+        status: 'published',
+        metadataSource: 'tmdb',
+      },
+    })
+  } catch {
+    // Race: another request may have created the row between our findFirst
+    // and create. Re-read and return whatever's there.
+    created = await prisma.movie.findFirst({ where: { tmdbId: series.id } })
+  }
+
+  // Fire-and-forget Elasticsearch index push so newly-persisted titles are
+  // searchable immediately (instead of waiting for the 2 AM reindex cron).
+  if (created?.id) {
+    const movieId = created.id
+    import('@/src/be/modules/search/movie-search-indexer')
+      .then(({ indexMovie }) => indexMovie(movieId))
+      .catch(() => {})
+  }
+
+  return created
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
@@ -29,16 +87,17 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   }
 }
 
-export default async function SeriesDetailPage({ params }: PageProps) {
+export default async function SeriesDetailPage({ params, searchParams }: PageProps) {
   const { id } = await params
-  
+  const { season: seasonParam } = await searchParams
+
   if (isNaN(Number(id))) {
     const { redirect } = await import('next/navigation')
     redirect(`/watch/${id}`)
   }
 
   const seriesId = Number(id)
-  
+
   let series
   try {
     series = await getTvDetail(seriesId)
@@ -47,6 +106,18 @@ export default async function SeriesDetailPage({ params }: PageProps) {
   }
 
   const creators = series.creators || []
+
+  // ── Selected season for the inline episode list ──
+  // Default to season 1 (or the first non-special season). Switching is via
+  // the ?season=N query param so the page stays a clean server component.
+  const playableSeasons = (series.seasons || []).filter((s) => s.seasonNumber > 0)
+  const fallbackSeasonNumber = playableSeasons[0]?.seasonNumber ?? 1
+  const selectedSeasonNumber = Number(seasonParam) > 0 ? Number(seasonParam) : fallbackSeasonNumber
+  const selectedSeason = await getSeasonDetail(seriesId, selectedSeasonNumber).catch(() => null)
+
+  // ── DB Movie row for comments / likes / watch-history joins ──
+  // TMDB-only series otherwise have no Movie record to attach reviews to.
+  const dbMovie = await ensureTmdbSeriesMovie(series)
 
   return (
     <main className="min-h-screen bg-background">
@@ -192,8 +263,12 @@ export default async function SeriesDetailPage({ params }: PageProps) {
           <h2 className="mb-5 text-lg font-bold text-white">Các Phần ({series.seasons.length})</h2>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
             {series.seasons.map((season) => (
-              <div key={season.id} className="group flex flex-col gap-2">
-                <div className="relative aspect-[2/3] w-full overflow-hidden rounded-xl border border-white/[0.06] bg-card transition-all group-hover:border-primary/30">
+              <Link
+                key={season.id}
+                href={`/tv/${series.id}/season/${season.seasonNumber}`}
+                className="group flex flex-col gap-2"
+              >
+                <div className="relative aspect-[2/3] w-full overflow-hidden rounded-xl border border-white/[0.06] bg-card transition-all group-hover:border-primary/30 group-hover:shadow-[0_0_25px_rgba(45,212,191,0.15)]">
                   <Image
                     src={season.posterUrl || series.posterUrl || '/placeholder.jpg'}
                     alt={season.name}
@@ -203,20 +278,139 @@ export default async function SeriesDetailPage({ params }: PageProps) {
                   />
                 </div>
                 <div>
-                  <p className="line-clamp-1 text-[13px] font-semibold text-white/90">{season.name}</p>
+                  <p className="line-clamp-1 text-[13px] font-semibold text-white/90 group-hover:text-primary transition-colors">{season.name}</p>
                   <p className="line-clamp-1 text-[11px] text-muted-foreground">
                     {season.episodeCount} Tập
                     {season.airDate ? ` · ${season.airDate.substring(0, 4)}` : ''}
                   </p>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         </section>
       )}
 
+      {/* ═══════ EPISODES (inline — selected season) ═══════ */}
+      {playableSeasons.length > 0 && (
+        <section className="mx-auto mt-12 max-w-7xl px-5 md:px-8 lg:px-10">
+          <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+            <h2 className="text-lg font-bold text-white">
+              Danh sách tập{selectedSeason ? ` — ${selectedSeason.name}` : ''}
+              {selectedSeason ? <span className="ml-2 text-sm font-medium text-white/40">({selectedSeason.episodes.length} tập)</span> : null}
+            </h2>
+            {/* Season picker (no JS — re-renders via ?season=N) */}
+            <div className="flex flex-wrap gap-1.5">
+              {playableSeasons.map((s) => {
+                const active = s.seasonNumber === selectedSeasonNumber
+                return (
+                  <Link
+                    key={s.id}
+                    href={`/tv/${series.id}?season=${s.seasonNumber}#danh-sach-tap`}
+                    className={`rounded-lg px-3 py-1.5 text-[12px] font-semibold transition border ${
+                      active
+                        ? 'bg-primary/20 text-primary border-primary/30'
+                        : 'bg-white/5 text-white/60 border-transparent hover:bg-white/10 hover:text-white'
+                    }`}
+                  >
+                    {s.name}
+                  </Link>
+                )
+              })}
+            </div>
+          </div>
+
+          <div id="danh-sach-tap" className="scroll-mt-24" />
+
+          {!selectedSeason ? (
+            <div className="rounded-xl border border-dashed border-white/10 px-5 py-10 text-center">
+              <p className="text-sm text-white/40">Không tải được danh sách tập cho mùa này.</p>
+            </div>
+          ) : selectedSeason.episodes.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-white/10 px-5 py-10 text-center">
+              <p className="text-sm text-white/40">Chưa có dữ liệu tập.</p>
+              <Link
+                href={`/tv/${series.id}/season/${selectedSeason.seasonNumber}`}
+                className="mt-2 inline-block text-xs font-semibold text-primary hover:text-primary/80"
+              >
+                Mở trang chi tiết mùa →
+              </Link>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {selectedSeason.episodes.map((ep) => (
+                <Link
+                  key={ep.id}
+                  href={`/watch/${series.id}?ep=${ep.slug}`}
+                  className="group flex flex-col gap-4 rounded-2xl border border-white/[0.06] bg-card/40 p-3 transition hover:border-primary/30 hover:bg-card/70 sm:flex-row"
+                >
+                  <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-black/40 sm:h-[110px] sm:w-[195px] sm:flex-shrink-0">
+                    {ep.stillUrl ? (
+                      <Image
+                        src={ep.stillUrl}
+                        alt={ep.title}
+                        fill
+                        className="object-cover transition-transform duration-300 group-hover:scale-105"
+                        sizes="(max-width: 640px) 100vw, 195px"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-white/20">
+                        <Play className="h-8 w-8" />
+                      </div>
+                    )}
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/90 text-primary-foreground shadow-lg">
+                        <Play className="h-4 w-4" fill="currentColor" />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-baseline gap-3">
+                      <span className="rounded-md bg-primary/10 px-2 py-0.5 text-[11px] font-bold text-primary border border-primary/20">
+                        Tập {ep.episodeNumber}
+                      </span>
+                      <h3 className="line-clamp-1 text-[15px] font-semibold text-white/90 group-hover:text-primary transition-colors">
+                        {ep.title}
+                      </h3>
+                    </div>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                      {ep.airDate && (
+                        <span className="inline-flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          {ep.airDate}
+                        </span>
+                      )}
+                      {ep.runtimeFormatted && (
+                        <>
+                          <span className="text-white/15">·</span>
+                          <span className="inline-flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            {ep.runtimeFormatted}
+                          </span>
+                        </>
+                      )}
+                      {ep.voteAverage > 0 && (
+                        <>
+                          <span className="text-white/15">·</span>
+                          <span className="inline-flex items-center gap-1">
+                            <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                            {ep.voteAverage}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                    {ep.overview && (
+                      <p className="mt-2 line-clamp-2 text-[13px] leading-relaxed text-white/55">{ep.overview}</p>
+                    )}
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
       {/* ═══════ COMMENTS ═══════ */}
-      <MovieComments movieId={String(series.id)} />
+      <MovieComments movieId={String(dbMovie?.id ?? series.id)} />
 
       {/* ═══════ RELATED NEWS ═══════ */}
       <div className="mt-14 pb-14">

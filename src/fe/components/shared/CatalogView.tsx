@@ -56,7 +56,7 @@ export function CatalogView({
             <div className="flex flex-wrap gap-1.5 mt-4">
               <Link
                 href={basePath}
-                className={`rounded-full px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wider transition animate-chip-in ${
+                className={`max-w-full truncate whitespace-nowrap rounded-full px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wider transition animate-chip-in ${
                   !genreId && !category
                     ? 'bg-primary text-white shadow-md shadow-primary/20'
                     : 'bg-white/[0.04] text-white/50 border border-white/[0.06] hover:bg-white/[0.08] hover:text-white/70'
@@ -69,11 +69,12 @@ export function CatalogView({
                 <Link
                   key={g.id}
                   href={`${basePath}?genre=${g.id}`}
-                  className={`rounded-full px-3.5 py-1.5 text-[11px] font-semibold transition animate-chip-in ${
+                  className={`max-w-full truncate whitespace-nowrap rounded-full px-3.5 py-1.5 text-[11px] font-semibold transition animate-chip-in ${
                     genreId === g.id
                       ? 'bg-primary text-white shadow-md shadow-primary/20'
                       : 'bg-white/[0.04] text-white/50 border border-white/[0.06] hover:bg-white/[0.08] hover:text-white/70'
                   }`}
+                  title={g.name}
                   style={{ '--i': i + 1 } as React.CSSProperties}
                 >
                   {g.name}
@@ -100,7 +101,7 @@ export function CatalogView({
         {result.items.length > 0 ? (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
             {result.items.map((m, i) => (
-              <div key={m.id} className="animate-card-reveal" style={{ '--i': i } as React.CSSProperties}>
+              <div key={m.id} className="animate-card-reveal relative hover:z-[60]" style={{ '--i': i } as React.CSSProperties}>
                 <MovieCard movie={m} />
               </div>
             ))}

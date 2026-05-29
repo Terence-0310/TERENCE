@@ -1,48 +1,57 @@
 // ============================================
-// GET /api/health — System Health Check
+// GET /api/health
+// System health check: database + Elasticsearch.
+// Returns 200 when all systems are OK, 503 when degraded.
 // ============================================
-// Lightweight health endpoint for monitoring and uptime checks.
-// Returns service status + optional DB connectivity check.
-//
-// Does NOT expose secrets or internal details.
-// Sprint 5A-BE — Backend Hardening
 
 import { NextResponse } from 'next/server'
-import { prisma } from '@/src/be/shared/db/prisma'
+import { prisma } from '@/lib/db/prisma'
 
 export const dynamic = 'force-dynamic'
-export const revalidate = 0
 
 export async function GET() {
-  const timestamp = new Date().toISOString()
+  const checks: Record<string, string> = {}
 
-  // Lightweight DB connectivity check
-  let dbStatus: 'ok' | 'error' = 'ok'
+  // ── Database ──
   try {
-    // Use a cheap count query to verify DB connection
-    await prisma.user.count({ take: 1 })
+    await prisma.$queryRaw`SELECT 1`
+    checks.database = 'ok'
   } catch {
-    dbStatus = 'error'
+    checks.database = 'error'
   }
 
-  const overallStatus = dbStatus === 'ok' ? 'ok' : 'degraded'
+  // ── Elasticsearch ──
+  try {
+    const { getClient } = await import('@/src/be/modules/search/elastic-client')
+    const client = getClient()
+    const health = await client.cluster.health({ timeout: '3s' })
+    checks.elasticsearch = health.status === 'red' ? 'degraded' : 'ok'
+  } catch {
+    checks.elasticsearch = 'unavailable'
+  }
+
+  // ── Redis ──
+  try {
+    const { redis } = await import('@/src/lib/redis')
+    if (redis) {
+      await redis.ping()
+      checks.redis = 'ok'
+    } else {
+      checks.redis = 'not_configured'
+    }
+  } catch {
+    checks.redis = 'unavailable'
+  }
+
+  const allOk = Object.values(checks).every((s) => s === 'ok')
 
   return NextResponse.json(
     {
-      success: true,
-      status: overallStatus,
-      service: 'terence',
-      version: '1.0.0',
-      timestamp,
-      checks: {
-        database: dbStatus,
-      },
+      status: allOk ? 'ok' : 'degraded',
+      version: process.env.npm_package_version ?? '1.0.0',
+      checks,
+      timestamp: new Date().toISOString(),
     },
-    {
-      status: overallStatus === 'ok' ? 200 : 503,
-      headers: {
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-      },
-    },
+    { status: allOk ? 200 : 503 },
   )
 }

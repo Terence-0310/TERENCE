@@ -11,24 +11,23 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const group = searchParams.get('group')
 
-  const whereClause: any = {}
+  const whereClause: { group?: string } = {}
   if (group) whereClause.group = group
 
   try {
-    // using raw since typescript type may not be generated yet
-    const settingsList: any[] = await (prisma as any).systemSetting.findMany({
+    const settingsList = await prisma.systemSetting.findMany({
       where: whereClause,
       orderBy: { key: 'asc' }
     })
 
-    const settings = settingsList.reduce((acc, s) => {
+    const settings = settingsList.reduce<Record<string, typeof settingsList[number]>>((acc, s) => {
       acc[s.key] = s
       return acc
-    }, {} as Record<string, any>)
+    }, {})
 
     return successResponse({ settings })
-  } catch (err: any) {
-    return errorResponse(`Failed to fetch settings: ${err.message}`)
+  } catch (err) {
+    return errorResponse(`Failed to fetch settings: ${err instanceof Error ? err.message : String(err)}`)
   }
 }
 
@@ -47,7 +46,7 @@ export async function POST(req: NextRequest) {
       for (const update of body.updates) {
         if (!update.key) continue;
         
-        await (tx as any).systemSetting.upsert({
+        await tx.systemSetting.upsert({
           where: { key: update.key },
           update: {
             value: update.value,
@@ -77,7 +76,7 @@ export async function POST(req: NextRequest) {
     })
 
     return successResponse({ ok: true })
-  } catch (err: any) {
-    return errorResponse(`Failed to update settings: ${err.message}`)
+  } catch (err) {
+    return errorResponse(`Failed to update settings: ${err instanceof Error ? err.message : String(err)}`)
   }
 }

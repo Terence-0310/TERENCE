@@ -6,17 +6,54 @@
 
 import * as repo from './watch-party.repository'
 import { prisma } from '@/lib/db'
+import { getMovieLoader, getEpisodeLoader, getUserLoader } from '@/src/be/shared/db/loaders'
+import { redis } from '@/src/lib/redis'
+import { logger } from '@/src/be/shared/utils/logger'
+
+const log = logger.child({ module: 'watch-party-service' })
 
 // ── Helpers ──
 
 /** Generate a short uppercase room code (6 chars) */
-function generateRoomCode(): string {
+function generateRandomRoomCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
   let code = ''
   for (let i = 0; i < 6; i++) {
     code += chars[Math.floor(Math.random() * chars.length)]
   }
   return code
+}
+
+async function getUniqueRoomCode(): Promise<string> {
+  if (redis) {
+    try {
+      const REDIS_KEY = 'watchparty:room_codes'
+      
+      // Nếu Pool sắp hết (< 100), bơm thêm 1000 mã mới vào Set
+      const poolSize = await redis.scard(REDIS_KEY)
+      if (poolSize < 100) {
+        const newCodes = Array.from({ length: 1000 }, () => generateRandomRoomCode())
+        await redis.sadd(REDIS_KEY, ...newCodes)
+      }
+
+      // Pop (rút) 1 mã ngẫu nhiên ra khỏi Set với độ trễ O(1)
+      const code = await redis.spop(REDIS_KEY)
+      if (code) return code
+    } catch {
+      log.warn('Redis SPOP error, falling back to DB check')
+    }
+  }
+
+  // Fallback (Nếu Redis sập): Kiểm tra tuần tự bằng Prisma
+  let roomCode = generateRandomRoomCode()
+  let attempts = 0
+  while (attempts < 5) {
+    const existing = await repo.findRoomByCode(roomCode)
+    if (!existing) break
+    roomCode = generateRandomRoomCode()
+    attempts++
+  }
+  return roomCode
 }
 
 // ── Create Room ──
@@ -30,34 +67,26 @@ export interface CreateRoomInput {
   maxMembers?: number
 }
 
+/**
+ * Creates a new Watch Party room with the specified host and optional initial movie/episode.
+ * Generates a unique 6-character room code.
+ * 
+ * @param input - The room creation payload
+ * @returns The created room, host participant, and initial state
+ */
 export async function createRoom(input: CreateRoomInput) {
-  let roomCode = generateRoomCode()
-  let attempts = 0
-  while (attempts < 5) {
-    const existing = await repo.findRoomByCode(roomCode)
-    if (!existing) break
-    roomCode = generateRoomCode()
-    attempts++
-  }
+  const roomCode = await getUniqueRoomCode()
 
   // Validate Foreign Keys to prevent Prisma errors
-  let validMovieId = null
-  if (input.movieId) {
-    const movieExists = await prisma.movie.findUnique({ where: { id: String(input.movieId) } })
-    if (movieExists) validMovieId = String(input.movieId)
-  }
+  const [movieExists, epExists, userExists] = await Promise.all([
+    input.movieId ? getMovieLoader().load(String(input.movieId)) : Promise.resolve(null),
+    input.episodeId ? getEpisodeLoader().load(String(input.episodeId)) : Promise.resolve(null),
+    input.userId && !input.userId.startsWith('g-') ? getUserLoader().load(String(input.userId)) : Promise.resolve(null)
+  ])
 
-  let validEpisodeId = null
-  if (input.episodeId) {
-    const epExists = await prisma.episode.findUnique({ where: { id: String(input.episodeId) } })
-    if (epExists) validEpisodeId = String(input.episodeId)
-  }
-
-  let validUserId = null
-  if (input.userId && !input.userId.startsWith('g-')) {
-    const userExists = await prisma.user.findUnique({ where: { id: String(input.userId) } })
-    if (userExists) validUserId = String(input.userId)
-  }
+  let validMovieId = movieExists ? String(input.movieId) : null
+  let validEpisodeId = epExists ? String(input.episodeId) : null
+  let validUserId = userExists ? String(input.userId) : null
 
   const room = await repo.createRoomRecord({
     roomCode,
@@ -101,6 +130,14 @@ export interface JoinRoomInput {
   isApproved?: boolean
 }
 
+/**
+ * Joins an existing Watch Party room. Validates room status and locks.
+ * If the user is already in the room, marks them as online (rejoin).
+ * 
+ * @param input - Payload containing room code and user details
+ * @returns The room, participant details, and rejoin status
+ * @throws WatchPartyError if room is not found, ended, or locked without approval
+ */
 export async function joinRoom(input: JoinRoomInput) {
   const room = await repo.findRoomByCode(input.roomCode)
   if (!room) {
@@ -112,7 +149,7 @@ export async function joinRoom(input: JoinRoomInput) {
 
   let validUserId = null
   if (input.userId && !input.userId.startsWith('g-')) {
-    const userExists = await prisma.user.findUnique({ where: { id: String(input.userId) } })
+    const userExists = await getUserLoader().load(String(input.userId))
     if (userExists) validUserId = String(input.userId)
   }
 
@@ -122,8 +159,8 @@ export async function joinRoom(input: JoinRoomInput) {
     displayName: input.displayName,
   })
 
-  // NEW: Room lock check 
-  if ((room as any).isLocked && !existing && !input.isApproved) {
+  // NEW: Room lock check
+  if (room.isLocked && !existing && !input.isApproved) {
     throw new WatchPartyError('ROOM_LOCKED', 'Phòng đang được khoá. Cần sự phê duyệt của chủ phòng.')
   }
 
@@ -164,6 +201,14 @@ export interface RequestJoinInput {
   userId?: string | null
 }
 
+/**
+ * Submits a join request to a locked Watch Party room, placing the user in the waiting room.
+ * Notifies the room host via LiveKit.
+ * 
+ * @param input - Join request payload
+ * @returns The room and the newly created PENDING participant
+ * @throws WatchPartyError if room is invalid
+ */
 export async function requestJoin(input: RequestJoinInput) {
   const room = await repo.findRoomByCode(input.roomCode)
   if (!room) throw new WatchPartyError('ROOM_NOT_FOUND', 'Phòng không tồn tại')
@@ -171,7 +216,7 @@ export async function requestJoin(input: RequestJoinInput) {
 
   let validUserId = null
   if (input.userId && !input.userId.startsWith('g-')) {
-    const userExists = await prisma.user.findUnique({ where: { id: String(input.userId) } })
+    const userExists = await getUserLoader().load(String(input.userId))
     if (userExists) validUserId = String(input.userId)
   }
 
@@ -193,8 +238,8 @@ export async function requestJoin(input: RequestJoinInput) {
     await sendLiveKitDataMessage(room.roomCode, {
       type: 'JOIN_REQUEST',
       participant: { id: participant.id, displayName: participant.displayName }
-    }).catch(console.error)
-  } catch (e) { /* ignore */ }
+    }).catch((err) => log.error({ err: err instanceof Error ? err.message : err }, 'LiveKit send error'))
+  } catch { /* ignore */ }
 
   return { room, participant }
 }
@@ -208,11 +253,19 @@ export interface ApproveParticipantInput {
   action: 'APPROVE' | 'REJECT'
 }
 
+/**
+ * Approves or rejects a participant's join request (only usable by HOST or COHOST).
+ * Broadcasts the decision via LiveKit.
+ * 
+ * @param input - Approval payload
+ * @returns The updated participant record
+ * @throws WatchPartyError if permissions are insufficient or participant is not found
+ */
 export async function approveParticipant(input: ApproveParticipantInput) {
   const room = await repo.findRoomByCode(input.roomCode)
   if (!room) throw new WatchPartyError('ROOM_NOT_FOUND', 'Phòng không tồn tại')
 
-  const participants = (room as any).participants as Array<{ id: string; role: string }> | undefined
+  const participants = room.participants
   const isHostOrCohost = participants?.some((p) => p.id === input.hostParticipantId && (p.role === 'HOST' || p.role === 'COHOST'))
   if (!isHostOrCohost) {
     throw new WatchPartyError('FORBIDDEN', 'Chỉ host hoặc co-host mới có quyền duyệt thành viên')
@@ -244,8 +297,8 @@ export async function approveParticipant(input: ApproveParticipantInput) {
       type: input.action === 'APPROVE' ? 'JOIN_APPROVED' : 'JOIN_REJECTED',
       participantId: updatedParticipant.id,
       displayName: updatedParticipant.displayName
-    }).catch(console.error)
-  } catch (e) { /* ignore */ }
+    }).catch((err) => log.error({ err: err instanceof Error ? err.message : err }, 'LiveKit send error'))
+  } catch { /* ignore */ }
 
   return updatedParticipant
 }
@@ -263,7 +316,7 @@ export async function updateParticipantRole(input: UpdateRoleInput) {
   const room = await repo.findRoomByCode(input.roomCode)
   if (!room) throw new WatchPartyError('ROOM_NOT_FOUND', 'Phòng không tồn tại')
 
-  const participants = (room as any).participants as Array<{ id: string; role: string; displayName: string }> | undefined
+  const participants = room.participants
   const isHost = participants?.some((p) => p.id === input.hostParticipantId && p.role === 'HOST')
   if (!isHost) {
     throw new WatchPartyError('FORBIDDEN', 'Chỉ host mới có quyền phân quyền')
@@ -295,6 +348,14 @@ export interface LeaveRoomInput {
   participantId: string
 }
 
+/**
+ * Removes a participant from the room (marks offline).
+ * If the last participant leaves, the room ends.
+ * If the host leaves, transfers host privileges to the next eligible participant.
+ * 
+ * @param input - Leave payload
+ * @returns Object indicating if the room ended and who the new host is (if transferred)
+ */
 export async function leaveRoom(input: LeaveRoomInput) {
   const room = await repo.findRoomByCode(input.roomCode)
   if (!room) {
@@ -368,6 +429,7 @@ export interface UpdateRoomInput {
   roomCode: string
   title?: string
   isLocked?: boolean
+  theme?: string
   participantId?: string // to check if host
 }
 
@@ -381,11 +443,30 @@ export async function updateRoom(input: UpdateRoomInput) {
   }
 
   // Check host permissions if participantId provided
+  let actor: (typeof room.participants)[number] | undefined
   if (input.participantId) {
-    const participants = (room as any).participants as Array<{ id: string; role: string }> | undefined
-    const isHostOrCohost = participants?.some((p) => p.id === input.participantId && (p.role === 'HOST' || p.role === 'COHOST'))
+    const participants = room.participants
+    actor = participants?.find((p) => p.id === input.participantId)
+    const isHostOrCohost = actor && (actor.role === 'HOST' || actor.role === 'COHOST')
     if (!isHostOrCohost) {
       throw new WatchPartyError('FORBIDDEN', 'Chỉ host hoặc co-host mới có quyền sửa cài đặt phòng')
+    }
+  }
+
+  // Room theme is a TCoin perk: validate the id and ensure the actor still
+  // holds the room-theme perk before persisting it.
+  if (input.theme !== undefined) {
+    const { ROOM_THEME_IDS } = await import('@/lib/watch-party/themes')
+    if (!ROOM_THEME_IDS.includes(input.theme)) {
+      throw new WatchPartyError('FORBIDDEN', 'Theme không hợp lệ')
+    }
+    if (input.theme !== 'default') {
+      const actorUserId = actor?.userId
+      const { getActivePerks } = await import('@/src/be/modules/tcoin/tcoin.service')
+      const perks = actorUserId ? await getActivePerks(actorUserId) : null
+      if (!perks?.roomTheme) {
+        throw new WatchPartyError('FORBIDDEN', 'Cần đổi ưu đãi “Theme phòng xem chung” để dùng tính năng này')
+      }
     }
   }
 
@@ -394,6 +475,7 @@ export async function updateRoom(input: UpdateRoomInput) {
     data: {
       ...(input.title !== undefined && { title: input.title }),
       ...(input.isLocked !== undefined && { isLocked: input.isLocked }),
+      ...(input.theme !== undefined && { theme: input.theme }),
     },
   })
 
@@ -465,6 +547,14 @@ export interface SyncStateInput {
   episodeId?: string | null
 }
 
+/**
+ * Synchronizes the playback state of a room.
+ * Ensures that only the host can trigger playback control events (PLAY, PAUSE, SEEK).
+ * 
+ * @param input - Sync state payload
+ * @returns The updated room state
+ * @throws WatchPartyError for unauthorized actions
+ */
 export async function syncState(input: SyncStateInput) {
   const room = await repo.findRoomByCode(input.roomCode)
   if (!room) {
@@ -477,7 +567,7 @@ export async function syncState(input: SyncStateInput) {
   // ── Host-only validation: only host can control playback ──
   if (input.eventBy && input.eventType && ['PLAY', 'PAUSE', 'SEEK'].includes(input.eventType)) {
     // room includes participants from findRoomByCode
-    const participants = (room as any).participants as Array<{ id: string; role: string }> | undefined
+    const participants = room.participants
     const hostParticipant = participants?.find((p) => p.role === 'HOST')
     if (hostParticipant && hostParticipant.id !== input.eventBy) {
       throw new WatchPartyError('FORBIDDEN', 'Chỉ host mới điều khiển được player')

@@ -8,9 +8,9 @@ import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import {
-  ArrowLeft, Plus, Edit2, Trash2, Eye, EyeOff,
-  Film, Play, Globe, FileText, ChevronDown, ChevronUp,
-  Save, X, AlertTriangle, Check, Link as LinkIcon,
+  ArrowLeft, Plus, Trash2, Eye, EyeOff,
+  Film, Play, ChevronDown, ChevronUp,
+  Save, X, AlertTriangle, Check,
   Subtitles,
 } from 'lucide-react'
 

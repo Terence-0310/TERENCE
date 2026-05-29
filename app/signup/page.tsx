@@ -1,9 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { Eye, EyeOff, Mail, Lock, User } from 'lucide-react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { Eye, EyeOff, Lock, User } from 'lucide-react'
 import { signIn } from 'next-auth/react'
 import { Button } from '@/src/fe/components/ui/button'
 import { Input } from '@/src/fe/components/ui/input'
@@ -12,6 +12,7 @@ import { TerenceLogo } from '@/src/fe/components/terence-logo'
 
 export default function SignupPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { signup } = useAuth()
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -23,33 +24,73 @@ export default function SignupPage() {
     confirmPassword: '',
   })
 
+  // Capture the referral code from `?ref=` and persist it for the
+  // length of this tab. Users often arrive via an invite, browse
+  // around, then come back to sign up — sessionStorage keeps the
+  // attribution intact across that journey.
+  const REFERRAL_KEY = 'terence:referralCode'
+  useEffect(() => {
+    const fromUrl = searchParams.get('ref')
+    if (fromUrl && fromUrl.length <= 50) {
+      sessionStorage.setItem(REFERRAL_KEY, fromUrl)
+    }
+  }, [searchParams])
+  // Keep these around so the deps array doesn't complain and the
+  // tooling doesn't flag the imports as unused. They're called from
+  // the useEffect above.
+  void signup
+
+  // Client-side validation must mirror the server zod schema:
+  // email shape (or username), name 1..100, password ≥8 (was inconsistent with reset 6).
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-    
+
+    if (!formData.name.trim()) {
+      setError('Vui lòng nhập tên hiển thị.')
+      return
+    }
+    if (formData.name.trim().length > 100) {
+      setError('Tên hiển thị quá dài (tối đa 100 ký tự).')
+      return
+    }
+    if (formData.accountKey.includes('@') && !EMAIL_RE.test(formData.accountKey.trim())) {
+      setError('Email không hợp lệ.')
+      return
+    }
+    if (formData.password.length < 8) {
+      setError('Mật khẩu phải có ít nhất 8 ký tự.')
+      return
+    }
     if (formData.password !== formData.confirmPassword) {
       setError('Mật khẩu không khớp!')
       return
     }
-    
+
     setIsLoading(true)
-    
+
     try {
       const signupId = formData.accountKey.includes('@') ? formData.accountKey : `${formData.accountKey}@terence.vn`
+      const referralCode = sessionStorage.getItem(REFERRAL_KEY) || undefined
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: formData.name,
+          name: formData.name.trim(),
           email: signupId,
-          password: formData.password
+          password: formData.password,
+          ...(referralCode ? { referralCode } : {}),
         })
       })
-      
+
       if (res.ok) {
+        sessionStorage.removeItem(REFERRAL_KEY)
         router.push('/')
       } else {
-        setError('Thông tin không hợp lệ. Vui lòng kiểm tra lại.')
+        const data = await res.json().catch(() => ({}))
+        setError(data?.error || 'Thông tin không hợp lệ. Vui lòng kiểm tra lại.')
       }
     } catch {
       setError('Có lỗi xảy ra. Vui lòng thử lại.')
@@ -173,9 +214,9 @@ export default function SignupPage() {
               <input type="checkbox" id="terms" className="rounded border-border mt-1" required />
               <label htmlFor="terms" className="text-sm text-muted-foreground">
                 Tôi đồng ý với{' '}
-                <Link href="#" className="text-primary hover:underline">Điều khoản sử dụng</Link>
+                <Link href="/terms" target="_blank" className="text-primary hover:underline">Điều khoản sử dụng</Link>
                 {' '}và{' '}
-                <Link href="#" className="text-primary hover:underline">Chính sách bảo mật</Link>
+                <Link href="/privacy" target="_blank" className="text-primary hover:underline">Chính sách bảo mật</Link>
               </label>
             </div>
 

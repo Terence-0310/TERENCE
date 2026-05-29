@@ -10,7 +10,7 @@ export function AuthModal() {
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && closeModal()}>
-      <DialogContent className="sm:max-w-[480px] p-0 gap-0 overflow-hidden bg-[#0B0F19] border border-white/10 rounded-2xl shadow-2xl">
+      <DialogContent className="sm:max-w-[480px] p-0 gap-0 overflow-hidden bg-background border border-white/10 rounded-2xl shadow-2xl">
         <div className="w-full px-6 py-10 sm:px-10 flex flex-col items-center">
           <DialogHeader className="sr-only">
             <DialogTitle>Xác thực</DialogTitle>

@@ -24,7 +24,9 @@ import {
   CreditCard,
   Clapperboard,
   Monitor,
-  Loader2
+  Loader2,
+  Newspaper,
+  Megaphone
 } from 'lucide-react'
 import { Button } from '@/src/fe/components/ui/button'
 import { useAuth } from '@/src/fe/features/auth/contexts/auth-context'
@@ -42,9 +44,11 @@ import {
 const SIDEBAR_ITEMS = [
   { icon: LayoutDashboard, label: 'Tổng quan', href: '/dashboard' },
   { icon: Film, label: 'Quản lý phim', href: '/dashboard/movies' },
+  { icon: Newspaper, label: 'Bài viết', href: '/dashboard/news' },
   { icon: Tag, label: 'Nội dung', href: '/dashboard/content' },
   { icon: Users, label: 'Người dùng', href: '/dashboard/users' },
   { icon: Coins, label: 'Thanh toán & TCoin', href: '/dashboard/tcoin' },
+  { icon: Megaphone, label: 'Quảng cáo', href: '/dashboard/ads' },
   { icon: BarChart3, label: 'Thống kê', href: '/dashboard/analytics' },
   { icon: FileText, label: 'Nhật ký', href: '/dashboard/logs' },
   { icon: Settings, label: 'Cài đặt', href: '/dashboard/settings' },
@@ -64,7 +68,7 @@ const NOTIF_ICON_MAP: Record<string, { icon: typeof Bell; color: string; bg: str
   user: { icon: Users, color: 'text-green-500', bg: 'bg-green-500/10' },
   warning: { icon: AlertTriangle, color: 'text-yellow-500', bg: 'bg-yellow-500/10' },
   system: { icon: Monitor, color: 'text-purple-500', bg: 'bg-purple-500/10' },
-  movie: { icon: Clapperboard, color: 'text-[#2dd4bf]', bg: 'bg-[#2dd4bf]/10' },
+  movie: { icon: Clapperboard, color: 'text-primary', bg: 'bg-primary/10' },
 }
 
 function formatRelativeTime(dateStr: string): string {
@@ -190,10 +194,10 @@ function DashboardSearch() {
   let flatIdx = -1
 
   return (
-    <div ref={containerRef} className="hidden md:block relative">
-      <div className={`flex items-center bg-white dark:bg-[#151e2f] rounded-2xl px-4 py-2.5 shadow-sm min-w-[300px] lg:min-w-[360px] transition-all ${isOpen ? 'ring-2 ring-[#2dd4bf]/50' : 'focus-within:ring-2 focus-within:ring-[#2dd4bf]/50'}`}>
+    <div ref={containerRef} className="hidden md:block relative w-full max-w-[300px] lg:max-w-[360px]">
+      <div className={`flex items-center bg-white dark:bg-[#151e2f] rounded-2xl px-4 py-2.5 shadow-sm w-full transition-all ${isOpen ? 'ring-2 ring-primary/50' : 'focus-within:ring-2 focus-within:ring-primary/50'}`}>
         {searching ? (
-          <Loader2 className="w-4 h-4 text-[#2dd4bf] animate-spin" />
+          <Loader2 className="w-4 h-4 text-primary animate-spin" />
         ) : (
           <Search className="w-4 h-4 text-gray-400" />
         )}
@@ -243,7 +247,7 @@ function DashboardSearch() {
                         onClick={() => navigateTo(page.href)}
                         className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
                           activeIdx === currentIdx
-                            ? 'bg-[#2dd4bf]/10 text-[#2dd4bf]'
+                            ? 'bg-primary/10 text-primary'
                             : 'hover:bg-gray-50 dark:hover:bg-white/5 text-[#25396f] dark:text-gray-300'
                         }`}
                       >
@@ -270,12 +274,12 @@ function DashboardSearch() {
                         onClick={() => navigateTo(movie.href)}
                         className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
                           activeIdx === currentIdx
-                            ? 'bg-[#2dd4bf]/10'
+                            ? 'bg-primary/10'
                             : 'hover:bg-gray-50 dark:hover:bg-white/5'
                         }`}
                       >
-                        <div className="w-8 h-8 rounded-lg bg-[#2dd4bf]/10 flex items-center justify-center shrink-0">
-                          <Film className="w-4 h-4 text-[#2dd4bf]" />
+                        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                          <Film className="w-4 h-4 text-primary" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-bold text-[#25396f] dark:text-white truncate">{movie.title}</p>
@@ -312,11 +316,11 @@ function DashboardSearch() {
                         onClick={() => navigateTo(user.href)}
                         className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
                           activeIdx === currentIdx
-                            ? 'bg-[#2dd4bf]/10'
+                            ? 'bg-primary/10'
                             : 'hover:bg-gray-50 dark:hover:bg-white/5'
                         }`}
                       >
-                        <div className="w-8 h-8 rounded-full bg-[#2dd4bf] flex items-center justify-center shrink-0">
+                        <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center shrink-0">
                           <span className="text-[11px] font-black text-[#022c22]">{user.name.charAt(0).toUpperCase()}</span>
                         </div>
                         <div className="flex-1 min-w-0">
@@ -416,13 +420,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (isLoading || !user || !isAdmin) {
     return (
       <div className="min-h-screen bg-[#f2f7ff] dark:bg-[#151e2f] flex items-center justify-center">
-        <div className="animate-spin w-10 h-10 border-4 border-[#2dd4bf] border-t-transparent rounded-full font-nunito"></div>
+        <div className="animate-spin w-10 h-10 border-4 border-primary border-t-transparent rounded-full font-nunito"></div>
       </div>
     )
   }
 
   return (
-    <div className="h-screen overflow-hidden bg-[#f2f7ff] dark:bg-[#0B1120] text-[#25396f] dark:text-gray-300 flex font-nunito transition-colors duration-300">
+    <div className="h-screen overflow-hidden bg-[#f2f7ff] dark:bg-background text-[#25396f] dark:text-gray-300 flex font-nunito transition-colors duration-300">
       
       {/* Sidebar - Mazer Style with Terence Colors */}
       <aside 
@@ -434,7 +438,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           {/* Logo Area */}
           <div className="h-24 px-8 flex items-center justify-between shrink-0">
             <Link href="/" className="flex items-center gap-3 group">
-              <TerenceLogo size={36} className="text-[#2dd4bf] group-hover:scale-110 transition-transform" />
+              <TerenceLogo size={36} className="text-primary group-hover:scale-110 transition-transform" />
               <span className="text-2xl font-black tracking-tight text-[#25396f] dark:text-white">TERENCE</span>
             </Link>
             <button className="lg:hidden text-gray-400 hover:text-gray-600 dark:hover:text-gray-200" onClick={() => setSidebarOpen(false)}>
@@ -461,8 +465,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     onClick={() => isMobile && setSidebarOpen(false)}
                     className={`flex items-center gap-4 px-4 py-3 rounded-xl transition-all duration-200 font-bold ${
                       isActive
-                        ? 'bg-[#2dd4bf] text-white shadow-[0_4px_10px_rgba(45,212,191,0.4)] dark:text-[#022c22] scale-100'
-                        : 'text-[#25396f] dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-[#2dd4bf] dark:hover:text-[#2dd4bf] hover:translate-x-1'
+                        ? 'bg-primary text-white shadow-[0_4px_10px_rgba(45,212,191,0.4)] dark:text-[#022c22] scale-100'
+                        : 'text-[#25396f] dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-primary hover:translate-x-1'
                     }`}
                   >
                     <item.icon className={`w-[22px] h-[22px] ${isActive ? '' : 'opacity-80'}`} />
@@ -477,8 +481,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="p-6 shrink-0 opacity-0 animate-fade-in-up" style={{ animationDelay: '400ms', animationFillMode: 'forwards' }}>
              <div className="bg-[#f8f9fa] dark:bg-black/20 rounded-2xl p-4 flex flex-col gap-3">
                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-[#2dd4bf]/10 dark:bg-[#2dd4bf]/20 flex items-center justify-center shrink-0">
-                    <span className="text-[#2dd4bf] font-black">{user.name.charAt(0)}</span>
+                  <div className="w-10 h-10 rounded-full bg-primary/10 dark:bg-primary/20 flex items-center justify-center shrink-0">
+                    <span className="text-primary font-black">{user.name.charAt(0)}</span>
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-sm truncate dark:text-white">{user.name}</p>
@@ -501,22 +505,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* Main Content Area */}
       <div className={`flex-1 flex flex-col h-screen overflow-y-auto min-w-0 transition-all duration-300 custom-scrollbar`}>
         {/* Top Navbar */}
-        <header className="h-[90px] px-6 lg:px-10 flex items-center justify-between shrink-0 opacity-0 animate-fade-in-up" style={{ animationDelay: '100ms' }}>
-          <div className="flex items-center gap-4">
+        <header className="h-[90px] px-4 md:px-6 lg:px-10 flex items-center justify-between shrink-0 opacity-0 animate-fade-in-up" style={{ animationDelay: '100ms' }}>
+          <div className="flex items-center gap-3 md:gap-4 flex-1">
             <button
-               className={`p-2.5 rounded-xl bg-white dark:bg-[#151e2f] text-gray-600 dark:text-gray-300 shadow-sm hover:shadow-md transition-all active:scale-95 ${sidebarOpen ? 'hidden lg:block' : 'block'}`}
+               className={`p-2.5 rounded-xl bg-white dark:bg-[#151e2f] text-gray-600 dark:text-gray-300 shadow-sm hover:shadow-md transition-all active:scale-95 z-50 ${sidebarOpen ? 'hidden lg:block' : 'block'}`}
                onClick={() => setSidebarOpen(!sidebarOpen)}
             >
               <Menu className="w-5 h-5" />
             </button>
-            <DashboardSearch />
+            <div className="hidden sm:block flex-1 max-w-sm">
+              <DashboardSearch />
+            </div>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 md:gap-4 shrink-0">
             {/* Theme Toggle */}
             <button 
                onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-               className="p-2.5 rounded-xl bg-white dark:bg-[#151e2f] text-gray-600 dark:text-gray-300 shadow-sm hover:text-[#2dd4bf] dark:hover:text-[#2dd4bf] transition-colors active:scale-95"
+               className="p-2.5 rounded-xl bg-white dark:bg-[#151e2f] text-gray-600 dark:text-gray-300 shadow-sm hover:text-primary dark:hover:text-primary transition-colors active:scale-95"
             >
                {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
             </button>
@@ -524,7 +530,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             {/* Notification — Dynamic */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="p-2.5 rounded-xl bg-white dark:bg-[#151e2f] text-gray-600 dark:text-gray-300 shadow-sm relative hover:text-[#2dd4bf] dark:hover:text-[#2dd4bf] transition-colors active:scale-95 group outline-none cursor-pointer">
+                <button className="p-2.5 rounded-xl bg-white dark:bg-[#151e2f] text-gray-600 dark:text-gray-300 shadow-sm relative hover:text-primary dark:hover:text-primary transition-colors active:scale-95 group outline-none cursor-pointer">
                   <Bell className="w-5 h-5 group-hover:animate-wiggle" />
                   {unreadCount > 0 && (
                     <span className="absolute top-1.5 right-1.5 min-w-[16px] h-4 flex items-center justify-center bg-red-500 rounded-full border-2 border-white dark:border-[#151e2f] text-[9px] font-bold text-white px-1 animate-pulse">
@@ -587,7 +593,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                    </button>
                    <button
                      onClick={fetchNotifications}
-                     className="text-sm font-bold text-[#2dd4bf] hover:text-[#14b8a6] transition-colors p-2 rounded-lg hover:bg-[#2dd4bf]/5"
+                     className="text-sm font-bold text-primary hover:text-primary transition-colors p-2 rounded-lg hover:bg-primary/5"
                    >
                      Làm mới
                    </button>
@@ -597,23 +603,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             
             {/* Top Right Profile Dropdown */}
             <DropdownMenu>
-              <DropdownMenuTrigger className="flex items-center gap-3 bg-white dark:bg-[#151e2f] p-2 pr-4 rounded-2xl shadow-sm outline-none cursor-pointer hover:shadow-md transition-all active:scale-95">
-                <div className="w-9 h-9 rounded-xl bg-[#2dd4bf]/10 flex items-center justify-center shrink-0">
-                  <span className="text-[#2dd4bf] font-black text-sm tracking-tighter">{user.name.substring(0, 2).toUpperCase()}</span>
+              <DropdownMenuTrigger className="flex items-center gap-3 bg-white dark:bg-[#151e2f] p-2 pr-2 lg:pr-4 rounded-2xl shadow-sm outline-none cursor-pointer hover:shadow-md transition-all active:scale-95">
+                <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                  <span className="text-primary font-black text-sm tracking-tighter">{user.name.substring(0, 2).toUpperCase()}</span>
                 </div>
-                <div className="hidden sm:block text-left">
-                   <p className="text-sm font-bold text-[#25396f] dark:text-white leading-tight">{user.name}</p>
+                <div className="hidden lg:block text-left">
+                   <p className="text-sm font-bold text-[#25396f] dark:text-white leading-tight truncate max-w-[120px]">{user.name}</p>
                    <p className="text-[11px] font-bold text-gray-400 leading-tight">Admin</p>
                 </div>
-                <ChevronDown className="w-4 h-4 text-gray-400 hidden sm:block" />
+                <ChevronDown className="w-4 h-4 text-gray-400 hidden lg:block" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56 bg-white dark:bg-[#151e2f] border-none shadow-xl rounded-xl p-2 font-nunito animate-dropdown-in">
                 <DropdownMenuLabel className="font-bold text-gray-400 text-xs uppercase px-2">Tài khoản</DropdownMenuLabel>
                 <DropdownMenuSeparator className="bg-gray-100 dark:bg-white/5 my-2" />
-                <DropdownMenuItem onClick={() => router.push('/')} className="cursor-pointer font-bold text-[#25396f] dark:text-white rounded-lg py-2.5 hover:text-[#2dd4bf] hover:bg-[#2dd4bf]/10">
+                <DropdownMenuItem onClick={() => router.push('/')} className="cursor-pointer font-bold text-[#25396f] dark:text-white rounded-lg py-2.5 hover:text-primary hover:bg-primary/10">
                   Quay về trang web
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => router.push('/dashboard/settings')} className="cursor-pointer font-bold text-[#25396f] dark:text-white rounded-lg py-2.5 hover:text-[#2dd4bf] hover:bg-[#2dd4bf]/10">
+                <DropdownMenuItem onClick={() => router.push('/dashboard/settings')} className="cursor-pointer font-bold text-[#25396f] dark:text-white rounded-lg py-2.5 hover:text-primary hover:bg-primary/10">
                   Tùy chỉnh hệ thống
                 </DropdownMenuItem>
                 <DropdownMenuSeparator className="bg-gray-100 dark:bg-white/5 my-2" />

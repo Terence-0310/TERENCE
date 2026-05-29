@@ -12,7 +12,7 @@ export function WatchPageContainer({
   playerArea,
 }: WatchPageContainerProps) {
   return (
-    <section className="relative w-full overflow-hidden bg-[#0A0E17]/80 backdrop-blur-md shadow-2xl flex flex-col border border-white/[0.06] rounded-none sm:rounded-xl md:rounded-2xl">
+    <section className="relative w-full overflow-hidden bg-background/80 backdrop-blur-md shadow-2xl flex flex-col border border-white/[0.06] rounded-none sm:rounded-xl md:rounded-2xl">
       {headerArea && (
         <div className="px-4 py-3 md:px-6 md:py-4 border-b border-white/[0.06] shrink-0">
           {headerArea}

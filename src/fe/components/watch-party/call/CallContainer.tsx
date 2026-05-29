@@ -7,8 +7,9 @@
 // Automatically selects DuoView or GridView based on participant count.
 // Integrates with usePartyCall hook for WebRTC/LiveKit.
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { Phone } from 'lucide-react'
+import { toast } from 'sonner'
 import { PreJoinCallScreen } from './PreJoinCallScreen'
 import { CallDuoView } from './CallDuoView'
 import { CallGridView } from './CallGridView'
@@ -25,13 +26,16 @@ interface CallContainerProps {
 export function CallContainer({ call, userName, roomType }: CallContainerProps) {
   const [stage, setStage] = useState<CallStage>(call.isInCall ? 'in-call' : 'idle')
 
-  // Keep stage in sync with call state
-  if (call.isInCall && stage !== 'in-call') {
-    setStage('in-call')
-  }
-  if (!call.isInCall && stage === 'in-call') {
-    setStage('idle')
-  }
+  // Sync stage ↔ isInCall in an effect (not during render — that caused stage
+  // to flip back to 'idle' immediately if joinCall finished before isInCall
+  // flipped true, making the user think they got kicked out).
+  useEffect(() => {
+    if (call.isInCall) {
+      setStage((prev) => (prev === 'in-call' ? prev : 'in-call'))
+    } else {
+      setStage((prev) => (prev === 'in-call' ? 'idle' : prev))
+    }
+  }, [call.isInCall])
 
   const handleShowPreJoin = useCallback(() => {
     setStage('pre-join')
@@ -43,15 +47,24 @@ export function CallContainer({ call, userName, roomType }: CallContainerProps) 
 
   const handleJoin = useCallback(async (settings: { audioEnabled: boolean; videoEnabled: boolean }) => {
     setStage('connecting')
-    await call.joinCall()
-    // After join, toggle mic/camera to match pre-join settings
+    try {
+      await call.joinCall()
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Không thể kết nối cuộc gọi'
+      toast.error(`Không thể vào cuộc gọi: ${msg}`)
+      setStage('pre-join')
+      return
+    }
     if (!settings.audioEnabled && !call.isMuted) {
       call.toggleMic()
     }
     if (!settings.videoEnabled && call.isCameraOn) {
       call.toggleCamera()
     }
-    setStage('in-call')
+    // Don't force stage='in-call' here — the useEffect above promotes the
+    // stage once call.isInCall flips true. If the connect resolved but the
+    // server immediately dropped us, the effect will revert to 'idle' and
+    // we'll show the toast below.
   }, [call])
 
   const handleLeave = useCallback(() => {
@@ -59,20 +72,23 @@ export function CallContainer({ call, userName, roomType }: CallContainerProps) 
     setStage('idle')
   }, [call])
 
+  // Surface LiveKit errors so a silent failure doesn't look like "kicked out".
+  useEffect(() => {
+    if (call.error) toast.error(`Lỗi cuộc gọi: ${call.error}`)
+  }, [call.error])
+
   if (!call.isCallSupported) return null
 
   // ── Idle: show join button ──
   if (stage === 'idle') {
     return (
-      <div className="px-5 py-3 border-b border-white/[0.04]">
+      <div className="px-5 py-2.5 border-b border-white/[0.04]">
         <button
           onClick={handleShowPreJoin}
-          className="group relative flex w-full items-center justify-center gap-2 overflow-hidden rounded-[14px] bg-gradient-to-r from-[#2DD4BF] to-[#20b2aa] px-4 py-3 text-[13px] font-bold text-[#0A0F1E] shadow-[0_0_20px_rgba(45,212,191,0.3)] transition-all duration-300 hover:scale-[1.02] hover:shadow-[0_0_25px_rgba(45,212,191,0.5)]"
+          className="flex w-full items-center justify-center gap-2 rounded-xl border border-primary/30 bg-primary/10 px-4 py-2 text-[12px] font-semibold text-primary transition hover:bg-primary/20 hover:border-primary/50"
         >
-          {/* Shine effect */}
-          <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/40 to-transparent skew-x-12 animate-[shimmer_2s_infinite] group-hover:block" />
-          <Phone className="h-4 w-4 drop-shadow-md" />
-          <span className="tracking-wide">Tham gia cuộc gọi</span>
+          <Phone className="h-3.5 w-3.5" />
+          Tham gia cuộc gọi
         </button>
       </div>
     )

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Search, Plus, Edit, Trash2, RefreshCw, X, Save, Tag, Globe2, Users2 } from 'lucide-react'
+import { Search, Plus, Edit, Trash2, RefreshCw, X, Save, Tag, Globe2 } from 'lucide-react'
 import { Button } from '@/src/fe/components/ui/button'
 import { Input } from '@/src/fe/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/src/fe/components/ui/card'
@@ -115,8 +115,24 @@ export default function ContentPage() {
       <Card className="bg-card border-border">
         <CardHeader><CardTitle className="text-lg">{tab === 'genres' ? 'Thể loại' : 'Quốc gia'} ({items.length})</CardTitle></CardHeader>
         <CardContent>
-          {loading ? (
-            <div className="flex justify-center py-12"><div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full" /></div>
+          {loading && items.length === 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <div key={i} className="flex items-center justify-between p-4 border border-border rounded-lg bg-muted/10 animate-pulse">
+                  <div className="flex items-center gap-4">
+                    <div className="h-10 w-10 bg-muted rounded-lg" />
+                    <div className="space-y-2">
+                      <div className="h-5 w-24 bg-muted rounded" />
+                      <div className="h-3 w-16 bg-muted rounded" />
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="h-8 w-8 bg-muted rounded" />
+                    <div className="h-8 w-8 bg-muted rounded" />
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {items.map((item) => (

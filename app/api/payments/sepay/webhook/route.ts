@@ -1,85 +1,92 @@
-import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/db/prisma';
-import { SePayWebhookPayload, verifySePaySignature } from '@/src/be/modules/payments/sepay';
-import { markOrderPaid } from '@/src/be/services/topup-order.service';
+// ============================================
+// POST /api/payments/sepay/webhook
+// SePay bank transfer webhook handler.
+// Verifies signature, matches pending TopupOrder,
+// marks order PAID, and credits user wallet.
+// ============================================
 
-export async function POST(req: Request) {
+import { NextRequest, NextResponse } from 'next/server'
+import { PaymentsService } from '@/src/be/modules/payments/payments.service'
+import { logger } from '@/src/be/shared/utils/logger'
+import { prisma } from '@/src/be/shared/db/prisma'
+
+export const dynamic = 'force-dynamic'
+
+const log = logger.child({ module: 'sepay-webhook' })
+
+// GET — friendly status page so an admin visiting the webhook URL in a browser
+// gets context instead of a bare 405. Does NOT expose the API key, only whether
+// one is configured and when the last successful webhook fired.
+export async function GET() {
+  const apiKeySet = !!process.env.SEPAY_WEBHOOK_API_KEY
+  const bankAccount = process.env.SEPAY_BANK_ACCOUNT || null
+  const prefix = process.env.SEPAY_PAYMENT_PREFIX || 'TCOIN'
+
+  const lastPaid = await prisma.topupOrder.findFirst({
+    where: { status: 'PAID' },
+    orderBy: { paidAt: 'desc' },
+    select: { paidAt: true, code: true, amountVnd: true },
+  }).catch(() => null)
+
+  const lastWebhook = await prisma.bankWebhookLog.findFirst({
+    orderBy: { createdAt: 'desc' },
+    select: { createdAt: true, provider: true, processed: true, orderCode: true, error: true },
+  }).catch(() => null)
+
+  return NextResponse.json({
+    endpoint: '/api/payments/sepay/webhook',
+    method: 'POST only — SePay servers post here on each incoming bank transfer',
+    note: 'Truy cập trang này bằng trình duyệt sẽ luôn báo "đang hoạt động" nhưng không có giao diện thanh toán. SePay sẽ tự gọi POST khi có chuyển khoản.',
+    config: {
+      apiKey: apiKeySet ? 'configured' : 'MISSING — set SEPAY_WEBHOOK_API_KEY',
+      bankAccount,
+      transferPrefix: prefix,
+    },
+    lastSuccessfulPayment: lastPaid,
+    lastWebhookReceived: lastWebhook,
+    now: new Date().toISOString(),
+  })
+}
+
+export async function POST(request: NextRequest) {
+  // Outer try/catch ensures unexpected errors are logged and returned as a stable
+  // JSON response. SePay retries on 5xx — we use 200 for "duplicate / ignored",
+  // 400 for bad payload, 401 for bad signature, 500 only for genuine server errors.
   try {
-    const rawBody = await req.text();
-    const headers = req.headers;
-    const authHeader = headers.get('authorization') || '';
-
-    let payload: SePayWebhookPayload;
+    let rawBody: string
     try {
-      payload = JSON.parse(rawBody);
-    } catch {
-      return NextResponse.json({ error: 'Invalid JSON payload' }, { status: 400 });
+      rawBody = await request.text()
+    } catch (err) {
+      log.warn({ err: err instanceof Error ? err.message : err }, 'Failed to read SePay webhook body')
+      return NextResponse.json({ error: 'Failed to read request body' }, { status: 400 })
     }
 
-    // 1. Log webhook
-    await prisma.bankWebhookLog.create({
-      data: {
-        provider: 'SEPAY',
-        rawPayload: JSON.parse(rawBody),
-        signature: authHeader,
+    // Pass the full Headers object — verifySePayAuth() inspects both
+    // Authorization (Apikey / Bearer / raw) and x-api-key shapes.
+    const result = await PaymentsService.processSePayWebhook(rawBody, request.headers)
+
+    if (!result.ok) {
+      // Map service result to a stable status:
+      // - 200: duplicate / already processed / non-matching → don't trigger retry
+      // - 400: invalid payload
+      // - 401: bad signature
+      // - 500: genuine server failure
+      const status = result.status
+      if (status >= 500) {
+        log.error({ status, message: result.message }, 'SePay webhook server error')
+      } else if (status === 401) {
+        log.warn({ status, message: result.message }, 'SePay webhook signature failure')
+      } else {
+        log.info({ status, message: result.message }, 'SePay webhook non-success')
       }
-    });
-
-    // 2. Verify signature
-    if (!verifySePaySignature(payload, authHeader)) {
-      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+      return NextResponse.json({ ok: false, error: result.message }, { status })
     }
 
-    // 3. We only care about "in" (Receive Money)
-    if (payload.transferType !== 'in') {
-      return NextResponse.json({ message: 'Ignored non-in transfer' });
-    }
-
-    // 4. Try to find the matching Order
-    // The content usually contains "TCOIN_XYZ123". 
-    // We can extract it.
-    const contentText = payload.content.toUpperCase();
-    
-    // Instead of parsing, let's find a PENDING order where its transferContent is exactly included in the bank content
-    // Because Bank often prefixes something or trims something, `contains` is safer.
-    
-    // Find all pending orders (normally not many)
-    const pendingOrders = await prisma.topupOrder.findMany({
-      where: {
-        status: 'PENDING'
-      }
-    });
-
-    let matchedOrder = null;
-    for (const order of pendingOrders) {
-      // Check if order.transferContent is inside the bank transfer content
-      if (contentText.includes(order.transferContent.toUpperCase())) {
-        // Must match exact amount to be valid!
-        if (order.amountVnd === payload.transferAmount) {
-          matchedOrder = order;
-          break;
-        }
-      }
-    }
-
-    if (!matchedOrder) {
-      // Not an error, just no maching order found
-      return NextResponse.json({ message: 'No matching order found' });
-    }
-
-    // 5. Mark as Paid and Credit Wallet!
-    await markOrderPaid(matchedOrder.id, {
-      matchedBankTxnId: payload.id.toString(),
-      matchedBankAccount: payload.accountNumber,
-      matchedBankAmount: payload.transferAmount,
-      matchedBankContent: payload.content,
-      provider: 'SEPAY',
-      rawPayload: JSON.parse(rawBody),
-    });
-
-    return NextResponse.json({ success: true, orderId: matchedOrder.id });
-  } catch (error: any) {
-    console.error('SePay webhook error:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    log.info({ orderId: result.orderId }, 'SePay webhook processed')
+    return NextResponse.json({ ok: true, orderId: result.orderId })
+  } catch (err) {
+    // Never leak secrets; pino redact handles common secret keys. Return a stable 500.
+    log.error({ err: err instanceof Error ? err.message : err }, 'SePay webhook unhandled error')
+    return NextResponse.json({ ok: false, error: 'Internal server error' }, { status: 500 })
   }
 }

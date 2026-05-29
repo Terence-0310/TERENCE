@@ -2,6 +2,9 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react'
 import type { PlayerServer } from '../player.types'
+import { logger } from '@/src/fe/lib/logger'
+
+const log = logger.child({ module: 'useSourceResolver' })
 
 export interface UseSourceResolverProps {
   servers: PlayerServer[]
@@ -92,7 +95,7 @@ export function useSourceResolver({
       return
     }
 
-    console.log(`[useSourceResolver] Switching to server ${nextIdx + 1} (${servers[nextIdx]?.name})`)
+    log.info({ index: nextIdx + 1, name: servers[nextIdx]?.name }, 'Switching to server')
     setCurrentServerIndex(nextIdx)
     setRetryCount(0)
     setHasError(false)
@@ -122,10 +125,10 @@ export function useSourceResolver({
   const reportError = useCallback((errorType: string, details: string) => {
     setRetryCount((prev) => {
       const newCount = prev + 1
-      console.warn(`[useSourceResolver] Error reported: ${errorType} — ${details} (retry ${newCount}/${maxRetries})`)
+      log.warn({ errorType, details, retry: newCount, max: maxRetries }, 'Error reported')
 
       if (newCount >= maxRetries) {
-        console.log('[useSourceResolver] Max retries reached, switching server...')
+        log.info({}, 'Max retries reached, switching server')
         if (retryTimerRef.current) clearTimeout(retryTimerRef.current)
         retryTimerRef.current = setTimeout(() => {
           nextServer()

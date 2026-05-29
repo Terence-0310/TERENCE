@@ -155,9 +155,6 @@ export function clearWatchHistory(): void {
   }
 }
 
-// ── Future sync adapter point ──
-// TODO: When user auth is integrated, add these functions:
-//   - syncToRemote(items: WatchHistoryItem[]): Promise<void>
-//   - loadFromRemote(userId: string): Promise<WatchHistoryItem[]>
-//   - mergeLocalAndRemote(local: WatchHistoryItem[], remote: WatchHistoryItem[]): WatchHistoryItem[]
-// The service layer (service.ts) will call these instead of direct localStorage.
+// Remote sync (syncToRemote / loadFromRemote / triggerBackgroundSync) lives in
+// ./service.ts. The merge is performed server-side at POST /api/v1/watch-history/sync
+// using last-write-wins on lastWatchedAt; this layer stays as a pure local store.

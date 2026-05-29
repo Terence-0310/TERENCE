@@ -10,8 +10,10 @@
 import { PrismaClient } from '@prisma/client'
 import { syncMovieBySlug as ophim18Sync } from '../ophim/ophim18-sync-service'
 import { enrichMovie as tmdbEnrich } from '../tmdb/tmdb-enrichment-service'
+import { logger } from '@/src/be/shared/utils/logger'
 
 const prisma = new PrismaClient()
+const log = logger.child({ module: 'movie-enrichment-pipeline' })
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -122,7 +124,7 @@ export async function runMoviePipeline(
 
   try {
     // ─── Step 1: OPhim18 Sync ─────────────────────────────────
-    console.log(`\n[Pipeline] Step 1/2: Syncing "${slug}" from OPhim18...`)
+    log.info({ slug }, 'Step 1/2: Syncing from OPhim18')
 
     try {
       const ophimResult = await ophim18Sync(slug)
@@ -172,7 +174,7 @@ export async function runMoviePipeline(
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error)
       result.ophim18 = { status: 'failed', error: errorMsg }
-      console.error(`[Pipeline] OPhim18 sync error: ${errorMsg}`)
+      log.error({ err: errorMsg }, 'OPhim18 sync error')
 
       await addPipelineLog(jobId, null, 'sync', 'error',
         `OPhim18 sync crashed for "${slug}": ${errorMsg}`, { slug, error: errorMsg }
@@ -195,7 +197,7 @@ export async function runMoviePipeline(
 
     // ─── Step 2: TMDB Enrichment ──────────────────────────────
     if (result.movieId) {
-      console.log(`[Pipeline] Step 2/2: Enriching "${result.movieTitle}" from TMDB...`)
+      log.info({ movieTitle: result.movieTitle }, 'Step 2/2: Enriching from TMDB')
 
       try {
         const tmdbResult = await tmdbEnrich(result.movieId)
@@ -206,7 +208,7 @@ export async function runMoviePipeline(
             message: tmdbResult.message,
             error: tmdbResult.error,
           }
-          console.warn(`[Pipeline] TMDB enrichment failed: ${tmdbResult.error}`)
+          log.warn({ err: tmdbResult.error }, 'TMDB enrichment failed')
 
           await addPipelineLog(jobId, result.movieId, 'enrich', 'warning',
             `TMDB enrichment failed (non-blocking): ${tmdbResult.error}`,
@@ -253,7 +255,7 @@ export async function runMoviePipeline(
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error)
         result.tmdb = { status: 'failed', error: errorMsg }
-        console.error(`[Pipeline] TMDB enrichment error (non-blocking): ${errorMsg}`)
+        log.error({ err: errorMsg }, 'TMDB enrichment error (non-blocking)')
 
         await addPipelineLog(jobId, result.movieId, 'enrich', 'warning',
           `TMDB enrichment crashed (non-blocking): ${errorMsg}`,
@@ -283,8 +285,7 @@ export async function runMoviePipeline(
       })
     }
 
-    console.log(`[Pipeline] ✅ "${result.movieTitle}" — Overall: ${result.overall}`)
-    console.log(`  OPhim18: ${result.ophim18.status} | TMDB: ${result.tmdb.status}`)
+    log.info({ movieTitle: result.movieTitle, overall: result.overall, ophim18: result.ophim18.status, tmdb: result.tmdb.status }, 'Pipeline complete')
 
     return result
 
@@ -292,7 +293,7 @@ export async function runMoviePipeline(
     const errorMsg = error instanceof Error ? error.message : String(error)
     result.overall = 'failed'
     if (isOwnJob) await failPipelineJob(jobId, errorMsg)
-    console.error(`[Pipeline] ❌ Fatal error: ${errorMsg}`)
+    log.error({ err: errorMsg }, 'Fatal error')
     return result
   }
 }
@@ -314,7 +315,7 @@ export async function runBatchPipeline(
         await new Promise(resolve => setTimeout(resolve, delayMs))
       }
 
-      console.log(`\n[Pipeline] ── Movie ${i + 1}/${slugs.length}: ${slugs[i]} ──`)
+      log.info({ index: i + 1, total: slugs.length, slug: slugs[i] }, 'Processing movie')
 
       try {
         const result = await runMoviePipeline(slugs[i], job.id)
@@ -332,7 +333,7 @@ export async function runBatchPipeline(
       } catch (error) {
         stats.failed++
         const errorMsg = error instanceof Error ? error.message : String(error)
-        console.error(`[Pipeline] Error processing ${slugs[i]}: ${errorMsg}`)
+        log.error({ slug: slugs[i], err: errorMsg }, 'Error processing movie')
 
         results.push({
           slug: slugs[i],
@@ -345,15 +346,12 @@ export async function runBatchPipeline(
 
     await completePipelineJob(job.id, stats)
 
-    console.log(`\n[Pipeline] ═══ Batch Complete ═══`)
-    console.log(`  Total: ${stats.total}`)
-    console.log(`  Processed: ${stats.processed}`)
-    console.log(`  Failed: ${stats.failed}`)
+    log.info({ total: stats.total, processed: stats.processed, failed: stats.failed }, 'Batch complete')
 
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error)
     await failPipelineJob(job.id, errorMsg)
-    console.error(`[Pipeline] ❌ Batch job failed: ${errorMsg}`)
+    log.error({ err: errorMsg }, 'Batch job failed')
   }
 
   return { jobId: job.id, results }

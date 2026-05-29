@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import {
-  Film, Users, Eye, Video, TrendingUp, AlertTriangle,
+  Film, Users, Eye, Video, AlertTriangle,
   RefreshCw, ChevronDown, ChevronRight, Database, Upload,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/src/fe/components/ui/card'
@@ -24,33 +24,24 @@ interface ReportData {
   recentlyUpdatedMovies: any[]
 }
 
-const MOCK_OVERVIEW: OverviewData = {
-  totalMovies: 12480, totalSingleMovies: 8520, totalSeries: 2450, totalAnime: 1510,
-  totalUsers: 42560, totalAdmins: 15, totalEpisodes: 45200,
-  newUsers7d: 1250, viewsToday: 325400, views7d: 2154000, newMovies7d: 142,
-  draftMovies: 450, publishedMovies: 11800, hiddenMovies: 120, archivedMovies: 110,
-  brokenSources: 24, blockedUsers: 85, missingPoster: 12,
-  totalMovieViews: 145000000, totalShorts: 8500, publishedShorts: 8200, draftShorts: 300,
+const EMPTY_OVERVIEW: OverviewData = {
+  totalMovies: 0, totalSingleMovies: 0, totalSeries: 0, totalAnime: 0,
+  totalUsers: 0, totalAdmins: 0, totalEpisodes: 0,
+  newUsers7d: 0, viewsToday: 0, views7d: 0, newMovies7d: 0,
+  draftMovies: 0, publishedMovies: 0, hiddenMovies: 0, archivedMovies: 0,
+  brokenSources: 0, blockedUsers: 0, missingPoster: 0,
+  totalMovieViews: 0, totalShorts: 0, publishedShorts: 0, draftShorts: 0,
 }
 
-const MOCK_REPORTS: ReportData = {
-  summary: { unpublishedMovies: 450, archivedMovies: 110, totalActive: 11800, totalUploads: 58400 },
-  warnings: [
-    { type: 'broken_links', count: 24, label: 'Nguồn phim bị hỏng/lỗi 404', items: [{ title: 'Interstellar tập 1' }, { title: 'The Batman' }, { title: 'Spider-Man Tập 3' }] },
-    { type: 'missing_posters', count: 12, label: 'Phim thiếu ảnh Poster', items: [{ title: 'Phim Test 01' }, { title: 'Dự án Mật' }] },
-    { type: 'reported_comments', count: 8, label: 'Bình luận bị báo cáo spam', items: [{ title: 'Trần Văn A: phim dở' }] },
-  ],
-  recentlyUpdatedMovies: [
-    { id: 1, title: 'Inception (Kẻ Đánh Cắp Giấc Mơ)', updatedAt: new Date().toISOString() },
-    { id: 2, title: 'Avengers: Endgame', updatedAt: new Date(Date.now() - 3600000).toISOString() },
-    { id: 3, title: 'Avatar: The Way of Water', updatedAt: new Date(Date.now() - 7200000).toISOString() },
-    { id: 4, title: 'Dune: Hành Tinh Cát', updatedAt: new Date(Date.now() - 86400000).toISOString() },
-  ]
+const EMPTY_REPORTS: ReportData = {
+  summary: { unpublishedMovies: 0, archivedMovies: 0, totalActive: 0, totalUploads: 0 },
+  warnings: [],
+  recentlyUpdatedMovies: []
 }
 
 export default function AnalyticsPage() {
-  const [overview, setOverview] = useState<OverviewData | null>(MOCK_OVERVIEW)
-  const [reports, setReports] = useState<ReportData | null>(MOCK_REPORTS)
+  const [overview, setOverview] = useState<OverviewData | null>(EMPTY_OVERVIEW)
+  const [reports, setReports] = useState<ReportData | null>(EMPTY_REPORTS)
   const [loading, setLoading] = useState(true)
   const [expandedWarning, setExpandedWarning] = useState<string | null>(null)
 
@@ -62,24 +53,26 @@ export default function AnalyticsPage() {
         fetch('/api/admin/reports'),
       ])
       if (summaryRes.ok) {
-        const s = await summaryRes.json()
-        if (s.overview && s.overview.totalMovies > 0) {
+        const sRaw = await summaryRes.json()
+        const s = sRaw.success ? sRaw.data : sRaw
+        if (s.overview && typeof s.overview.totalMovies === 'number') {
            setOverview(s.overview)
         } else {
-           setOverview(MOCK_OVERVIEW)
+           setOverview(EMPTY_OVERVIEW)
         }
-      } else { setOverview(MOCK_OVERVIEW) }
+      } else { setOverview(EMPTY_OVERVIEW) }
       if (reportsRes.ok) {
-        const r = await reportsRes.json()
-        if (r && r.summary && r.summary.totalActive > 0) {
+        const rRaw = await reportsRes.json()
+        const r = rRaw.success ? rRaw.data : rRaw
+        if (r && r.summary && typeof r.summary.totalActive === 'number') {
            setReports(r)
         } else {
-           setReports(MOCK_REPORTS)
+           setReports(EMPTY_REPORTS)
         }
-      } else { setReports(MOCK_REPORTS) }
+      } else { setReports(EMPTY_REPORTS) }
     } catch {
-       setOverview(MOCK_OVERVIEW)
-       setReports(MOCK_REPORTS)
+       setOverview(EMPTY_OVERVIEW)
+       setReports(EMPTY_REPORTS)
     }
     setLoading(false)
   }, [])

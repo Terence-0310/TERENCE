@@ -5,6 +5,9 @@
 import { NextResponse } from 'next/server'
 import { requireAdmin, isUser } from '@/src/be/modules/admin/admin.guard'
 import { getClient, getMoviesIndex, isAvailable } from '@/src/be/modules/search/elastic-client'
+import { logger } from '@/src/be/shared/utils/logger'
+
+const log = logger.child({ module: 'admin-elastic-health' })
 
 export async function GET() {
   const guard = await requireAdmin()
@@ -65,7 +68,7 @@ export async function GET() {
       },
     })
   } catch (error) {
-    console.error('[Admin] ES health error:', error)
+    log.error({ err: error instanceof Error ? error.message : error }, 'ES health error')
     return NextResponse.json({
       success: true,
       data: {

@@ -4,6 +4,9 @@
 // Server-side only. Handles API calls with timeout, retry, and error handling.
 
 import type { OPhimCatalogResponse, OPhimDetailResponse } from './types'
+import { logger } from '@/src/be/shared/utils/logger'
+
+const log = logger.child({ module: 'ophim-client' })
 
 const DEFAULT_BASE_URL = 'https://ophim1.com'
 const DEFAULT_TIMEOUT = 15_000  // 15 seconds
@@ -61,7 +64,7 @@ async function fetchWithRetry<T>(url: string, timeoutMs: number): Promise<T> {
       // Don't retry on last attempt
       if (attempt < MAX_RETRIES) {
         const delay = RETRY_DELAY_MS * attempt
-        console.warn(`[OPhim] Attempt ${attempt}/${MAX_RETRIES} failed for ${url}. Retrying in ${delay}ms...`)
+        log.warn({ attempt, maxRetries: MAX_RETRIES, url, delay }, `Attempt ${attempt}/${MAX_RETRIES} failed. Retrying in ${delay}ms...`)
         await new Promise(resolve => setTimeout(resolve, delay))
       }
     }
@@ -80,14 +83,14 @@ export async function fetchCatalogPage(page: number = 1): Promise<OPhimCatalogRe
   const { baseUrl, timeout } = getConfig()
   const url = `${baseUrl}/danh-sach/phim-moi-cap-nhat?page=${page}`
 
-  console.log(`[OPhim] Fetching catalog page ${page}...`)
+  log.info({ page }, 'Fetching catalog page')
   const data = await fetchWithRetry<OPhimCatalogResponse>(url, timeout)
 
   if (!data.status || !Array.isArray(data.items)) {
     throw new Error(`[OPhim] Invalid catalog response for page ${page}`)
   }
 
-  console.log(`[OPhim] Got ${data.items.length} items (page ${page}/${data.pagination.totalPages})`)
+  log.info({ count: data.items.length, page, totalPages: data.pagination.totalPages }, `Got ${data.items.length} items`)
   return data
 }
 
@@ -99,7 +102,7 @@ export async function fetchMovieDetail(slug: string): Promise<OPhimDetailRespons
   const { baseUrl, timeout } = getConfig()
   const url = `${baseUrl}/phim/${encodeURIComponent(slug)}`
 
-  console.log(`[OPhim] Fetching movie detail: ${slug}`)
+  log.info({ slug }, 'Fetching movie detail')
   const data = await fetchWithRetry<OPhimDetailResponse>(url, timeout)
 
   if (!data.status || !data.movie) {

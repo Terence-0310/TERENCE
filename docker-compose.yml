@@ -21,7 +21,7 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: terence_dev
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -41,7 +41,7 @@ services:
       - xpack.security.enabled=false
       - ES_JAVA_OPTS=-Xms512m -Xmx512m
     ports:
-      - "9200:9200"
+      - "127.0.0.1:9200:9200"
     volumes:
       - es_data:/usr/share/elasticsearch/data
     healthcheck:
@@ -56,8 +56,6 @@ services:
     image: redis:7-alpine
     container_name: terence-redis
     restart: unless-stopped
-    ports:
-      - "6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -110,8 +108,25 @@ services:
       - ELASTICSEARCH_API_KEY=
       # Redis Cache
       - REDIS_URL=redis://redis:6379
-      # Auto-seed on first start (set to false after initial setup)
-      - SEED_ON_START=true
+      # NextAuth — override localhost values from .env
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-terence_docker_secret_change_in_production}
+      # Socket.IO CORS — comma-separated. server.ts reads this; without it
+      # production builds reject cross-origin WS handshakes.
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      # News auto-generation (Gemini). Free key at https://aistudio.google.com/apikey
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.0-flash}
+      - GNEWS_API_KEY=${GNEWS_API_KEY:-}
+      # Auto-seed on first start. After the DB has data, set SEED_ON_START=false
+      # in .env to skip — re-seeding wastes time and can clobber edits.
+      - SEED_ON_START=${SEED_ON_START:-true}
+      # Auto-sync OPhim catalog on first start so the DB has real playable
+      # movies (URL slugs like /watch/hoppers-cu-nhay-ky-dieu work out of
+      # the box). Toggle off (false) after first successful run to avoid
+      # re-fetching every container restart.
+      - SYNC_OPHIM_ON_START=${SYNC_OPHIM_ON_START:-true}
+      - OPHIM_SYNC_PAGES=${OPHIM_SYNC_PAGES:-3}
     env_file:
       - .env
     depends_on:
@@ -139,10 +154,25 @@ services:
       - ./src/dta/prisma:/app/prisma
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/terence_dev?schema=public
+      - DIRECT_URL=postgresql://postgres:postgres@db:5432/terence_dev?schema=public
     ports:
       - "5556:5555"
     command: >
-      sh -c "npx prisma generate --schema=prisma/schema.prisma && npx prisma studio --schema=prisma/schema.prisma --host 0.0.0.0 --port 5555"
+      sh -c "npx prisma@6 generate --schema=prisma/schema.prisma && npx prisma@6 studio --schema=prisma/schema.prisma --port 5555 --browser none"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # ── pgAdmin (PostgreSQL Database UI) ──
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: terence-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@terence.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
     depends_on:
       db:
         condition: service_healthy

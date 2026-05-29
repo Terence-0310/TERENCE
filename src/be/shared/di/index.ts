@@ -7,13 +7,12 @@ import { UsersService } from '@/src/be/modules/users/users.service';
  */
 export function setupDependencies() {
   // 1. Register Repositories
-  Container.registerFactory<UsersRepository>('UsersRepository', () => new UsersRepository());
+  const usersRepo = new UsersRepository();
+  Container.register<UsersRepository>('UsersRepository', usersRepo);
 
   // 2. Register Services
-  Container.registerFactory<UsersService>('UsersService', () => {
-    const usersRepo = Container.resolve<UsersRepository>('UsersRepository');
-    return new UsersService(usersRepo);
-  });
+  const usersService = new UsersService(usersRepo);
+  Container.register<UsersService>('UsersService', usersService);
 }
 
 // Automatically setup dependencies when the file is imported

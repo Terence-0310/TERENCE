@@ -42,6 +42,8 @@ export interface WatchRoom {
   currentPlaybackTime: number
   playbackState: PlaybackState
   posterUrl?: string
+  /** TCoin room-theme perk: host-selected theme id applied to the whole room. */
+  theme?: string | null
   createdAt: string
   updatedAt: string
 }
@@ -61,6 +63,12 @@ export interface WatchRoomMember {
   lastPingAt: string
   isMuted?: boolean
   isCameraOn?: boolean
+  /** Avatar URL of the underlying user account (null for guests). */
+  avatar?: string | null
+  /** TCoin avatar-frame perk active. */
+  frameActive?: boolean
+  /** TCoin exclusive-badge perk active. */
+  badgeActive?: boolean
 }
 
 // ── Message Types ──

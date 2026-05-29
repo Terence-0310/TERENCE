@@ -12,7 +12,7 @@ export async function getReviewsByMovie(movieId: string, page = 1, perPage = 10)
   const [reviews, total] = await Promise.all([
     prisma.review.findMany({
       where: { movieId, status: 'approved' },
-      include: { user: { select: { name: true, avatar: true } } },
+      include: { user: { select: { name: true, avatar: true, avatarFrameUntil: true, exclusiveBadgeUntil: true } } },
       orderBy: { createdAt: 'desc' },
       skip,
       take: perPage,

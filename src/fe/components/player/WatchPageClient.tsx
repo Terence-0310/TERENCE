@@ -9,11 +9,15 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { AlertTriangle, Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
 import { HLSPlayer } from '@/src/fe/components/player/HLSPlayer'
 import { WatchPartyOverlay } from '@/src/fe/components/watch-party/WatchPartyOverlay'
+import { AdGate } from '@/src/fe/components/player/AdGate'
 import type { EpisodePlaybackData } from '@/lib/player/types'
 import type { PlayerServer } from '@/src/fe/features/player/hooks/usePlayer'
 import { mapDbPlaybackToPlayerSources } from '@/lib/player/source-adapter'
+import { useAuth } from '@/src/fe/features/auth/contexts/auth-context'
+import { useWatchProgressEmitter, useWatchCompletedListener } from '@/src/fe/lib/realtime/hooks'
 
 interface WatchPageClientProps {
   episodeData: EpisodePlaybackData
@@ -26,6 +30,8 @@ interface WatchPageClientProps {
   onEpisodeChange?: (episodeSlug: string) => void
   /** Additional servers from multi-server data */
   additionalServers?: PlayerServer[]
+  /** TCoin hd-upgrade perk — unlocks Full HD quality levels. */
+  canUseHD?: boolean
 }
 
 export function WatchPageClient({
@@ -37,6 +43,7 @@ export function WatchPageClient({
   thumbUrl,
   trailerUrl,
   additionalServers,
+  canUseHD = false,
 }: WatchPageClientProps) {
   const [loaded, setLoaded] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -55,6 +62,51 @@ export function WatchPageClient({
   useEffect(() => {
     setLoaded(true)
   }, [])
+
+  // ── Realtime watch progress ──
+  // Throttled to once per 15s in the client emitter; the server further
+  // debounces DB writes and auto-awards TCoin at ≥92% via watch_complete.
+  const { user } = useAuth()
+  const userId = user?.id ?? null
+  const realEpisodeId = (episodeData.episode.id && !episodeData.episode.id.startsWith('legacy-'))
+    ? episodeData.episode.id : null
+  const { emit: emitProgress, flush: flushProgress } = useWatchProgressEmitter(userId)
+
+  useEffect(() => {
+    const v = videoRef.current
+    if (!v || !userId) return
+    const handler = () => {
+      if (!v.duration || isNaN(v.duration)) return
+      emitProgress({
+        movieId,
+        episodeId: realEpisodeId,
+        currentTime: v.currentTime,
+        duration: v.duration,
+      })
+    }
+    const onPause = () => {
+      if (!v.duration || isNaN(v.duration)) return
+      flushProgress({
+        movieId,
+        episodeId: realEpisodeId,
+        currentTime: v.currentTime,
+        duration: v.duration,
+      })
+    }
+    v.addEventListener('timeupdate', handler)
+    v.addEventListener('pause', onPause)
+    return () => {
+      v.removeEventListener('timeupdate', handler)
+      v.removeEventListener('pause', onPause)
+    }
+  }, [userId, movieId, realEpisodeId, emitProgress, flushProgress])
+
+  useWatchCompletedListener(userId, (p) => {
+    if (p.movieId !== movieId) return
+    if (p.rewarded && p.amount > 0) {
+      toast.success(`Hoàn tất xem phim. +${p.amount} TCoin!`, { icon: null })
+    }
+  })
 
   const handleNextEpisode = useCallback(() => {
     if (episodeData.nextEpisode && (episodeData.nextEpisode.episodeSlug || episodeData.nextEpisode.episodeNumber)) {
@@ -94,7 +146,7 @@ export function WatchPageClient({
         </div>
         {/* Dimmed backdrop */}
         {posterUrl && (
-          <img src={posterUrl} className="absolute inset-0 h-full w-full object-cover opacity-10 blur-xl pointer-events-none" alt="" />
+          <img src={posterUrl} onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/placeholder.jpg' }} className="absolute inset-0 h-full w-full object-cover opacity-10 blur-xl pointer-events-none" alt="" />
         )}
       </div>
     )
@@ -106,7 +158,7 @@ export function WatchPageClient({
       <div className="relative flex h-full w-full items-center justify-center bg-[#050505] overflow-hidden">
         {/* Blurred Poster Background */}
         {posterUrl && (
-          <img src={posterUrl} className="absolute inset-0 h-full w-full object-cover opacity-[0.15] blur-xl scale-105 pointer-events-none" alt="" />
+          <img src={posterUrl} onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/placeholder.jpg' }} className="absolute inset-0 h-full w-full object-cover opacity-[0.15] blur-xl scale-105 pointer-events-none" alt="" />
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-black/20 pointer-events-none" />
         
@@ -121,8 +173,9 @@ export function WatchPageClient({
           </div>
         </div>
 
-        {/* Mock Controls Bar (Bottom) */}
-        <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-black/90 to-transparent pointer-events-none flex items-end px-6 pb-4">
+        {/* Decorative loading-state control bar (not interactive — pointer-events-none).
+            The real controls come from <HLSPlayer> once `loaded === true`. */}
+        <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-black/90 to-transparent pointer-events-none flex items-end px-6 pb-4" aria-hidden>
           <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
             <div className="h-full w-1/3 bg-white/20 animate-pulse rounded-full" />
           </div>
@@ -132,33 +185,36 @@ export function WatchPageClient({
   }
 
   return (
-    <WatchPartyOverlay
-      movieId={movieId}
-      movieSlug={movieSlug}
-      movieTitle={movieTitle}
-      episodeId={(episodeData.episode.id && !episodeData.episode.id.startsWith('legacy-')) ? episodeData.episode.id : undefined}
-      episodeSlug={currentEpSlug}
-      episodeName={currentEpName}
-      posterUrl={posterUrl}
-      videoRef={videoRef}
-    >
-      <HLSPlayer
-        videoRef={videoRef}
-        servers={servers}
+    <AdGate placement="PRE_ROLL">
+      <WatchPartyOverlay
         movieId={movieId}
+        movieSlug={movieSlug}
+        movieTitle={movieTitle}
+        episodeId={(episodeData.episode.id && !episodeData.episode.id.startsWith('legacy-')) ? episodeData.episode.id : undefined}
         episodeSlug={currentEpSlug}
-        poster={posterUrl}
-        subtitles={episodeData.subtitles}
-        hasNextEpisode={!!episodeData.nextEpisode}
-        onNextEpisode={handleNextEpisode}
-        movieMeta={{
-          movieSlug,
-          movieTitle,
-          posterUrl,
-          thumbUrl,
-          trailerUrl,
-        }}
-      />
-    </WatchPartyOverlay>
+        episodeName={currentEpName}
+        posterUrl={posterUrl}
+        videoRef={videoRef}
+      >
+        <HLSPlayer
+          videoRef={videoRef}
+          servers={servers}
+          movieId={movieId}
+          episodeSlug={currentEpSlug}
+          poster={posterUrl}
+          subtitles={episodeData.subtitles}
+          hasNextEpisode={!!episodeData.nextEpisode}
+          onNextEpisode={handleNextEpisode}
+          canUseHD={canUseHD}
+          movieMeta={{
+            movieSlug,
+            movieTitle,
+            posterUrl,
+            thumbUrl,
+            trailerUrl,
+          }}
+        />
+      </WatchPartyOverlay>
+    </AdGate>
   )
 }

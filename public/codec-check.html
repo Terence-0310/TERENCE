@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <title>Codec Check — Terence</title>
+  <style>
+    body { background:#111; color:#eee; font-family: system-ui, sans-serif; padding:20px; max-width:1000px; margin:auto; }
+    .row { padding:8px 12px; border-bottom:1px solid #333; font-family: ui-monospace, monospace; font-size:13px; }
+    .ok { color:#4ade80; font-weight:bold; }
+    .err { color:#f87171; font-weight:bold; }
+    .ua { background:#1f2937; padding:10px; border-radius:6px; margin-bottom:14px; font-size:12px; word-break:break-all; }
+    h1 { font-size:18px; margin:0 0 8px }
+    h2 { font-size:14px; margin:18px 0 6px; color:#fbbf24; }
+    .verdict { padding:14px; margin-top:18px; border-radius:8px; font-weight:bold; font-size:15px; }
+    .verdict.good { background:#064e3b; color:#a7f3d0; }
+    .verdict.bad { background:#7f1d1d; color:#fecaca; }
+  </style>
+</head>
+<body>
+  <h1>Codec Check — Diagnose browser AAC/H.264 support</h1>
+  <p>Trang này KHÔNG load HLS.js, chỉ test MediaSource API native của browser. Nếu các codec quan trọng = false → browser của bạn thiếu codec, không phải lỗi app.</p>
+
+  <div class="ua" id="ua"></div>
+
+  <h2>1. MediaSource API available</h2>
+  <div id="mse-check"></div>
+
+  <h2>2. Codec support via MediaSource.isTypeSupported()</h2>
+  <div id="codecs"></div>
+
+  <h2>3. HTMLMediaElement.canPlayType() (native — not MSE)</h2>
+  <div id="canplay"></div>
+
+  <div id="verdict"></div>
+
+  <script>
+    const uaDiv = document.getElementById('ua')
+    uaDiv.innerHTML = `<b>User Agent:</b> ${navigator.userAgent}<br><b>Vendor:</b> ${navigator.vendor || 'n/a'}<br><b>Brand info:</b> ${(navigator.userAgentData?.brands || []).map(b => `${b.brand} ${b.version}`).join(', ') || 'n/a'}`
+
+    const mseDiv = document.getElementById('mse-check')
+    const mseAvailable = 'MediaSource' in window
+    mseDiv.innerHTML = `<div class="row">window.MediaSource = <span class="${mseAvailable ? 'ok' : 'err'}">${mseAvailable}</span></div>`
+
+    const codecs = [
+      ['audio/mp4; codecs="mp4a.40.2"',   'AAC LC (most common audio)', true],
+      ['audio/mp4; codecs="mp4a.40.5"',   'HE-AAC v1', false],
+      ['audio/mp4; codecs="mp4a.40.29"',  'HE-AAC v2', false],
+      ['audio/mp4; codecs="ac-3"',         'AC-3 (Dolby Digital)', false],
+      ['audio/mp4; codecs="ec-3"',         'E-AC-3', false],
+      ['audio/webm; codecs="opus"',        'Opus', false],
+      ['video/mp4; codecs="avc1.42E01E"',  'H.264 Baseline', true],
+      ['video/mp4; codecs="avc1.64001F"',  'H.264 High', true],
+      ['video/mp4; codecs="avc1.6E0028"',  'H.264 High 10 (10-bit)', false],
+      ['video/mp4; codecs="hev1.1.6.L93.B0"', 'HEVC Main', false],
+      ['video/mp2t; codecs="avc1.64001F,mp4a.40.2"', 'MP2T (MPEG-TS) container', false],
+    ]
+    const codecsDiv = document.getElementById('codecs')
+    const critical = []
+    for (const [c, desc, isCritical] of codecs) {
+      const ok = mseAvailable && MediaSource.isTypeSupported(c)
+      codecsDiv.innerHTML += `<div class="row">${isCritical ? '⭐ ' : '   '}<code>${c}</code> — ${desc}: <span class="${ok ? 'ok' : 'err'}">${ok}</span></div>`
+      if (isCritical) critical.push({ codec: c, desc, ok })
+    }
+
+    const canDiv = document.getElementById('canplay')
+    const v = document.createElement('video')
+    for (const [c, desc] of [
+      ['application/vnd.apple.mpegurl', 'Native HLS (Safari/iOS only)'],
+      ['video/mp4; codecs="avc1.64001F,mp4a.40.2"', 'MP4 H.264 + AAC'],
+      ['audio/mp4; codecs="mp4a.40.2"', 'MP4 AAC LC audio-only'],
+    ]) {
+      const r = v.canPlayType(c)
+      canDiv.innerHTML += `<div class="row"><code>${c}</code> — ${desc}: <span class="${r ? 'ok' : 'err'}">${r || 'no'}</span></div>`
+    }
+
+    const verdictEl = document.getElementById('verdict')
+    const allCriticalOk = critical.every(c => c.ok)
+    const aacOk = critical.find(c => c.codec.includes('mp4a.40.2'))?.ok
+    if (allCriticalOk) {
+      verdictEl.className = 'verdict good'
+      verdictEl.textContent = '✓ Browser hỗ trợ đầy đủ codec qua MSE. Stream OPhim phải phát được. Bug nằm trong app code hoặc network — quay lại app debug.'
+    } else if (!aacOk) {
+      verdictEl.className = 'verdict bad'
+      verdictEl.innerHTML = '✗ Browser KHÔNG hỗ trợ AAC qua MediaSource. Đây là root cause khiến mọi phim không phát được local. <br><br>Nguyên nhân thường gặp:<br>• Bạn đang dùng Brave / Vivaldi / ungoogled-Chromium / Opera mà đã tắt codec proprietary<br>• Chrome bị "Hardware-accelerated video decode" tắt hoặc lỗi driver GPU<br>• Chrome bị flag --disable-features=MediaSourceExperimentalAVC1Properties<br><br>Fix: dùng Chrome chính chủ (download tại google.com/chrome), hoặc test trên Edge.'
+    } else {
+      verdictEl.className = 'verdict bad'
+      verdictEl.textContent = '✗ Thiếu vài codec không critical. Xem chi tiết ở trên.'
+    }
+  </script>
+</body>
+</html>

@@ -16,6 +16,8 @@ Collection được chia làm 6 phân vùng tương ứng với 6 tính năng th
 ### Phân vùng 1: Authentication (Xác thực người dùng)
 - **Đăng ký thành viên**: API POST. Nhiệm vụ của nó là gửi thông tin đăng ký lên hệ thống.
   - *Cách test*: Mở body request, thay đổi email ảo và password ảo, nhấn Send. Nếu trả về `200 OK` (success: true) nghĩa là hệ thống tạo user thành công.
+- **Xác Thực Email**: Bao gồm 2 luồng là GET (Click link từ email để kích hoạt) và POST (Gửi lại email kích hoạt nếu chưa nhận được). Các API này đảm bảo tài khoản không phải bot.
+- **Quên / Đặt Lại Mật Khẩu**: API POST dùng để gửi Token reset pass qua Email và thiết lập lại mật khẩu mới an toàn, không bị lộ mật khẩu cũ.
   - *Lưu ý Quan Trọng Về Xác Thực*: Hệ thống TERENCE sử dụng `NextAuth.js` bảo mật thông qua Cookie (`next-auth.session-token`). Do đó, các tác vụ POST/GET đòi hỏi đăng nhập như Cập nhật Điểm danh TCoin, hay Tạo Phòng Xem chung, tốt nhất bạn nên đăng nhập trực tiếp trên Trình duyệt bằng tài khoản đó, rồi sử dụng tính năng **Postman Interceptor** hoặc copy lấy cái mã Cookie đó paste vào tab Headers ở Postman.
 
 ### Phân vùng 2: Client APIs (Module cho trang Phim)
@@ -41,6 +43,12 @@ Bộ chia sẻ phòng thời gian thực cực kỳ phức tạp (LiveKit / Sock
 Mạch API siêu quyền lực của hệ thống (Chỉ Admin mới có Cookie quyền này mới gọi được qua API).
 - **Lấy Thông Kê Tổng**: Vẽ biểu đồ bảng điều khiển Admin xem có bao nhiêu người dùng, bao nhiêu lượt phim xem (đọc từ Postgresql).
 - **Đồng Bộ OPhim**: Gửi yêu cầu buộc Worker Backend chạy ra ngoài Internet tải về hàng trăm ngàn bộ phim trên OPhim API Catalog và đẩy thẳng vào Database TERENCE. 
+- **Đồng Bộ Tập Phim**: Quét chi tiết các tập (episodes) của một bộ phim cụ thể để tự động thêm các nguồn chiếu (HLS M3U8) mới nhất mà không cần nhập tay.
+
+### Phân vùng 7: Payments & Webhooks (Thanh toán tự động)
+Giao thức bảo mật kết nối với đối tác thanh toán thứ ba.
+- **SePay Webhook**: API POST nhận lệnh bắn tự động từ cổng thanh toán SePay. Giao thức này đã bỏ qua Auth Token mà thay bằng API Key nội bộ.
+  - *Cách test*: Dùng payload JSON có sẵn trong Collection (chứa thông tin chuyển khoản 50,000đ), nhấn Send để giả lập có người vừa chuyển khoản thành công vào ngân hàng. Hệ thống sẽ ngay lập tức cộng TCoin cho User có ID khớp với `content` chuyển khoản.
 
 ---
 ### 🛠 Kinh Nghiệm (Troubleshooting) khi Test:

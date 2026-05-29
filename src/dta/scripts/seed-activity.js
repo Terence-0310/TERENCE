@@ -43,7 +43,7 @@ async function main() {
         }
       })
       console.log('Added favorite for movie', fav.movieId)
-    } catch(e) {
+    } catch {
       // ignore unique constraints
     }
   }
@@ -80,7 +80,7 @@ async function main() {
         }
       })
       console.log('Added review for movie', rev.movieId)
-    } catch(e) {
+    } catch {
       // ignore
     }
   }

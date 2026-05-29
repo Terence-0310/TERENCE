@@ -10,6 +10,7 @@ import { getMovieDetail } from '@/src/be/services/tmdb/movie-service'
 import { resolveMovieSource } from '@/src/be/services/video-source'
 import { AuthService } from '@/src/be/modules/auth'
 import { prisma } from '@/lib/db/prisma'
+import type { EpisodePlaybackData, PlayableSubtitle } from '@/lib/player/types'
 
 export class WatchController {
   static async getPlayback(
@@ -102,7 +103,7 @@ export class WatchController {
               isPrimary: true,
               mimeType: null,
             },
-            subtitles: legacySource.playback.subtitles?.map((s: any, i: number) => ({
+            subtitles: legacySource.playback.subtitles?.map((s: { label: string; lang: string; url: string; default?: boolean }, i: number): PlayableSubtitle => ({
               id: `legacy-sub-${i}`,
               label: s.label,
               lang: s.lang,
@@ -112,7 +113,7 @@ export class WatchController {
             })) || [],
             nextEpisode: null,
             prevEpisode: null,
-          } as any
+          } satisfies EpisodePlaybackData
           hasDbSource = true
         }
       }

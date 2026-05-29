@@ -1,12 +1,11 @@
-'use client'
+import { Calendar, Clock, MapPin, Film, Info } from 'lucide-react'
+import { getSchedule } from '@/lib/data/schedule'
+import Link from 'next/link'
 
-import { useState } from 'react'
-import { Calendar, Clock, MapPin, Film } from 'lucide-react'
-import { getSchedule, type ScheduleDay } from '@/lib/data/schedule'
-
-export default function SchedulePage() {
-  const days = getSchedule()
-  const [activeDay, setActiveDay] = useState(0)
+export default async function SchedulePage({ searchParams }: { searchParams: Promise<{ day?: string }> }) {
+  const params = await searchParams
+  const { days, isDemo } = await getSchedule()
+  const activeDay = parseInt(params.day || '0')
   const currentDay = days[activeDay]
 
   return (
@@ -18,12 +17,23 @@ export default function SchedulePage() {
         Lịch chiếu phim rạp trong tuần
       </p>
 
+      {isDemo && (
+        <div className="mb-6 flex items-start gap-3 rounded-xl border border-yellow-500/20 bg-yellow-500/5 px-4 py-3 text-xs text-yellow-200/80">
+          <Info className="h-4 w-4 flex-shrink-0 mt-0.5" />
+          <p>
+            Hệ thống chưa có lịch chiếu thật. Bạn đang xem dữ liệu minh hoạ.
+            Lịch sẽ tự động cập nhật khi có phim được lên lịch phát hành.
+          </p>
+        </div>
+      )}
+
       {/* Day selector */}
       <div className="flex gap-2 overflow-x-auto pb-4 scrollbar-hide mb-6">
         {days.map((day, i) => (
-          <button
+          <Link
             key={day.date}
-            onClick={() => setActiveDay(i)}
+            href={`/schedule?day=${i}`}
+            scroll={false}
             className={`flex-shrink-0 rounded-xl px-4 py-2.5 text-sm font-medium transition ${
               i === activeDay
                 ? 'bg-primary text-white shadow-md shadow-primary/20'
@@ -32,7 +42,7 @@ export default function SchedulePage() {
           >
             <div className="text-xs opacity-70">{day.isToday ? 'Hôm nay' : day.label.split(',')[0]}</div>
             <div className="font-semibold">{day.label.split(',')[1]?.trim()}</div>
-          </button>
+          </Link>
         ))}
       </div>
 

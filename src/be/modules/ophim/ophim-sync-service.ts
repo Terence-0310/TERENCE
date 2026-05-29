@@ -22,11 +22,13 @@ import {
 import { fetchCatalogPage, fetchMovieDetail } from './ophim-client'
 import { mapMovie, mapEpisodes, mapCategories, mapCountries } from './ophim-mapper'
 import type { SyncResult } from './types'
+import { logger } from '@/src/be/shared/utils/logger'
+
+const log = logger.child({ module: 'ophim-sync' })
 
 // ─── Source Constants ───────────────────────────────────────────
 
 const SOURCE = 'ophim'
-const LOG_PREFIX = '[OPhim Sync]'
 
 // ─── Source-bound helpers ───────────────────────────────────────
 
@@ -220,64 +222,64 @@ export async function syncCatalog(
     const maxPage = endPage || startPage
     const actualEnd = Math.min(maxPage, firstPage.pagination.totalPages)
 
-    console.log(`${LOG_PREFIX} Syncing pages ${startPage} to ${actualEnd} (total: ${firstPage.pagination.totalItems} movies in catalog)`)
+    log.info({ startPage, endPage: actualEnd, totalItems: firstPage.pagination.totalItems }, `Syncing pages ${startPage} to ${actualEnd}`)
 
     // 2. Process pages
+    const chunkSize = 5 // Process 5 movies concurrently per chunk
     for (let page = startPage; page <= actualEnd; page++) {
       const catalog = page === startPage ? firstPage : await fetchCatalogPage(page)
+      const items = catalog.items || []
 
-      for (const item of catalog.items) {
-        stats.total++
+      for (let i = 0; i < items.length; i += chunkSize) {
+        const chunk = items.slice(i, i + chunkSize)
+        
+        // Add delay between chunks
+        if (results.length > 0) {
+          await new Promise(resolve => setTimeout(resolve, delayMs))
+        }
 
-        try {
-          // Add delay between requests
-          if (results.length > 0) {
-            await new Promise(resolve => setTimeout(resolve, delayMs))
+        const chunkPromises = chunk.map(async (item) => {
+          try {
+            const result = await syncMovieBySlug(item.slug, job.id)
+            return { success: true, item, result }
+          } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : String(error)
+            log.error({ slug: item.slug, err: errorMsg }, 'Error syncing movie')
+            await addSyncLog(job.id, null, 'fail', 'error', `Failed: ${item.slug}: ${errorMsg}`, { slug: item.slug })
+            return { 
+              success: false, 
+              item, 
+              result: { action: 'fail', movieSlug: item.slug, movieTitle: item.name, error: errorMsg } 
+            }
           }
+        })
 
-          const result = await syncMovieBySlug(item.slug, job.id)
-          results.push(result)
+        const chunkResults = await Promise.all(chunkPromises)
 
-          if (result.action === 'fail') {
+        for (const res of chunkResults) {
+          stats.total++
+          results.push(res.result as SyncResult)
+          if (res.result.action === 'fail') {
             stats.failed++
           } else {
             stats.processed++
           }
+        }
 
-          // Progress log every 10 movies
-          if (stats.total % 10 === 0) {
-            console.log(`${LOG_PREFIX} Progress: ${stats.total} total, ${stats.processed} synced, ${stats.failed} failed`)
-          }
-
-        } catch (error) {
-          stats.failed++
-          const errorMsg = error instanceof Error ? error.message : String(error)
-          console.error(`${LOG_PREFIX} Error syncing ${item.slug}: ${errorMsg}`)
-
-          results.push({
-            action: 'fail',
-            movieSlug: item.slug,
-            movieTitle: item.name,
-            error: errorMsg,
-          })
-
-          await addSyncLog(job.id, null, 'fail', 'error', `Failed: ${item.slug}: ${errorMsg}`, { slug: item.slug })
+        if (stats.total % 10 === 0 || stats.total === items.length) {
+          log.info({ total: stats.total, processed: stats.processed, failed: stats.failed }, 'Progress')
         }
       }
     }
 
     await completeSyncJob(job.id, stats)
 
-    console.log(`\n${LOG_PREFIX} ✅ Completed!`)
-    console.log(`  Total: ${stats.total}`)
-    console.log(`  Synced: ${stats.processed}`)
-    console.log(`  Failed: ${stats.failed}`)
-    console.log(`  Skipped: ${stats.skipped}`)
+    log.info({ total: stats.total, synced: stats.processed, failed: stats.failed, skipped: stats.skipped }, 'Completed')
 
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error)
     await failSyncJob(job.id, errorMsg)
-    console.error(`${LOG_PREFIX} ❌ Job failed: ${errorMsg}`)
+    log.error({ err: errorMsg }, 'Job failed')
   }
 
   return { jobId: job.id, results }

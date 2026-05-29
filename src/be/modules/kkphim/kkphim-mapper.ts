@@ -8,8 +8,6 @@ import type {
   KKPhimEpisodeServer,
   MappedMovie,
   MappedEpisode,
-  MappedCategory,
-  MappedCountry,
 } from './types'
 
 // ─── Content Type Mapping ───────────────────────────────────────

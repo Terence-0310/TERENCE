@@ -5,11 +5,9 @@
 // ============================================
 
 import { Button } from '@/src/fe/components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/src/fe/components/ui/dialog'
 import { Input } from '@/src/fe/components/ui/input'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import useSWR from 'swr'
 
 // Fetch a trending movie backdrop for the hero background
 const backdropFetcher = async (url: string) => {
@@ -35,9 +33,9 @@ export function WatchPartyHero() {
   }
 
   return (
-    <section className="relative overflow-hidden rounded-[24px] border border-white/[0.04] bg-[#050A15] px-6 py-10 md:px-12 md:py-16 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.8)]">
+    <section className="relative overflow-hidden rounded-[24px] border border-white/[0.04] bg-background px-6 py-10 md:px-12 md:py-16 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.8)]">
       {/* Background with blur and depth */}
-      <div className="absolute inset-0 bg-gradient-to-br from-[#0A1931] via-[#050A15] to-[#02040A] opacity-90" />
+      <div className="absolute inset-0 bg-gradient-to-br from-background via-background to-background opacity-90" />
       <div className="absolute top-[-20%] right-[-10%] w-[60%] h-[80%] rounded-full bg-primary/20 blur-[120px] pointer-events-none" />
       <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[60%] rounded-full bg-blue-600/10 blur-[100px] pointer-events-none" />
 

@@ -39,6 +39,11 @@ export async function findRoomByCode(roomCode: string) {
       participants: {
         where: { leftAt: null },
         orderBy: { joinedAt: 'asc' },
+        // Pull the participant's TCoin perk state so the panel can render the
+        // neon avatar frame / exclusive badge next to their name.
+        include: {
+          user: { select: { avatar: true, avatarFrameUntil: true, exclusiveBadgeUntil: true } },
+        },
       },
       state: true,
     },

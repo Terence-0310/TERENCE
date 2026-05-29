@@ -17,7 +17,7 @@ import { useRef, useState, useEffect, useCallback } from 'react'
 import {
   SkipForward, Settings, Subtitles,
   Gauge, Server, MonitorPlay,
-  AlertTriangle, RotateCcw, ChevronRight, Loader2, Users
+  AlertTriangle, RotateCcw, ChevronRight, Loader2, Info, X, Lock
 } from 'lucide-react'
 import { useHLS } from '@/src/fe/features/player/hooks/useHLS'
 import { usePlayer } from '@/src/fe/features/player/hooks/usePlayer'
@@ -26,6 +26,9 @@ import { formatTime } from '@/lib/player/time-format'
 import { BasePlayer } from '@/src/fe/components/player/BasePlayer'
 import { useWatchPartyContext } from '@/src/fe/components/watch-party/WatchPartyContext'
 import { CreateWatchPartyButton } from '@/src/fe/components/watch-party/CreateWatchPartyButton'
+import { logger } from '@/src/fe/lib/logger'
+
+const log = logger.child({ module: 'HLSPlayer' })
 
 // ── Props ──
 
@@ -41,6 +44,28 @@ interface HLSPlayerProps {
   onEnded?: () => void
   /** Movie metadata for watch history tracking */
   movieMeta?: PlayerMovieMeta
+  /** TCoin "hd-upgrade" perk — unlocks quality levels above 720p. */
+  canUseHD?: boolean
+}
+
+/** Highest video height (px) a user without the HD-upgrade perk may watch. */
+const SD_MAX_HEIGHT = 720
+
+interface QualityLevel {
+  /** Index in the HLS level list. */
+  index: number
+  height: number
+  bitrate: number
+}
+
+/** Human label for a level height, flagging the Full-HD tier. */
+function qualityLabel(height: number): string {
+  if (height >= 2160) return '2160p (4K)'
+  if (height >= 1440) return '1440p (2K)'
+  if (height >= 1080) return '1080p Full HD'
+  if (height >= 720) return '720p HD'
+  if (height > 0) return `${height}p`
+  return 'Tự động'
 }
 
 interface SubtitleTrack {
@@ -67,6 +92,7 @@ export function HLSPlayer({
   onNextEpisode,
   onEnded,
   movieMeta,
+  canUseHD = false,
   videoRef: providedVideoRef,
 }: HLSPlayerProps) {
   // ── Refs ──
@@ -82,12 +108,19 @@ export function HLSPlayer({
   const [buffered, setBuffered] = useState(0)
   const [playbackRate, setPlaybackRate] = useState(1)
   const [showSettings, setShowSettings] = useState(false)
-  const [settingsPanel, setSettingsPanel] = useState<'main' | 'speed' | 'subtitle' | 'server'>('main')
+  const [settingsPanel, setSettingsPanel] = useState<'main' | 'speed' | 'subtitle' | 'server' | 'quality'>('main')
+  // HLS quality levels (sorted high→low) and the selected level (-1 = auto).
+  const [qualityLevels, setQualityLevels] = useState<QualityLevel[]>([])
+  const [selectedLevel, setSelectedLevel] = useState(-1)
   const [activeSubtitle, setActiveSubtitle] = useState<string | null>(null)
   const [showResumePrompt, setShowResumePrompt] = useState(false)
   const [resumeTime, setResumeTime] = useState(0)
   const [showServerBar, setShowServerBar] = useState(false)
   const [autoNextCountdown, setAutoNextCountdown] = useState<number | null>(null)
+  // Tracks why we fell back to trailer: 'codec' = source codec/buffer unsupported
+  // by the browser (e.g. 10-bit H.264); 'other' = network or unknown.
+  const [fallbackReason, setFallbackReason] = useState<'codec' | 'other' | null>(null)
+  const [showFallbackBanner, setShowFallbackBanner] = useState(true)
 
   // ── usePlayer hook ──
   const player = usePlayer({
@@ -97,14 +130,33 @@ export function HLSPlayer({
     movieMeta,
     maxRetries: 3,
     onAllServersFailed: () => {
-      console.error('[HLSPlayer] All servers failed')
+      log.warn({}, 'All servers failed — falling back to trailer / placeholder UI')
     },
   })
+
+  // HLS.js error details that indicate the browser cannot decode the stream
+  // (e.g. 10-bit H.264 / unsupported codec). When these fire BEFORE the
+  // stream ever becomes playable we fast-fail to the trailer/placeholder UI
+  // (no point retrying — codec won't change). When they fire AFTER playback
+  // started they're usually transient (seek / quality switch) and the normal
+  // recoverMediaError loop handles them.
+  const UNRECOVERABLE_DETAILS = new Set([
+    'bufferAppendError',
+    'bufferAppendingError',
+    'bufferIncompatibleCodecsError',
+    'bufferAddCodecError',
+    'manifestIncompatibleCodecsError',
+  ])
+  const hasEverPlayedRef = useRef(false)
 
   // ── useHLS hook ──
   const hls = useHLS({
     onReady: () => {
-      console.log('[HLSPlayer] HLS ready')
+      log.info({}, 'HLS ready')
+      // NOTE: do NOT set hasEverPlayedRef here — onReady fires on
+      // MANIFEST_PARSED, BEFORE any segment is appended. Codec failures
+      // happen on the first appendBuffer call. We flip the flag in
+      // handleCanPlay (fires only after at least one frame decoded).
       player.markReady()
 
       const savedTime = player.getSavedProgress()
@@ -113,10 +165,30 @@ export function HLSPlayer({
         setShowResumePrompt(true)
       }
     },
+    onLevelsLoaded: (levels) => {
+      // levels arrive in HLS index order; keep the index, sort display high→low.
+      const mapped: QualityLevel[] = levels
+        .map((l, index) => ({ index, height: l.height, bitrate: l.bitrate }))
+        .filter((l) => l.height > 0)
+        .sort((a, b) => b.height - a.height)
+      setQualityLevels(mapped)
+      setSelectedLevel(-1) // reset to auto on new manifest
+    },
     onError: (errorType, details, fatal) => {
       if (!fatal) return
 
-      console.error(`[HLSPlayer] Fatal HLS error: ${errorType} — ${details}`)
+      // Only fast-fail on codec errors that occur BEFORE any successful
+      // playback — those mean the codec itself is unsupported. Transient
+      // buffer errors mid-playback should still go through normal recovery.
+      if (UNRECOVERABLE_DETAILS.has(details) && !hasEverPlayedRef.current) {
+        log.warn({ errorType, details }, 'Unrecoverable codec/buffer error before playback — switching to fallback UI')
+        setFallbackReason('codec')
+        setShowFallbackBanner(true)
+        player.nextServer()
+        return
+      }
+
+      log.error({ errorType, details }, 'Fatal HLS error')
 
       if (errorType.includes('network') || errorType.includes('NETWORK') || errorType === 'networkError') {
         const recovered = hls.recoverNetworkError()
@@ -130,12 +202,17 @@ export function HLSPlayer({
     },
   })
 
+  // Reset the "has played" flag whenever we load a new source / server / episode
+  useEffect(() => {
+    hasEverPlayedRef.current = false
+  }, [player.currentUrl, player.reloadKey])
+
   // ── Loading Timeout Guard ──
   // If player stays in isLoading=true for > 10s, force error to prevent endless spinner on CORS/Mixed-content blocks
   useEffect(() => {
     if (!player.isLoading || player.hasError) return
     const timeout = setTimeout(() => {
-      console.warn('[HLSPlayer] Loading timeout (10s) exceeded. Forcing error fallback.')
+      log.warn({}, 'Loading timeout (10s) exceeded. Forcing error fallback.')
       player.reportError('TIMEOUT', 'Video load timeout (CORS or network drop)')
     }, 10000)
     return () => clearTimeout(timeout)
@@ -146,7 +223,7 @@ export function HLSPlayer({
     const video = videoRef.current
     if (!video || !player.currentUrl) return
 
-    console.log(`[HLSPlayer] Loading: ${player.currentUrl} (Server: ${player.currentServerName}, key: ${player.reloadKey})`)
+    log.info({ url: player.currentUrl, server: player.currentServerName, key: player.reloadKey }, 'Loading')
 
     setCurrentTime(0)
     setDuration(0)
@@ -167,6 +244,31 @@ export function HLSPlayer({
     const defaultSub = subtitles.find((s) => s.isDefault)
     if (defaultSub) setActiveSubtitle(defaultSub.lang)
   }, [subtitles])
+
+  // ── HD gate ──
+  // Without the hd-upgrade perk, cap auto quality to ≤720p so the player never
+  // climbs to a Full-HD rendition. Perk holders run uncapped (autoLevelCapping = -1).
+  useEffect(() => {
+    const hlsInstance = hls.getHls()
+    if (!hlsInstance || qualityLevels.length === 0) return
+    if (canUseHD) {
+      hlsInstance.autoLevelCapping = -1
+      return
+    }
+    // Highest HLS index whose height is still within the SD limit.
+    const allowed = qualityLevels.filter((l) => l.height <= SD_MAX_HEIGHT)
+    hlsInstance.autoLevelCapping = allowed.length > 0
+      ? Math.max(...allowed.map((l) => l.index))
+      : -1
+    // If a forced level is now above the cap, drop back to auto.
+    if (selectedLevel >= 0) {
+      const sel = qualityLevels.find((l) => l.index === selectedLevel)
+      if (sel && sel.height > SD_MAX_HEIGHT) {
+        hlsInstance.currentLevel = -1
+        setSelectedLevel(-1)
+      }
+    }
+  }, [canUseHD, qualityLevels, selectedLevel, hls])
 
   // ── Save progress periodically ──
   useEffect(() => {
@@ -231,7 +333,14 @@ export function HLSPlayer({
   }
 
   function handleWaiting() { player.setLoading(true) }
-  function handleCanPlay() { player.setLoading(false) }
+  function handleCanPlay() {
+    // canplay only fires after the browser has decoded at least one frame —
+    // proof that the codec is supported. From here on, future buffer errors
+    // are treated as transient (seek / quality switch) and go through the
+    // normal recoverMediaError path instead of fast-failing to the trailer.
+    hasEverPlayedRef.current = true
+    player.setLoading(false)
+  }
 
   function handleLoadedData() {
     player.setLoading(false)
@@ -245,7 +354,7 @@ export function HLSPlayer({
   }
 
   function handleVideoError() {
-    console.error('[HLSPlayer] Video element error')
+    log.warn({}, 'Video element error (may be codec / source issue, falling through to retry / fallback)')
     player.reportError('VIDEO_ERROR', 'Video element error')
   }
 
@@ -326,6 +435,16 @@ export function HLSPlayer({
     setSettingsPanel('main')
   }
 
+  function handleQualityChange(level: QualityLevel | null) {
+    const hlsInstance = hls.getHls()
+    if (!hlsInstance) return
+    // Guard: SD users can't force a level above the cap.
+    if (level && !canUseHD && level.height > SD_MAX_HEIGHT) return
+    hlsInstance.currentLevel = level ? level.index : -1
+    setSelectedLevel(level ? level.index : -1)
+    setSettingsPanel('main')
+  }
+
   function handleSubtitleChange(lang: string | null) {
     const video = videoRef.current
     if (!video) return
@@ -353,6 +472,15 @@ export function HLSPlayer({
 
   // All-servers-failed error — rendered OUTSIDE BasePlayer
   if (player.allServersFailed) {
+    // Default reason if fast-fail didn't tag one (e.g. all retries exhausted)
+    const reason = fallbackReason ?? 'other'
+    const bannerTitle = reason === 'codec'
+      ? 'Phim chưa có bản phát web tương thích trình duyệt'
+      : 'Nguồn phim hiện không khả dụng'
+    const bannerDesc = reason === 'codec'
+      ? 'Nguồn hiện tại dùng codec 10-bit mà Chrome / Edge / Firefox chưa hỗ trợ phát. Đang chiếu trailer chính thức thay thế.'
+      : 'Không kết nối được với máy chủ phát. Đang chiếu trailer chính thức thay thế. Bạn có thể thử lại sau.'
+
     if (movieMeta?.trailerUrl) {
       return (
         <div className="relative flex h-full w-full bg-black">
@@ -362,6 +490,26 @@ export function HLSPlayer({
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowFullScreen
           />
+          {showFallbackBanner && (
+            <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex justify-center p-3 md:p-4">
+              <div className="pointer-events-auto flex max-w-2xl items-start gap-3 rounded-xl bg-black/75 px-4 py-3 text-left text-white shadow-2xl backdrop-blur-md border border-white/10">
+                <div className="mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-amber-500/15 border border-amber-500/30">
+                  <Info className="h-3.5 w-3.5 text-amber-300" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] font-semibold leading-snug">{bannerTitle}</p>
+                  <p className="mt-0.5 text-[12px] leading-snug text-white/65">{bannerDesc}</p>
+                </div>
+                <button
+                  onClick={() => setShowFallbackBanner(false)}
+                  className="ml-1 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-white/50 transition hover:bg-white/10 hover:text-white"
+                  title="Đóng"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )
     }
@@ -515,6 +663,16 @@ export function HLSPlayer({
                   <span className="flex items-center gap-2"><Gauge className="h-4 w-4" />Tốc độ phát</span>
                   <span className="text-xs text-white/50">{playbackRate}x</span>
                 </button>
+                {qualityLevels.length > 0 && (
+                  <button onClick={() => setSettingsPanel('quality')} className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-white/80 hover:bg-white/10 transition">
+                    <span className="flex items-center gap-2"><MonitorPlay className="h-4 w-4" />Chất lượng</span>
+                    <span className="text-xs text-white/50">
+                      {selectedLevel === -1
+                        ? 'Tự động'
+                        : qualityLabel(qualityLevels.find((l) => l.index === selectedLevel)?.height || 0)}
+                    </span>
+                  </button>
+                )}
                 {hasMultipleServers && (
                   <button onClick={() => setSettingsPanel('server')} className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-white/80 hover:bg-white/10 transition">
                     <span className="flex items-center gap-2"><Server className="h-4 w-4" />Server</span>
@@ -545,6 +703,51 @@ export function HLSPlayer({
                     {playbackRate === rate && <span className="text-primary">✓</span>}
                   </button>
                 ))}
+              </div>
+            )}
+
+            {settingsPanel === 'quality' && (
+              <div className="py-1">
+                <button onClick={() => setSettingsPanel('main')} className="w-full flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white/50 hover:bg-white/5 border-b border-white/5">
+                  ← Chất lượng
+                </button>
+                <button
+                  onClick={() => handleQualityChange(null)}
+                  className={`w-full flex items-center justify-between px-4 py-2 text-sm transition hover:bg-white/10 ${selectedLevel === -1 ? 'text-primary font-semibold' : 'text-white/70'}`}
+                >
+                  <span>Tự động</span>
+                  {selectedLevel === -1 && <span className="text-primary">✓</span>}
+                </button>
+                {qualityLevels.map((level) => {
+                  const locked = !canUseHD && level.height > SD_MAX_HEIGHT
+                  return (
+                    <button
+                      key={level.index}
+                      onClick={() => locked
+                        ? window.open('/tcoin', '_blank')
+                        : handleQualityChange(level)}
+                      className={`w-full flex items-center justify-between px-4 py-2 text-sm transition hover:bg-white/10 ${
+                        locked ? 'text-white/40' : selectedLevel === level.index ? 'text-primary font-semibold' : 'text-white/70'
+                      }`}
+                      title={locked ? 'Đổi 30 TCoin để mở khoá Full HD' : undefined}
+                    >
+                      <span className="flex items-center gap-1.5">
+                        {qualityLabel(level.height)}
+                        {level.height >= 1080 && (
+                          <span className="rounded bg-primary/15 px-1 text-[9px] font-bold uppercase tracking-wide text-primary">HD+</span>
+                        )}
+                      </span>
+                      {locked
+                        ? <Lock className="h-3.5 w-3.5 text-amber-400" />
+                        : selectedLevel === level.index && <span className="text-primary">✓</span>}
+                    </button>
+                  )
+                })}
+                {!canUseHD && qualityLevels.some((l) => l.height > SD_MAX_HEIGHT) && (
+                  <p className="px-4 py-2 text-[10px] leading-snug text-white/40 border-t border-white/5">
+                    Mở khoá Full HD bằng <span className="text-primary font-semibold">30 TCoin</span> trong trang TCoin.
+                  </p>
+                )}
               </div>
             )}
 
@@ -637,7 +840,7 @@ export function HLSPlayer({
         {subtitles.map((sub) => (
           <track
             key={sub.id}
-            kind={sub.kind as any}
+            kind={sub.kind as React.TrackHTMLAttributes<HTMLTrackElement>['kind']}
             src={sub.url}
             srcLang={sub.lang}
             label={sub.label}

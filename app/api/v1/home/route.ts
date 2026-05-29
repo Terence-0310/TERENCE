@@ -6,6 +6,9 @@ import { NextRequest } from 'next/server'
 import { getHomeData } from '@/src/be/modules/movies/movie-service'
 import { serializeMovieCard } from '@/src/be/modules/movies/serializers'
 import { apiSuccess, apiError } from '@/src/be/shared/api-response'
+import { logger } from '@/src/be/shared/utils/logger'
+
+const log = logger.child({ module: 'home' })
 
 export async function GET(_req: NextRequest) {
   try {
@@ -20,7 +23,7 @@ export async function GET(_req: NextRequest) {
       anime: data.anime.map((m: any) => serializeMovieCard(m as unknown as Record<string, unknown>)),
     })
   } catch (error) {
-    console.error('[API] /v1/home error:', error)
+    log.error({ err: error instanceof Error ? error.message : error }, '/v1/home error')
     return apiError('Internal Server Error', 500)
   }
 }

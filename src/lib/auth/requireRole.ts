@@ -1,4 +1,3 @@
-import { Role } from '@prisma/client'
 
 /**
  * Middleware Guard: Check if the current user has the required role.

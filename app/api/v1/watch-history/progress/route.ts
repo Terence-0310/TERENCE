@@ -5,11 +5,13 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { saveProgress } from '@/src/be/modules/watch/watch.service'
-import { AuthService } from '@/src/be/modules/auth'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 
 export async function POST(request: NextRequest) {
-  const session = await AuthService.getSession()
-  if (!session?.userId) {
+  const session = await getServerSession(authOptions)
+  const userId = session?.user?.id
+  if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -34,7 +36,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, progress: 0, isCompleted: false })
   }
 
-  const result = await saveProgress(session.userId, {
+  const result = await saveProgress(userId, {
     movieId,
     episodeId: episodeId || null,
     currentTime,

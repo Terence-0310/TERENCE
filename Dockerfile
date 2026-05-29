@@ -11,7 +11,7 @@ COPY package.json package-lock.json ./
 COPY src/dta/prisma ./src/dta/prisma/
 
 # Install deps (postinstall runs prisma generate)
-RUN npm ci
+RUN npm ci --legacy-peer-deps
 
 # ============================================
 # Stage 2: Build the application
@@ -73,9 +73,13 @@ COPY --from=builder --chown=nextjs:nodejs /app/src/dta/prisma ./src/dta/prisma
 # NextJS App will use .next/standalone/node_modules, but the entrypoint script relies on this.
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
 
-# Copy source file needed for tsx execution (Prisma seed + Elastic reindex)
+# Copy source files needed for tsx execution (server.ts + all @/ aliased imports)
 COPY --from=builder --chown=nextjs:nodejs /app/src/ ./src/
+COPY --from=builder --chown=nextjs:nodejs /app/lib ./lib
+COPY --from=builder --chown=nextjs:nodejs /app/types ./types
+COPY --from=builder --chown=nextjs:nodejs /app/tsconfig.json ./tsconfig.json
 COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
+COPY --from=builder --chown=nextjs:nodejs /app/server.ts ./server.ts
 
 # Entrypoint script — runs migrations before starting app
 # Created inline to avoid Windows CRLF line-ending issues
@@ -103,13 +107,20 @@ done\n\
 if [ $RETRY -ge $MAX_RETRIES ]; then\n\
   echo "DB not available, starting anyway..."\n\
 else\n\
-  echo "Running migrations..."\n\
-  ./node_modules/.bin/prisma migrate deploy --schema=src/dta/prisma/schema.prisma 2>&1 || echo "Migration warning"\n\
+  echo "Syncing database schema (db push)..."\n\
+  ./node_modules/.bin/prisma db push --schema=src/dta/prisma/schema.prisma --accept-data-loss 2>&1 || echo "Schema sync warning"\n\
   if [ "${SEED_ON_START:-false}" = "true" ]; then\n\
     echo "Seeding database..."\n\
     ./node_modules/.bin/prisma db seed 2>&1 || echo "Seed warning"\n\
-    echo "Reindexing Elasticsearch (Local)..."\n\
-    ./node_modules/.bin/tsx src/dta/scripts/elastic-reindex.ts 2>&1 || echo "ES warning"\n\
+  fi\n\
+  if [ "${SYNC_OPHIM_ON_START:-false}" = "true" ]; then\n\
+    PAGES="${OPHIM_SYNC_PAGES:-3}"\n\
+    echo "Syncing OPhim catalog (pages 1-${PAGES})..."\n\
+    ./node_modules/.bin/tsx src/dta/scripts/sync-ophim-catalog.ts --pages=${PAGES} 2>&1 || echo "OPhim sync warning (continuing)"\n\
+  fi\n\
+  if [ "${SEED_ON_START:-false}" = "true" ] || [ "${SYNC_OPHIM_ON_START:-false}" = "true" ]; then\n\
+    echo "Reindexing Elasticsearch..."\n\
+    ./node_modules/.bin/tsx src/dta/scripts/elastic-reindex.ts 2>&1 || echo "ES reindex warning"\n\
   fi\n\
 fi\n\
 echo "Starting TERENCE on port ${PORT:-3000}..."\n\
@@ -124,5 +135,4 @@ ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
 ENTRYPOINT ["./docker-entrypoint.sh"]
-CMD ["node", "server.js"]
-
+CMD ["./node_modules/.bin/tsx", "server.ts"]

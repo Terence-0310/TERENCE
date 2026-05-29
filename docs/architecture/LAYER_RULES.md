@@ -141,29 +141,37 @@ export async function POST(req: NextRequest) {
 
 ## Migration Guidelines
 
-### Phase 1: Scaffold (Current)
-- Create module skeleton with `index.ts` re-exporting from legacy locations
-- No breaking changes — old imports still work
-- New code should use new module paths
+> **Status (2026-05)**: All three phases below are complete. Backend modules live under
+> `src/be/modules/*`, the Prisma singleton under `src/be/shared/db/prisma.ts`, and the
+> frontend feature modules under `src/fe/features/*`. This section is kept as a reference
+> for the migration history — no further migration work is pending.
 
-### Phase 2: Migrate
-- Move actual logic from `lib/`, `services/`, `server/` into module files
-- Update imports in API routes to use `src/server/modules/*`
-- Remove legacy files once all consumers are migrated
+### Phase 1: Scaffold ✅
 
-### Phase 3: Clean Up
-- Delete empty legacy directories
-- Update `tsconfig.json` paths if needed
-- Final audit: no direct Prisma imports outside repositories
+- Module skeletons under `src/be/modules/*` created with re-exports from legacy locations.
+
+### Phase 2: Migrate ✅
+
+- Actual logic moved out of `lib/`, `services/`, `server/` into the new module files.
+- API routes import from `@/src/be/modules/*` (controllers/services/repositories).
+
+### Phase 3: Clean Up ✅
+
+- Legacy directories removed where consumers no longer reference them.
+- No direct Prisma imports outside repositories (enforced by code review).
 
 ---
 
-## TODO Migration Markers
+## Migration Markers (historical)
 
-Throughout the codebase, `// TODO [MIGRATION]` comments mark code that needs to be moved:
+During Phases 1–2, `// TODO [MIGRATION]` markers were placed in code to flag relocations,
+e.g.:
 
 ```typescript
-// TODO [MIGRATION] Move this logic to src/server/modules/auth/auth.service.ts
+// TODO [MIGRATION] Move this logic to src/be/modules/auth/auth.service.ts
 // TODO [MIGRATION] Replace direct prisma import with repository method
-// TODO [MIGRATION] Move Zod schema to src/server/modules/<domain>/<domain>.schema.ts
+// TODO [MIGRATION] Move Zod schema to src/be/modules/<domain>/<domain>.schema.ts
 ```
+
+These markers have all been resolved and removed from the codebase. If you reintroduce a
+similar marker, follow the same `// TODO [MIGRATION] <action>` format so it can be grepped.
