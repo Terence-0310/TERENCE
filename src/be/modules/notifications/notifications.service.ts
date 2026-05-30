@@ -5,7 +5,7 @@
 // socket room (notification:new). Listing + read-all back the bell UI.
 
 import { prisma } from '@/src/be/shared/db/prisma'
-import { notifyUser, RT_EVENTS } from '@/src/be/shared/realtime/notify'
+import { notifyUser, notifyAll, RT_EVENTS } from '@/src/be/shared/realtime/notify'
 
 export interface CreateNotificationInput {
   userId: string
@@ -68,4 +68,40 @@ export async function markAllNotificationsRead(userId: string): Promise<void> {
     where: { userId, isRead: false },
     data: { isRead: true },
   })
+}
+
+/**
+ * System-wide broadcast (admin). Persists one notification per active user so
+ * offline users see it later, then pushes a single live event to everyone
+ * currently connected. Returns the recipient count.
+ */
+export async function broadcastNotification(input: {
+  type?: string
+  title: string
+  message?: string | null
+  link?: string | null
+}): Promise<{ recipients: number }> {
+  const users = await prisma.user.findMany({ where: { isActive: true }, select: { id: true } })
+  const type = input.type ?? 'system'
+  const message = input.message ?? null
+  const link = input.link ?? null
+
+  const CHUNK = 1000
+  for (let i = 0; i < users.length; i += CHUNK) {
+    await prisma.notification.createMany({
+      data: users.slice(i, i + CHUNK).map((u) => ({
+        userId: u.id, type, title: input.title, message, link,
+      })),
+    })
+  }
+
+  // One live push to all connected clients (their bell prepends it instantly).
+  const stamp = new Date()
+  notifyAll(RT_EVENTS.NOTIFICATION_NEW, {
+    id: `broadcast-${stamp.getTime()}`,
+    type, title: input.title, message, link,
+    isRead: false, createdAt: stamp.toISOString(),
+  })
+
+  return { recipients: users.length }
 }

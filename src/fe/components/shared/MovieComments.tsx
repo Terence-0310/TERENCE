@@ -106,9 +106,9 @@ export function MovieComments({ movieId }: { movieId: string | number }) {
       setIsSpoiler(false)
 
       if (data.tcoinRewarded) {
-        toast.success('Chúc mừng! Bạn nhận được +50 TCoin cho bài đánh giá đầu tiên!', { duration: 6000 })
+        toast.success('Đã gửi đánh giá (+50 TCoin)! Bình luận sẽ hiển thị sau khi được duyệt.', { duration: 6000 })
       } else {
-        toast.success('Bình luận thành công!')
+        toast.success('Đã gửi! Bình luận của bạn đang chờ duyệt.')
       }
     } catch (err: any) {
       toast.error(err.message || 'Có lỗi xảy ra')

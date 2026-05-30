@@ -84,6 +84,17 @@ export async function creditWallet(
     return { wallet: updated, transaction: txn }
   }).then((result) => {
     emitWalletUpdate(result.wallet.userId, result.wallet.balance, result.transaction)
+    // Persistent "you earned TCoin" notification (bell) — fire-and-forget so
+    // the credit path stays fast. Best-effort: never block/throw.
+    import('@/src/be/modules/notifications/notifications.service')
+      .then(({ createNotification }) => createNotification({
+        userId: result.wallet.userId,
+        type: 'tcoin',
+        title: `Bạn nhận được +${amount.toLocaleString('vi-VN')} TCoin`,
+        message: description || null,
+        link: '/tcoin',
+      }))
+      .catch(() => { /* best-effort */ })
     return result
   })
 }

@@ -26,7 +26,8 @@ import {
   Monitor,
   Loader2,
   Newspaper,
-  Megaphone
+  Megaphone,
+  MessageSquare
 } from 'lucide-react'
 import { Button } from '@/src/fe/components/ui/button'
 import { useAuth } from '@/src/fe/features/auth/contexts/auth-context'
@@ -47,8 +48,10 @@ const SIDEBAR_ITEMS = [
   { icon: Newspaper, label: 'Bài viết', href: '/dashboard/news' },
   { icon: Tag, label: 'Nội dung', href: '/dashboard/content' },
   { icon: Users, label: 'Người dùng', href: '/dashboard/users' },
+  { icon: MessageSquare, label: 'Kiểm duyệt', href: '/dashboard/reviews' },
   { icon: Coins, label: 'Thanh toán & TCoin', href: '/dashboard/tcoin' },
   { icon: Megaphone, label: 'Quảng cáo', href: '/dashboard/ads' },
+  { icon: Bell, label: 'Gửi thông báo', href: '/dashboard/notifications' },
   { icon: BarChart3, label: 'Thống kê', href: '/dashboard/analytics' },
   { icon: FileText, label: 'Nhật ký', href: '/dashboard/logs' },
   { icon: Settings, label: 'Cài đặt', href: '/dashboard/settings' },

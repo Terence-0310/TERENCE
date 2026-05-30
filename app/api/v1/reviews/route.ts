@@ -130,10 +130,9 @@ export async function POST(req: Request) {
           rating,
           content,
           isSpoiler,
-          // Auto-approve: there is no admin moderation flow, so 'pending'
-          // reviews would never become visible. Approve on submit so they
-          // show (and can be broadcast live to other viewers).
-          status: 'approved',
+          // Pending until an admin approves (see /dashboard/reviews). On
+          // approval the review is broadcast live + author/followers notified.
+          status: 'pending',
         },
         include: {
           user: {
@@ -183,13 +182,9 @@ export async function POST(req: Request) {
       likeCount: review.likeCount,
     }
 
-    // Broadcast to everyone viewing this movie so the comment appears live.
-    try {
-      const { notifyRoom, RT_EVENTS } = await import('@/src/be/shared/realtime/notify')
-      notifyRoom(`movie:${movieId}`, RT_EVENTS.REVIEW_CREATED, { ...payload, movieId })
-    } catch { /* realtime is best-effort */ }
-
-    return NextResponse.json({ success: true, tcoinRewarded, data: payload })
+    // No live broadcast here — the review is 'pending'. It is broadcast to the
+    // movie room (+ author/followers notified) only when an admin approves it.
+    return NextResponse.json({ success: true, tcoinRewarded, pending: true, data: payload })
   } catch (error) {
     log.error({ err: error instanceof Error ? error.message : error }, 'POST /api/v1/reviews error')
     return NextResponse.json({ success: false, error: 'Internal Server Error' }, { status: 500 })
