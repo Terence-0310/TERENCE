@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import Image from 'next/image'
-import { TrendingUp, Eye, Trophy, Crown, Flame, Star } from 'lucide-react'
+import { Eye, Trophy, Crown, Flame, Star } from 'lucide-react'
 import type { Metadata } from 'next'
 import type { Movie } from '@/types/movie'
 import { prisma } from '@/src/be/shared/db/prisma'
@@ -187,7 +187,7 @@ export default async function TopViewPage({ searchParams }: { searchParams: Prom
   const params = await searchParams
   const page = Math.max(1, Number(params.page) || 1)
 
-  const { movies, total, totalViews } = await fetchPage(page)
+  const { movies, total } = await fetchPage(page)
   const totalPages = Math.max(1, Math.ceil(total / PER_PAGE))
 
   const isFirstPage = page === 1
@@ -200,60 +200,6 @@ export default async function TopViewPage({ searchParams }: { searchParams: Prom
 
   return (
     <main className="min-h-screen bg-background pb-24 md:pb-12">
-      {/* ═══════ HERO ═══════ */}
-      <section className="relative overflow-hidden border-b border-white/[0.04] py-16 md:py-20">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-transparent to-orange-500/10 opacity-60" />
-        <div className="absolute -top-32 -left-24 h-72 w-72 rounded-full bg-primary/25 blur-[120px]" />
-        <div className="absolute -bottom-32 -right-24 h-72 w-72 rounded-full bg-orange-500/20 blur-[120px]" />
-
-        <div className="relative mx-auto flex max-w-6xl flex-col items-center px-5 text-center md:px-8">
-          <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-orange-400/30 bg-orange-500/10 px-4 py-1.5">
-            <Flame className="h-4 w-4 text-orange-400" />
-            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-orange-300">
-              Bảng Xếp Hạng Lượt Xem
-            </span>
-          </div>
-
-          <h1 className="text-4xl font-extrabold tracking-tight text-white md:text-6xl">
-            Top View <span className="bg-gradient-to-r from-yellow-300 via-orange-400 to-rose-500 bg-clip-text text-transparent">Điểm Cao</span>
-          </h1>
-
-          <p className="mt-5 max-w-2xl text-[15px] leading-relaxed text-white/55">
-            Những bộ phim gây bão và thu hút lượng người xem lớn nhất trên hệ thống.
-            Cập nhật theo thời gian thực.
-          </p>
-
-          <div className="mt-10 grid w-full max-w-2xl grid-cols-2 gap-3 md:grid-cols-3">
-            <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] px-5 py-4 backdrop-blur">
-              <div className="flex items-center justify-center gap-2 text-[11px] uppercase tracking-wider text-white/40">
-                <Trophy className="h-3 w-3" />
-                Tổng phim
-              </div>
-              <div className="mt-1 text-2xl font-extrabold text-white md:text-3xl">
-                {total.toLocaleString('vi-VN')}
-              </div>
-            </div>
-            <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] px-5 py-4 backdrop-blur">
-              <div className="flex items-center justify-center gap-2 text-[11px] uppercase tracking-wider text-white/40">
-                <Eye className="h-3 w-3" />
-                Tổng lượt xem
-              </div>
-              <div className="mt-1 text-2xl font-extrabold text-primary md:text-3xl">
-                {formatCount(totalViews)}
-              </div>
-            </div>
-            <div className="col-span-2 rounded-2xl border border-white/[0.06] bg-white/[0.03] px-5 py-4 backdrop-blur md:col-span-1">
-              <div className="flex items-center justify-center gap-2 text-[11px] uppercase tracking-wider text-white/40">
-                <TrendingUp className="h-3 w-3" />
-                Hạng 1
-              </div>
-              <div className="mt-1 truncate text-lg font-bold text-yellow-400 md:text-xl">
-                {movies[0]?.title ?? '—'}
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
 
       <div className="mx-auto max-w-7xl px-5 md:px-8 lg:px-10">
         {/* Realtime "đang xem nhiều nhất" — live concurrent viewers. */}
