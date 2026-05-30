@@ -178,36 +178,143 @@ export const sendTopupReceiptEmail = async (params: {
   const total = coinAmount + bonusAmount;
   const vnd = (n: number) => `${n.toLocaleString("vi-VN")}đ`;
   const coin = (n: number) => `${n.toLocaleString("vi-VN")} TCoin`;
+  const bonusPct =
+    bonusAmount > 0 && coinAmount > 0
+      ? ` (+${Math.round((bonusAmount / coinAmount) * 100)}%)`
+      : "";
   const paidAtLabel = paidAt.toLocaleString("vi-VN", {
     day: "2-digit", month: "2-digit", year: "numeric",
     hour: "2-digit", minute: "2-digit",
   });
+  const year = new Date().getFullYear();
+  const walletUrl = `${appUrl()}/tcoin`;
 
-  const rows: Array<[string, string, boolean?]> = [
-    ["Mã đơn", orderCode],
-    ["Gói", packageName],
-    ["Số tiền thanh toán", vnd(amountVnd)],
-    ["TCoin gốc", coin(coinAmount)],
-    ...(bonusAmount > 0
-      ? [["Bonus", `+${coin(bonusAmount)}`] as [string, string]]
-      : []),
-    ["Tổng TCoin nhận", coin(total), true],
-    ["Số dư ví sau giao dịch", coin(balanceAfter)],
-    ["Thời gian", paidAtLabel],
-  ];
+  // A single line item in the itemised section.
+  const lineItem = (label: string, value: string, opts?: { last?: boolean; muted?: boolean }) => `
+    <tr>
+      <td style="padding:11px 0;color:${opts?.muted ? "#94a3b8" : "#475569"};font-size:14px;${opts?.last ? "" : "border-bottom:1px solid #f1f5f9;"}">${label}</td>
+      <td align="right" style="padding:11px 0;color:#0f172a;font-size:14px;font-weight:600;${opts?.last ? "" : "border-bottom:1px solid #f1f5f9;"}">${value}</td>
+    </tr>`;
 
-  const tableHtml = `
-    <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin: 24px 0 0; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
-      ${rows
-        .map(
-          ([label, value, highlight], i) => `
-        <tr style="background: ${i % 2 === 0 ? "#f8fafc" : "#ffffff"};">
-          <td style="padding: 12px 16px; color: #64748b; font-size: 13px; border-bottom: 1px solid #eef2f7;">${label}</td>
-          <td style="padding: 12px 16px; text-align: right; font-size: ${highlight ? "16px" : "14px"}; font-weight: ${highlight ? "800" : "600"}; color: ${highlight ? "#0d9488" : "#0f172a"}; border-bottom: 1px solid #eef2f7;">${value}</td>
-        </tr>`,
-        )
-        .join("")}
-    </table>`;
+  const html = `<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Biên lai thanh toán TCoin</title>
+</head>
+<body style="margin:0;padding:0;background:#eef2f6;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;">Biên lai nạp ${coin(total)} — đơn ${orderCode} đã thanh toán thành công.</div>
+  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background:#eef2f6;padding:32px 16px;">
+    <tr>
+      <td align="center">
+        <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width:600px;background:#ffffff;border-radius:18px;overflow:hidden;box-shadow:0 14px 40px rgba(15,23,42,0.10);">
+
+          <!-- Header -->
+          <tr>
+            <td style="background:linear-gradient(135deg,#0f172a 0%,#134e4a 100%);padding:30px 36px;">
+              <table width="100%" border="0" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td style="font-size:26px;font-weight:900;color:#2dd4bf;letter-spacing:-0.5px;">TERENCE</td>
+                  <td align="right" style="color:#94a3b8;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;">Biên lai điện tử</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Status + greeting -->
+          <tr>
+            <td style="padding:30px 36px 0;">
+              <table border="0" cellspacing="0" cellpadding="0">
+                <tr><td style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:999px;padding:7px 16px;color:#047857;font-size:12px;font-weight:800;letter-spacing:0.3px;">&#10003;&nbsp; THANH TOÁN THÀNH CÔNG</td></tr>
+              </table>
+              <h1 style="margin:18px 0 6px;font-size:21px;color:#0f172a;font-weight:800;">Chào ${name || "bạn"},</h1>
+              <p style="margin:0;color:#64748b;font-size:14px;line-height:1.65;">Giao dịch của bạn đã được xác nhận tự động. <strong style="color:#0f172a;">${coin(total)}</strong> đã được cộng vào ví TCoin của bạn.</p>
+            </td>
+          </tr>
+
+          <!-- Amount hero -->
+          <tr>
+            <td style="padding:24px 36px 0;">
+              <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;">
+                <tr>
+                  <td style="padding:20px 24px;">
+                    <div style="color:#94a3b8;font-size:11px;text-transform:uppercase;letter-spacing:0.8px;font-weight:800;">Số tiền đã thanh toán</div>
+                    <div style="color:#0f172a;font-size:32px;font-weight:900;margin-top:6px;line-height:1;">${vnd(amountVnd)}</div>
+                    <div style="color:#94a3b8;font-size:12px;margin-top:8px;">Chuyển khoản ngân hàng &middot; VietQR</div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Itemised details -->
+          <tr>
+            <td style="padding:24px 36px 0;">
+              <div style="color:#94a3b8;font-size:11px;text-transform:uppercase;letter-spacing:0.8px;font-weight:800;margin-bottom:6px;">Chi tiết đơn hàng</div>
+              <table width="100%" border="0" cellspacing="0" cellpadding="0">
+                ${lineItem("Mã đơn", `<span style="font-family:'Courier New',monospace;letter-spacing:0.5px;">${orderCode}</span>`)}
+                ${lineItem("Gói nạp", packageName)}
+                ${lineItem("TCoin gốc", coin(coinAmount))}
+                ${bonusAmount > 0 ? lineItem(`Bonus${bonusPct}`, `<span style="color:#059669;font-weight:700;">+${coin(bonusAmount)}</span>`) : ""}
+                ${lineItem("Thời gian", paidAtLabel, { last: true, muted: true })}
+              </table>
+            </td>
+          </tr>
+
+          <!-- Total -->
+          <tr>
+            <td style="padding:16px 36px 0;">
+              <table width="100%" border="0" cellspacing="0" cellpadding="0" style="border-top:2px solid #0f172a;">
+                <tr>
+                  <td style="padding:14px 0 0;color:#0f172a;font-size:15px;font-weight:800;">Tổng TCoin nhận</td>
+                  <td align="right" style="padding:14px 0 0;color:#0d9488;font-size:22px;font-weight:900;">${coin(total)}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Wallet balance -->
+          <tr>
+            <td style="padding:18px 36px 0;">
+              <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background:#f0fdfa;border:1px solid #99f6e4;border-radius:12px;">
+                <tr>
+                  <td style="padding:14px 18px;color:#0f766e;font-size:13px;font-weight:600;">Số dư ví sau giao dịch</td>
+                  <td align="right" style="padding:14px 18px;color:#0f766e;font-size:16px;font-weight:800;">${coin(balanceAfter)}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- CTA -->
+          <tr>
+            <td align="center" style="padding:28px 36px 6px;">
+              <a href="${walletUrl}" style="display:inline-block;background:linear-gradient(135deg,#2dd4bf,#14b8a6);color:#022c22;text-decoration:none;font-weight:800;font-size:15px;padding:14px 40px;border-radius:12px;box-shadow:0 8px 20px rgba(45,212,191,0.35);">Xem ví TCoin &rarr;</a>
+            </td>
+          </tr>
+
+          <!-- Note -->
+          <tr>
+            <td style="padding:20px 36px 0;">
+              <hr style="border:none;border-top:1px solid #e2e8f0;margin:0 0 16px;" />
+              <p style="margin:0;color:#94a3b8;font-size:12px;line-height:1.6;text-align:center;">Đây là biên lai điện tử cho giao dịch nạp TCoin tại TERENCE. Nếu bạn <strong>không</strong> thực hiện giao dịch này, vui lòng liên hệ hỗ trợ ngay để được trợ giúp.</p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background:#f8fafc;padding:22px 36px;border-top:1px solid #eef2f7;text-align:center;">
+              <p style="margin:0;color:#64748b;font-size:12px;font-weight:700;">TERENCE &middot; Premium Streaming Platform</p>
+              <p style="margin:6px 0 0;color:#cbd5e1;font-size:11px;">&copy; ${year} TERENCE. Email được gửi tự động, vui lòng không trả lời.</p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
 
   if (process.env.NODE_ENV !== "production" || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
     log.info({ to: email, orderCode, total }, "Lệnh Gửi Email Hoá Đơn TCoin (Local Test)");
@@ -216,16 +323,8 @@ export const sendTopupReceiptEmail = async (params: {
   await transporter.sendMail({
     from: fromAddress(),
     to: email,
-    subject: `Hoá đơn nạp TCoin #${orderCode} — TERENCE`,
-    html: buildHtmlEmail({
-      title: "Hoá đơn nạp TCoin",
-      greeting: `Chào ${name || "bạn"},`,
-      message:
-        `Thanh toán của bạn đã được <strong>xác nhận tự động</strong> và <strong>${coin(total)}</strong> đã được cộng vào ví. Dưới đây là chi tiết hoá đơn:${tableHtml}`,
-      buttonText: "Xem ví TCoin",
-      buttonUrl: `${appUrl()}/tcoin`,
-      note: "Đây là email xác nhận giao dịch tự động. Nếu bạn không thực hiện giao dịch này, vui lòng liên hệ hỗ trợ ngay.",
-    }),
+    subject: `Biên lai nạp ${coin(total)} — Đơn ${orderCode} — TERENCE`,
+    html,
   });
 };
 
