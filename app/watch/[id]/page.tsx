@@ -6,6 +6,7 @@ import { WatchPageClient } from '@/src/fe/components/player/WatchPageClient'
 import { WatchPageContainer } from '@/src/fe/components/player/WatchPageContainer'
 import { ServerEpisodeList } from '@/src/fe/components/watch/ServerEpisodeList'
 import { WatchActionButtons } from '@/src/fe/components/watch/WatchActionButtons'
+import { LiveViewerBadge } from '@/src/fe/components/watch/LiveViewerBadge'
 
 import { getMovieDetail } from '@/src/be/services/tmdb/movie-service'
 import { getTvDetail } from '@/src/be/services/tmdb/tv-service'
@@ -251,9 +252,12 @@ export default async function WatchPage({ params, searchParams }: PageProps) {
             headerArea={
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-2 sm:px-0">
                 <div>
-                  <h1 className="text-lg font-bold text-white md:text-xl tracking-tight">
-                    {movieTitle}
-                  </h1>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <h1 className="text-lg font-bold text-white md:text-xl tracking-tight">
+                      {movieTitle}
+                    </h1>
+                    <LiveViewerBadge movieId={dbMovieId} />
+                  </div>
                   {(episodeData?.episode || episodeList.length > 0) && (
                     <p className="mt-1 text-[13px] font-medium text-white/60">
                       Phần 1 - {episodeData?.episode?.episodeName || `Tập ${episodeData?.episode?.episodeNumber || providerEps.find(e => e.slug === episodeSlug)?.number || ''}`}

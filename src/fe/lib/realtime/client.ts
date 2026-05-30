@@ -82,6 +82,14 @@ export const RT = {
   ADS_UPDATED: 'ads:updated',
   ADS_DELETED: 'ads:deleted',
 
+  REVIEW_CREATED: 'review:created',
+  REVIEW_LIKED:   'review:liked',
+
+  NOTIFICATION_NEW: 'notification:new',
+
+  MOVIE_VIEWERS: 'movie:viewers',
+  TOPVIEW_STATS: 'topview:stats',
+
   DASH_STATS:   'dashboard:stats',
   USERS_ONLINE: 'users:online',
 

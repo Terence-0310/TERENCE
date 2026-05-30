@@ -56,6 +56,17 @@ export const RT_EVENTS = {
   ADS_UPDATED: 'ads:updated',
   ADS_DELETED: 'ads:deleted',
 
+  // Reviews / comments (per-movie room)
+  REVIEW_CREATED: 'review:created',
+  REVIEW_LIKED:   'review:liked',
+
+  // User notifications (per-user room)
+  NOTIFICATION_NEW: 'notification:new',
+
+  // Live viewer presence
+  MOVIE_VIEWERS: 'movie:viewers',   // per-movie room: { movieId, count }
+  TOPVIEW_STATS: 'topview:stats',   // topview room: live most-watched list
+
   // Admin dashboard
   DASH_STATS:  'dashboard:stats',
   USERS_ONLINE: 'users:online',
@@ -137,4 +148,50 @@ export function getOnlineUserCount(): number {
 
 export function getOnlineUserIds(): string[] {
   return Array.from(onlineUsers.keys())
+}
+
+// ─── Live viewer presence (per movie) ───────────────────────────────
+// Tracks which sockets are actively on a movie's watch page. Powers the
+// "X người đang xem" badge and the realtime Top View leaderboard. A socket
+// can only be in one movie at a time on the watch page, but we store a
+// reverse index too so disconnect cleanup is O(1)-ish.
+
+const movieViewers = new Map<string, Set<string>>()   // movieId -> socketIds
+const socketMovie = new Map<string, string>()          // socketId -> movieId
+
+export function addViewer(movieId: string, socketId: string): void {
+  if (!movieId || !socketId) return
+  // If this socket was viewing another movie, drop it there first.
+  const prev = socketMovie.get(socketId)
+  if (prev && prev !== movieId) removeViewerFromMovie(prev, socketId)
+  let set = movieViewers.get(movieId)
+  if (!set) { set = new Set(); movieViewers.set(movieId, set) }
+  set.add(socketId)
+  socketMovie.set(socketId, movieId)
+}
+
+export function removeViewerFromMovie(movieId: string, socketId: string): void {
+  const set = movieViewers.get(movieId)
+  if (set && set.delete(socketId) && set.size === 0) movieViewers.delete(movieId)
+  if (socketMovie.get(socketId) === movieId) socketMovie.delete(socketId)
+}
+
+/** Remove a socket from whatever movie it was viewing. Returns that movieId. */
+export function removeViewerSocket(socketId: string): string | null {
+  const movieId = socketMovie.get(socketId) ?? null
+  if (movieId) removeViewerFromMovie(movieId, socketId)
+  return movieId
+}
+
+export function getMovieViewerCount(movieId: string): number {
+  return movieViewers.get(movieId)?.size ?? 0
+}
+
+/** Top N movies by current live viewers, descending. */
+export function getTopViewedMovies(n = 10): Array<{ movieId: string; count: number }> {
+  return Array.from(movieViewers.entries())
+    .map(([movieId, set]) => ({ movieId, count: set.size }))
+    .filter((m) => m.count > 0)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, n)
 }

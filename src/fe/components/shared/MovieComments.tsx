@@ -5,6 +5,7 @@ import { MessageSquare, Send, Star, User, Loader2, AlertTriangle, ThumbsUp } fro
 import { UserAvatar } from '@/src/fe/components/shared/UserAvatar'
 import { useAuth } from '@/src/fe/features/auth/contexts/auth-context'
 import { useAuthModal } from '@/src/fe/components/auth/auth-modal-store'
+import { useMovieRoom } from '@/src/fe/lib/realtime/hooks'
 import { toast } from 'sonner'
 
 function SpoilerText({ text, isSpoiler }: { text: string, isSpoiler: boolean }) {
@@ -38,8 +39,18 @@ export function MovieComments({ movieId }: { movieId: string | number }) {
   const [sortBy, setSortBy] = useState<'newest' | 'helpful' | 'rating'>('newest')
   const [likedReviews, setLikedReviews] = useState<string[]>([])
 
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, user } = useAuth()
   const { openModal } = useAuthModal()
+
+  // Realtime: live new comments + like counts for everyone viewing this movie.
+  useMovieRoom(String(movieId), user?.id ?? null, {
+    onReviewCreated: (p) => {
+      setComments((prev) => (prev.some((c) => c.id === p.id) ? prev : [p, ...prev]))
+    },
+    onReviewLiked: (p) => {
+      setComments((prev) => prev.map((c) => (c.id === p.id ? { ...c, likeCount: p.likeCount } : c)))
+    },
+  })
 
   useEffect(() => {
     fetch(`/api/v1/movies/${movieId}/reviews`)

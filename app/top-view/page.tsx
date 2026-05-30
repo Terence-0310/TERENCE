@@ -5,6 +5,7 @@ import type { Metadata } from 'next'
 import type { Movie } from '@/types/movie'
 import { prisma } from '@/src/be/shared/db/prisma'
 import { MovieCard } from '@/src/fe/components/shared/MovieCard'
+import { TopViewLive } from '@/src/fe/components/home/TopViewLive'
 
 export const metadata: Metadata = {
   title: 'Bảng Xếp Hạng Top View — Terence',
@@ -255,6 +256,11 @@ export default async function TopViewPage({ searchParams }: { searchParams: Prom
       </section>
 
       <div className="mx-auto max-w-7xl px-5 md:px-8 lg:px-10">
+        {/* Realtime "đang xem nhiều nhất" — live concurrent viewers. */}
+        <div className="pt-10">
+          <TopViewLive />
+        </div>
+
         {movies.length === 0 ? (
           <div className="flex min-h-[50vh] flex-col items-center justify-center text-center">
             <Trophy className="mb-4 h-12 w-12 text-white/20" />

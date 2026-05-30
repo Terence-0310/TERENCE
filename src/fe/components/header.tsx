@@ -12,6 +12,7 @@ import { GENRES, genreBrowseUrl } from '@/lib/data/genres'
 import { COUNTRIES, countryBrowseUrl } from '@/lib/data/countries'
 import { TerenceLogo } from '@/src/fe/components/terence-logo'
 import { UserAvatar } from '@/src/fe/components/shared/UserAvatar'
+import { NotificationBell } from '@/src/fe/components/shared/NotificationBell'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -429,6 +430,7 @@ function HeaderInner() {
 
           {user ? (
             <div className="flex items-center gap-1 xl:gap-1.5 2xl:gap-2">
+              <NotificationBell />
               <DropdownMenu>
                 <DropdownMenuTrigger className="flex items-center gap-1 2xl:gap-2 rounded-full bg-primary px-2 py-1 xl:px-2.5 2xl:px-3 2xl:py-1.5 hover:bg-primary transition shadow-[0_0_15px_rgba(45,212,191,0.2)] cursor-pointer outline-none border-transparent">
                   <UserAvatar

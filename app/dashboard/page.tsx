@@ -6,6 +6,7 @@ import { AdminService } from '@/src/be/modules/admin/admin.service'
 import { prisma } from '@/src/be/shared/db/prisma'
 import { redirect } from 'next/navigation'
 import { GlobalStatsChart } from '@/src/fe/components/admin/GlobalStatsChart'
+import { DashboardLiveStats } from '@/src/fe/components/admin/DashboardLiveStats'
 
 interface StatItem {
   title: string
@@ -87,6 +88,9 @@ export default async function DashboardPage() {
         <h1 className="text-[28px] font-black text-[#25396f] dark:text-white mb-1">Tổng quan Dashboard</h1>
         <p className="text-gray-500 dark:text-gray-400 font-medium">Chào mừng trở lại! Đây là tổng quan hoạt động của hệ thống xem phim.</p>
       </div>
+
+      {/* Realtime strip */}
+      <DashboardLiveStats />
 
       {/* Stats Grid */}
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">

@@ -194,6 +194,25 @@ model User {
   topupOrders            TopupOrder[]
   movieReports           MovieReport[]
   adImpressions          AdImpression[]
+  notifications          Notification[]
+}
+
+/// In-app user notification (realtime bell). Pushed live via Socket.IO
+/// (notification:new) and listed via /api/v1/notifications.
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String   // review_liked, tcoin, system, ...
+  title     String
+  message   String?
+  link      String?  // optional in-app link to open on click
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, isRead])
 }
 
 model Account {

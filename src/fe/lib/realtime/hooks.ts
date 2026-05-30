@@ -207,3 +207,172 @@ export function useAdminDashboardRealtime(userId: string | null): {
 
   return { stats, onlineUsers: online }
 }
+
+// ─── Movie room: live viewers + review events ───────────────────────
+// Joins the `movie:<id>` room (works for guests — userId may be null) so the
+// component receives the live viewer count plus new/ liked reviews for that
+// movie. One join/leave per mount.
+
+export interface ReviewCreatedPayload {
+  id: string
+  movieId: string
+  author: string
+  avatar: string | null
+  text: string
+  rating: number
+  createdAt: string
+  isSpoiler?: boolean
+  likeCount?: number
+}
+export interface ReviewLikedPayload { id: string; movieId: string; likeCount: number }
+
+// Subscribe to a movie's room for live review events (new comment + likes).
+// This does NOT count the client as a "viewer" — that's `useMovieViewers`,
+// so detail-page comment readers don't inflate the watch-page presence count
+// or the Top View leaderboard.
+export function useMovieRoom(
+  movieId: string | null,
+  userId: string | null,
+  callbacks?: {
+    onReviewCreated?: (p: ReviewCreatedPayload) => void
+    onReviewLiked?: (p: ReviewLikedPayload) => void
+  },
+): void {
+  const cbRef = useRef(callbacks)
+  cbRef.current = callbacks
+
+  useEffect(() => {
+    if (!movieId) return
+    const sock = getRealtimeSocket({ userId })
+    const join = () => sock.emit('movie:subscribe', { movieId })
+    if (sock.connected) join()
+    sock.on('connect', join)
+
+    const onCreated = (p: ReviewCreatedPayload) => {
+      if (p?.movieId === movieId) cbRef.current?.onReviewCreated?.(p)
+    }
+    const onLiked = (p: ReviewLikedPayload) => {
+      if (p?.movieId === movieId) cbRef.current?.onReviewLiked?.(p)
+    }
+    sock.on(RT.REVIEW_CREATED, onCreated)
+    sock.on(RT.REVIEW_LIKED, onLiked)
+
+    return () => {
+      try { sock.emit('movie:unsubscribe', { movieId }) } catch { /* noop */ }
+      sock.off('connect', join)
+      sock.off(RT.REVIEW_CREATED, onCreated)
+      sock.off(RT.REVIEW_LIKED, onLiked)
+    }
+  }, [movieId, userId])
+}
+
+// Presence: marks the client as actively watching `movieId` (counted toward the
+// live viewer count + Top View leaderboard) and returns the current count.
+export function useMovieViewers(movieId: string | null, userId: string | null): { viewerCount: number | null } {
+  const [viewerCount, setViewerCount] = useState<number | null>(null)
+
+  useEffect(() => {
+    if (!movieId) return
+    const sock = getRealtimeSocket({ userId })
+    const join = () => sock.emit('movie:join', { movieId })
+    if (sock.connected) join()
+    sock.on('connect', join)
+    const onViewers = (p: { movieId: string; count: number }) => {
+      if (p?.movieId === movieId) setViewerCount(p.count)
+    }
+    sock.on(RT.MOVIE_VIEWERS, onViewers)
+    return () => {
+      try { sock.emit('movie:leave', { movieId }) } catch { /* noop */ }
+      sock.off('connect', join)
+      sock.off(RT.MOVIE_VIEWERS, onViewers)
+    }
+  }, [movieId, userId])
+
+  return { viewerCount }
+}
+
+// ─── Top View: live most-watched leaderboard ────────────────────────
+
+export interface TopViewItem {
+  rank: number
+  movieId: string
+  viewers: number
+  title: string
+  slug: string
+  posterUrl: string | null
+  thumbUrl: string | null
+  contentType: string
+  tmdbId: number | null
+}
+
+export function useTopViewLive(userId: string | null): { items: TopViewItem[]; ts: number | null } {
+  const [items, setItems] = useState<TopViewItem[]>([])
+  const [ts, setTs] = useState<number | null>(null)
+
+  useEffect(() => {
+    const sock = getRealtimeSocket({ userId })
+    const join = () => sock.emit('topview:subscribe')
+    if (sock.connected) join()
+    sock.on('connect', join)
+    const onStats = (p: { items: TopViewItem[]; ts: number }) => {
+      setItems(p?.items ?? [])
+      setTs(p?.ts ?? null)
+    }
+    sock.on(RT.TOPVIEW_STATS, onStats)
+    return () => {
+      try { sock.emit('topview:unsubscribe') } catch { /* noop */ }
+      sock.off('connect', join)
+      sock.off(RT.TOPVIEW_STATS, onStats)
+    }
+  }, [userId])
+
+  return { items, ts }
+}
+
+// ─── User notifications (bell) ──────────────────────────────────────
+
+export interface NotificationItem {
+  id: string
+  type: string
+  title: string
+  message: string | null
+  link: string | null
+  isRead: boolean
+  createdAt: string
+}
+
+export function useNotifications(userId: string | null): {
+  items: NotificationItem[]
+  unreadCount: number
+  markAllRead: () => Promise<void>
+  refresh: () => Promise<void>
+} {
+  const [items, setItems] = useState<NotificationItem[]>([])
+
+  const refresh = useCallback(async () => {
+    if (!userId) return
+    try {
+      const res = await fetch('/api/v1/notifications')
+      const body = await res.json().catch(() => null)
+      const data = body?.data ?? body
+      if (Array.isArray(data?.items)) setItems(data.items)
+    } catch { /* offline — keep current */ }
+  }, [userId])
+
+  useEffect(() => { void refresh() }, [refresh])
+
+  // Prepend live notifications as they arrive.
+  useSocketEvent<NotificationItem>(RT.NOTIFICATION_NEW, (p) => {
+    setItems((prev) => (prev.some((n) => n.id === p.id) ? prev : [p, ...prev].slice(0, 50)))
+  }, userId)
+
+  const markAllRead = useCallback(async () => {
+    if (!userId) return
+    setItems((prev) => prev.map((n) => ({ ...n, isRead: true })))
+    try { await fetch('/api/v1/notifications/read-all', { method: 'POST' }) } catch { /* noop */ }
+  }, [userId])
+
+  const unreadCount = items.reduce((n, it) => n + (it.isRead ? 0 : 1), 0)
+
+  return { items, unreadCount, markAllRead, refresh }
+}

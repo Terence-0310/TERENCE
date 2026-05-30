@@ -18,6 +18,10 @@ import {
   notifyAdmins,
   notifyUser,
   notifyRoom,
+  addViewer,
+  removeViewerSocket,
+  getMovieViewerCount,
+  getTopViewedMovies,
 } from './notify'
 
 const log = logger.child({ module: 'realtime' })
@@ -112,6 +116,71 @@ function ensureDashboardLoop(io: Server) {
   dashboardInterval = setInterval(() => { void broadcastDashboard(io) }, 30_000)
 }
 
+// ─── Live viewer presence + Top View leaderboard ───────────────────
+// `movie:<id>` rooms hold the watchers of each title; `topview:listeners`
+// holds clients on the Top View page wanting the live leaderboard.
+
+const TOPVIEW_ROOM = 'topview:listeners'
+const movieRoom = (movieId: string) => `movie:${movieId}`
+
+// Push the current viewer count for one movie to everyone watching it.
+function emitMovieViewers(movieId: string) {
+  notifyRoom(movieRoom(movieId), RT_EVENTS.MOVIE_VIEWERS, {
+    movieId,
+    count: getMovieViewerCount(movieId),
+  })
+}
+
+// Debounced Top View broadcast — recompute the live leaderboard (with movie
+// metadata) and emit to the topview room. Coalesced so a burst of joins/leaves
+// triggers at most one DB lookup per window.
+let topviewTimer: NodeJS.Timeout | null = null
+async function doBroadcastTopview(io: Server) {
+  const room = io.sockets.adapter.rooms.get(TOPVIEW_ROOM)
+  if (!room || room.size === 0) return
+  const top = getTopViewedMovies(10)
+  if (top.length === 0) {
+    io.to(TOPVIEW_ROOM).emit(RT_EVENTS.TOPVIEW_STATS, { items: [], ts: Date.now() })
+    return
+  }
+  try {
+    const ids = top.map((t) => t.movieId)
+    const movies = await prisma.movie.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, title: true, slug: true, posterUrl: true, thumbUrl: true, contentType: true, tmdbId: true },
+    })
+    const byId = new Map(movies.map((m) => [m.id, m]))
+    const items = top
+      .map((t, i) => {
+        const m = byId.get(t.movieId)
+        if (!m) return null
+        return {
+          rank: i + 1,
+          movieId: t.movieId,
+          viewers: t.count,
+          title: m.title,
+          slug: m.slug,
+          posterUrl: m.posterUrl,
+          thumbUrl: m.thumbUrl,
+          contentType: m.contentType,
+          tmdbId: m.tmdbId,
+        }
+      })
+      .filter(Boolean)
+    io.to(TOPVIEW_ROOM).emit(RT_EVENTS.TOPVIEW_STATS, { items, ts: Date.now() })
+  } catch (err) {
+    log.error({ err: err instanceof Error ? err.message : err }, 'topview broadcast failed')
+  }
+}
+
+function scheduleTopview(io: Server) {
+  if (topviewTimer) return
+  topviewTimer = setTimeout(() => {
+    topviewTimer = null
+    void doBroadcastTopview(io)
+  }, 2000)
+}
+
 // ─── Main register ──────────────────────────────────────────────────
 
 export function registerRealtimeHandlers(io: Server, socket: Socket) {
@@ -173,6 +242,60 @@ export function registerRealtimeHandlers(io: Server, socket: Socket) {
 
   socket.on('ads:unsubscribe', () => {
     socket.leave('ads:listeners')
+  })
+
+  // ── movie:subscribe — receive review events without being a viewer ─
+  // Used by the comments widget on detail pages so readers don't inflate
+  // the watch-page presence count / Top View leaderboard.
+  socket.on('movie:subscribe', (payload: unknown) => {
+    const movieId = typeof payload === 'object' && payload !== null && 'movieId' in payload
+      ? (payload as { movieId: unknown }).movieId : null
+    if (typeof movieId !== 'string' || movieId.length === 0 || movieId.length > 64) return
+    socket.join(movieRoom(movieId))
+  })
+
+  socket.on('movie:unsubscribe', (payload: unknown) => {
+    const movieId = typeof payload === 'object' && payload !== null && 'movieId' in payload
+      ? (payload as { movieId: unknown }).movieId : null
+    if (typeof movieId === 'string' && movieId.length > 0) socket.leave(movieRoom(movieId))
+  })
+
+  // ── movie:join / movie:leave — live viewer presence ───────────────
+  // The watch page joins when mounted so it can show "đang xem" + feed
+  // the Top View leaderboard. Anonymous viewers count too (no auth needed).
+  socket.on('movie:join', (payload: unknown) => {
+    const movieId = typeof payload === 'object' && payload !== null && 'movieId' in payload
+      ? (payload as { movieId: unknown }).movieId : null
+    if (typeof movieId !== 'string' || movieId.length === 0 || movieId.length > 64) return
+    // Leave any previous movie room this socket was in.
+    const prev = removeViewerSocket(socket.id)
+    if (prev && prev !== movieId) { socket.leave(movieRoom(prev)); emitMovieViewers(prev) }
+    socket.join(movieRoom(movieId))
+    addViewer(movieId, socket.id)
+    emitMovieViewers(movieId)
+    scheduleTopview(io)
+  })
+
+  socket.on('movie:leave', (payload: unknown) => {
+    const movieId = typeof payload === 'object' && payload !== null && 'movieId' in payload
+      ? (payload as { movieId: unknown }).movieId : null
+    const left = removeViewerSocket(socket.id)
+    const target = typeof movieId === 'string' ? movieId : left
+    if (target) {
+      socket.leave(movieRoom(target))
+      emitMovieViewers(target)
+      scheduleTopview(io)
+    }
+  })
+
+  // ── topview:subscribe — live most-watched leaderboard ─────────────
+  socket.on('topview:subscribe', () => {
+    socket.join(TOPVIEW_ROOM)
+    void doBroadcastTopview(io)
+  })
+
+  socket.on('topview:unsubscribe', () => {
+    socket.leave(TOPVIEW_ROOM)
   })
 
   // ── watch:progress — durable cross-device progress ────────────────
@@ -259,6 +382,12 @@ export function registerRealtimeHandlers(io: Server, socket: Socket) {
     untrackOnline(socket.id)
     if (scopedUserId) {
       notifyAdmins(RT_EVENTS.USERS_ONLINE, { count: getOnlineUserCount() })
+    }
+    // Drop this socket from any movie it was watching + refresh counts.
+    const movieId = removeViewerSocket(socket.id)
+    if (movieId) {
+      emitMovieViewers(movieId)
+      scheduleTopview(io)
     }
   })
 }

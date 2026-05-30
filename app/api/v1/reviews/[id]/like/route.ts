@@ -49,7 +49,10 @@ export async function POST(
     review = await prisma.review.update({
       where: { id },
       data: { likeCount: { increment: 1 } },
-      select: { id: true, likeCount: true },
+      select: {
+        id: true, likeCount: true, movieId: true, userId: true,
+        movie: { select: { title: true, slug: true, tmdbId: true, contentType: true } },
+      },
     })
   } catch (err) {
     log.error({ err: err instanceof Error ? err.message : err, id, userId }, 'POST review like: prisma update failed')
@@ -67,5 +70,34 @@ export async function POST(
     }
   }
 
-  return NextResponse.json({ success: true, data: review })
+  // Broadcast the new like count to everyone viewing this movie.
+  try {
+    const { notifyRoom, RT_EVENTS } = await import('@/src/be/shared/realtime/notify')
+    notifyRoom(`movie:${review.movieId}`, RT_EVENTS.REVIEW_LIKED, {
+      id: review.id,
+      movieId: review.movieId,
+      likeCount: review.likeCount,
+    })
+  } catch { /* realtime is best-effort */ }
+
+  // Notify the review's author that someone liked it (skip self-likes).
+  if (review.userId && review.userId !== userId) {
+    try {
+      const m = review.movie
+      const isSeries = ['series', 'tv', 'anime'].includes(m?.contentType ?? '')
+      const link = m?.tmdbId
+        ? `/${isSeries ? 'tv' : 'movie'}/${m.tmdbId}`
+        : m?.slug ? `/watch/${m.slug}` : null
+      const { createNotification } = await import('@/src/be/modules/notifications/notifications.service')
+      await createNotification({
+        userId: review.userId,
+        type: 'review_liked',
+        title: 'Có người thích đánh giá của bạn',
+        message: m?.title ? `Đánh giá của bạn về "${m.title}" vừa nhận được lượt thích.` : null,
+        link,
+      })
+    } catch { /* notification is best-effort */ }
+  }
+
+  return NextResponse.json({ success: true, data: { id: review.id, likeCount: review.likeCount } })
 }

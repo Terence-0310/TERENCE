@@ -130,9 +130,19 @@ export async function POST(req: Request) {
           rating,
           content,
           isSpoiler,
-          status: 'pending',
+          // Auto-approve: there is no admin moderation flow, so 'pending'
+          // reviews would never become visible. Approve on submit so they
+          // show (and can be broadcast live to other viewers).
+          status: 'approved',
         },
-        include: { user: { select: { id: true, name: true, avatar: true } } },
+        include: {
+          user: {
+            select: {
+              id: true, name: true, avatar: true,
+              avatarFrameUntil: true, exclusiveBadgeUntil: true,
+            },
+          },
+        },
       })
 
       return { kind: 'ok' as const, review }
@@ -155,21 +165,31 @@ export async function POST(req: Request) {
     } catch (err) {
       log.error({ userId, reviewId: review.id, err: err instanceof Error ? err.message : err }, 'rewardReview failed')
     }
-    return NextResponse.json({
-      success: true,
-      tcoinRewarded,
-      data: {
-        id: review.id,
-        author: review.user.name,
-        avatar: review.user.avatar,
-        text: review.content,
-        rating: review.rating,
-        date: new Date(review.createdAt).toLocaleString('vi-VN'),
-        createdAt: review.createdAt,
-        isSpoiler: review.isSpoiler,
-        likeCount: review.likeCount,
-      },
-    })
+    const now = Date.now()
+    const frameActive = !!review.user.avatarFrameUntil && new Date(review.user.avatarFrameUntil).getTime() > now
+    const badgeActive = !!review.user.exclusiveBadgeUntil && new Date(review.user.exclusiveBadgeUntil).getTime() > now
+
+    const payload = {
+      id: review.id,
+      author: review.user.name,
+      avatar: review.user.avatar,
+      frameActive,
+      badgeActive,
+      text: review.content,
+      rating: review.rating,
+      date: new Date(review.createdAt).toLocaleString('vi-VN'),
+      createdAt: review.createdAt,
+      isSpoiler: review.isSpoiler,
+      likeCount: review.likeCount,
+    }
+
+    // Broadcast to everyone viewing this movie so the comment appears live.
+    try {
+      const { notifyRoom, RT_EVENTS } = await import('@/src/be/shared/realtime/notify')
+      notifyRoom(`movie:${movieId}`, RT_EVENTS.REVIEW_CREATED, { ...payload, movieId })
+    } catch { /* realtime is best-effort */ }
+
+    return NextResponse.json({ success: true, tcoinRewarded, data: payload })
   } catch (error) {
     log.error({ err: error instanceof Error ? error.message : error }, 'POST /api/v1/reviews error')
     return NextResponse.json({ success: false, error: 'Internal Server Error' }, { status: 500 })
