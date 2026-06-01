@@ -88,33 +88,70 @@ async function computeDashboardSnapshot() {
       }),
     ])
 
-    // Top movies by total views + today's tracked views + live concurrent
-    // viewers (from socket presence) → powers the admin "Top View" stats table.
-    const topMoviesRaw = await prisma.movie.findMany({
-      where: { deletedAt: null, status: 'published' },
-      orderBy: { viewCount: 'desc' },
-      take: 8,
-      select: { id: true, title: true, slug: true, viewCount: true, posterUrl: true, thumbUrl: true },
-    })
-    const movieIds = topMoviesRaw.map((m) => m.id)
-    const todayGrouped = movieIds.length
-      ? await prisma.pageView.groupBy({
+    // Admin "Top View" table — ranked by ACTIVITY (live viewers, then today's
+    // views, then all-time). Candidate ids come from three sources so a movie
+    // that is being watched OR viewed today surfaces even if it isn't an
+    // all-time top title:
+    //   1) currently-watched movies (socket presence)
+    //   2) most-viewed-today (PageView groupBy)
+    //   3) all-time top by viewCount (fallback filler so the table is never empty)
+    const liveTop = getTopViewedMovies(12) // [{ movieId, count }]
+    const [todayTop, allTimeTop] = await Promise.all([
+      prisma.pageView.groupBy({
+        by: ['movieId'],
+        where: { movieId: { not: null }, createdAt: { gte: today } },
+        _count: { _all: true },
+        orderBy: { _count: { movieId: 'desc' } },
+        take: 12,
+      }),
+      prisma.movie.findMany({
+        where: { deletedAt: null, status: 'published' },
+        orderBy: { viewCount: 'desc' },
+        take: 8,
+        select: { id: true },
+      }),
+    ])
+
+    const idSet = new Set<string>()
+    for (const l of liveTop) idSet.add(l.movieId)
+    for (const t of todayTop) if (t.movieId) idSet.add(t.movieId)
+    for (const m of allTimeTop) idSet.add(m.id)
+    const candidateIds = Array.from(idSet)
+
+    let topMovies: Array<{ id: string; title: string; slug: string | null; posterUrl: string | null; thumbUrl: string | null; viewCount: number; viewsToday: number; liveViewers: number }> = []
+    if (candidateIds.length) {
+      const [metas, todayExact] = await Promise.all([
+        prisma.movie.findMany({
+          where: { id: { in: candidateIds } },
+          select: { id: true, title: true, slug: true, viewCount: true, posterUrl: true, thumbUrl: true },
+        }),
+        prisma.pageView.groupBy({
           by: ['movieId'],
-          where: { movieId: { in: movieIds }, createdAt: { gte: today } },
+          where: { movieId: { in: candidateIds }, createdAt: { gte: today } },
           _count: { _all: true },
-        })
-      : []
-    const todayByMovie = new Map(todayGrouped.map((r) => [r.movieId, r._count._all]))
-    const topMovies = topMoviesRaw.map((m) => ({
-      id: m.id,
-      title: m.title,
-      slug: m.slug,
-      posterUrl: m.posterUrl,
-      thumbUrl: m.thumbUrl,
-      viewCount: m.viewCount,
-      viewsToday: todayByMovie.get(m.id) ?? 0,
-      liveViewers: getMovieViewerCount(m.id),
-    }))
+        }),
+      ])
+      const liveMap = new Map(liveTop.map((l) => [l.movieId, l.count]))
+      const todayMap = new Map(todayExact.map((r) => [r.movieId, r._count._all]))
+      topMovies = metas
+        .map((m) => ({
+          id: m.id,
+          title: m.title,
+          slug: m.slug,
+          posterUrl: m.posterUrl,
+          thumbUrl: m.thumbUrl,
+          viewCount: m.viewCount,
+          viewsToday: todayMap.get(m.id) ?? 0,
+          liveViewers: liveMap.get(m.id) ?? 0,
+        }))
+        .sort(
+          (a, b) =>
+            b.liveViewers - a.liveViewers ||
+            b.viewsToday - a.viewsToday ||
+            b.viewCount - a.viewCount,
+        )
+        .slice(0, 8)
+    }
 
     return {
       onlineUsers: getOnlineUserCount(),

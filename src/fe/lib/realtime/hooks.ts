@@ -227,11 +227,18 @@ export function useAdminDashboardRealtime(userId: string | null): {
   // Realtime per-movie total-view bump: a real watch ticks the count up + adds
   // one to today's tally for that row, instantly, between snapshots.
   useSocketEvent<{ movieId: string; viewCount: number }>(RT.MOVIE_VIEWCOUNT, (p) => {
-    setTopMovies((prev) =>
-      prev.map((m) =>
+    setTopMovies((prev) => {
+      if (!prev.some((m) => m.id === p.movieId)) return prev
+      const next = prev.map((m) =>
         m.id === p.movieId ? { ...m, viewCount: p.viewCount, viewsToday: m.viewsToday + 1 } : m,
-      ),
-    )
+      )
+      // Keep the same ranking the server uses (live → today → total) so a bump
+      // can reorder rows between snapshots.
+      return next.sort(
+        (a, b) =>
+          b.liveViewers - a.liveViewers || b.viewsToday - a.viewsToday || b.viewCount - a.viewCount,
+      )
+    })
   }, userId)
 
   return { stats, onlineUsers: online, topMovies }

@@ -26,13 +26,16 @@ export function DashboardTopMovies() {
   return (
     <div className="rounded-2xl border border-white/[0.06] bg-white dark:bg-[#151e2f] shadow-[0_0.25rem_1rem_rgba(0,0,0,0.05)] dark:shadow-none p-5 md:p-6">
       <div className="mb-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Flame className="h-5 w-5 text-orange-400" />
-          <h3 className="text-[18px] font-black text-[#25396f] dark:text-white">Thống kê Top View</h3>
-          <span className="relative ml-1 flex h-2.5 w-2.5">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
-          </span>
+        <div>
+          <div className="flex items-center gap-2">
+            <Flame className="h-5 w-5 text-orange-400" />
+            <h3 className="text-[18px] font-black text-[#25396f] dark:text-white">Thống kê Top View</h3>
+            <span className="relative ml-1 flex h-2.5 w-2.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+            </span>
+          </div>
+          <p className="mt-0.5 text-xs font-medium text-gray-400">Xếp theo người đang xem & lượt xem hôm nay</p>
         </div>
         <Link href="/top-view" className="text-sm font-bold text-primary hover:text-primary transition-colors">
           Xem bảng xếp hạng →
@@ -48,9 +51,9 @@ export function DashboardTopMovies() {
               <tr className="text-left text-[11px] font-bold uppercase tracking-wider text-gray-400">
                 <th className="pb-3 pl-1 pr-2">#</th>
                 <th className="pb-3 pr-2">Phim</th>
-                <th className="pb-3 px-2 text-right">Tổng lượt xem</th>
+                <th className="pb-3 px-2 text-right">Đang xem</th>
                 <th className="pb-3 px-2 text-right">Hôm nay</th>
-                <th className="pb-3 pl-2 pr-1 text-right">Đang xem</th>
+                <th className="pb-3 pl-2 pr-1 text-right">Tổng lượt xem</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-white/[0.04]">
@@ -91,12 +94,6 @@ export function DashboardTopMovies() {
                     </div>
                   </td>
                   <td className="px-2 py-3 text-right">
-                    <span className="font-black tabular-nums text-[#25396f] dark:text-white">{fmt(m.viewCount)}</span>
-                  </td>
-                  <td className="px-2 py-3 text-right">
-                    <span className="font-bold tabular-nums text-emerald-500">+{fmt(m.viewsToday)}</span>
-                  </td>
-                  <td className="py-3 pl-2 pr-1 text-right">
                     {m.liveViewers > 0 ? (
                       <span className="inline-flex items-center gap-1.5 rounded-full bg-red-500/10 px-2.5 py-1 text-[11px] font-bold text-red-400">
                         <span className="relative flex h-2 w-2">
@@ -109,6 +106,12 @@ export function DashboardTopMovies() {
                     ) : (
                       <span className="text-sm font-medium text-gray-300 dark:text-white/20">—</span>
                     )}
+                  </td>
+                  <td className="px-2 py-3 text-right">
+                    <span className="font-bold tabular-nums text-emerald-500">+{fmt(m.viewsToday)}</span>
+                  </td>
+                  <td className="py-3 pl-2 pr-1 text-right">
+                    <span className="font-black tabular-nums text-[#25396f] dark:text-white">{fmt(m.viewCount)}</span>
                   </td>
                 </tr>
               ))}
