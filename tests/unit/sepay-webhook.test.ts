@@ -9,6 +9,8 @@ import {
   verifySePayAuth,
   verifySePaySignature,
   extractOrderCode,
+  normalizeBankContent,
+  contentMatchesTransfer,
   SEPAY_LOG_TAGS,
 } from '@/src/be/modules/payments/sepay'
 
@@ -87,6 +89,11 @@ describe('extractOrderCode()', () => {
     expect(extractOrderCode('TCOIN_ABCDEF_LX12NK')).toBe('TCOIN_ABCDEF_LX12NK')
   })
 
+  it('still extracts when the bank strips the underscore (real MBBank memo)', () => {
+    // Banks like MBBank deliver "TCOIN_PDFYZ3SE" as "TCOINPDFYZ3SE".
+    expect(extractOrderCode('TCOINPDFYZ3SE   Ma giao dich  Trace090976')).toBe('TCOINPDFYZ3SE')
+  })
+
   it('uppercases the matched code', () => {
     expect(extractOrderCode('tcoin_abc123')).toBe('TCOIN_ABC123')
   })
@@ -96,6 +103,40 @@ describe('extractOrderCode()', () => {
     expect(extractOrderCode('')).toBeNull()
     expect(extractOrderCode(null)).toBeNull()
     expect(extractOrderCode(undefined)).toBeNull()
+  })
+})
+
+describe('contentMatchesTransfer() — underscore-stripping tolerance', () => {
+  it('matches when the bank preserved the underscore', () => {
+    expect(contentMatchesTransfer('NAP TIEN TCOIN_A1B2C3', 'TCOIN_A1B2C3')).toBe(true)
+  })
+
+  it('matches when the bank stripped the underscore (the core bug)', () => {
+    // Stored "TCOIN_PDFYZ3SE", bank delivers "TCOINPDFYZ3SE ...".
+    expect(
+      contentMatchesTransfer('TCOINPDFYZ3SE   Ma giao dich  Trace090976', 'TCOIN_PDFYZ3SE'),
+    ).toBe(true)
+  })
+
+  it('matches the free-amount format with internal underscores stripped', () => {
+    expect(contentMatchesTransfer('TCOINABCDEFLX12NK extra', 'TCOIN_ABCDEF_LX12NK')).toBe(true)
+  })
+
+  it('does not match a different order code', () => {
+    expect(contentMatchesTransfer('TCOINPDFYZ3SE', 'TCOIN_OTHER99')).toBe(false)
+  })
+
+  it('returns false on empty / missing content', () => {
+    expect(contentMatchesTransfer('', 'TCOIN_A1B2C3')).toBe(false)
+    expect(contentMatchesTransfer('TCOIN_A1B2C3', '')).toBe(false)
+    expect(contentMatchesTransfer(null, null)).toBe(false)
+  })
+})
+
+describe('normalizeBankContent()', () => {
+  it('uppercases and strips everything but A-Z0-9', () => {
+    expect(normalizeBankContent('tcoin_a1 b2-c3.')).toBe('TCOINA1B2C3')
+    expect(normalizeBankContent(null)).toBe('')
   })
 })
 

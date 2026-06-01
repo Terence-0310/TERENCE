@@ -38,6 +38,19 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ success: false, error: 'Order not found' }, { status: 404 })
     }
 
+    // Active reconciliation against SePay's API while still PENDING — confirms
+    // the payment (credit + receipt email) even when the push webhook hasn't
+    // arrived. Best-effort: any failure falls through to the stored status.
+    if (order.status === 'PENDING') {
+      try {
+        const { reconcileOrderViaApi } = await import('@/src/be/modules/payments/sepay-api')
+        const updated = await reconcileOrderViaApi(order)
+        if (updated) order = updated
+      } catch {
+        /* ignore — return stored status */
+      }
+    }
+
     return NextResponse.json({
       success: true,
       status: order.status,

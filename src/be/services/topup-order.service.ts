@@ -96,6 +96,31 @@ export async function createBankQrOrder(userId: string, packageId: string) {
   };
 }
 
+/**
+ * Resolve a TopupOrder from a raw bank transfer content, tolerant of banks
+ * that strip underscores/spaces from the memo (so the real-world memo
+ * "TCOINPDFYZ3SE" still maps to the stored "TCOIN_PDFYZ3SE").
+ *
+ * Scans recent orders (last 3 days, any status so duplicate webhooks on an
+ * already-PAID order still resolve for idempotency) and returns the one whose
+ * normalised transferContent is contained in the normalised bank content.
+ * Returns null when nothing matches. The caller is responsible for the amount
+ * guard and status checks.
+ */
+export async function findOrderByBankContent(content: string | null | undefined) {
+  const { normalizeBankContent, contentMatchesTransfer } = await import('@/src/be/modules/payments/sepay');
+  const norm = normalizeBankContent(content);
+  if (!norm.includes('TCOIN')) return null;
+
+  const since = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+  const candidates = await prisma.topupOrder.findMany({
+    where: { createdAt: { gte: since } },
+    orderBy: { createdAt: 'desc' },
+    take: 300,
+  });
+  return candidates.find((o) => contentMatchesTransfer(content, o.transferContent)) ?? null;
+}
+
 export async function getOrderById(id: string) {
   return await prisma.topupOrder.findUnique({ where: { id } });
 }

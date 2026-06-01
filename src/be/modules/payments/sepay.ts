@@ -78,16 +78,43 @@ export function verifySePaySignature(_payload: unknown, signature: string | null
 }
 
 /**
- * Extract a TCOIN_ order code from the bank transfer content. SePay's
- * `content` field can mix the code with arbitrary user-typed text, so we
- * match a lenient pattern: `TCOIN_` followed by 1+ alphanumeric / `_-`.
+ * Extract a TCOIN order code from the bank transfer content. SePay's
+ * `content` field mixes the code with arbitrary bank-appended text, AND many
+ * Vietnamese banks (MBBank, VCB ...) STRIP underscores/spaces from the memo —
+ * so a transfer of `TCOIN_PDFYZ3SE` arrives as `TCOINPDFYZ3SE`. The underscore
+ * is therefore optional here.
  *
- * Returns null when no code is found.
+ * Returns the matched token UPPERCASED but otherwise raw (e.g. `TCOINPDFYZ3SE`
+ * or `TCOIN_PDFYZ3SE`). For reliable comparison use `contentMatchesTransfer`,
+ * which normalises both sides. Returns null when no token is found.
  */
 export function extractOrderCode(content: string | null | undefined): string | null {
   if (!content) return null
-  const m = content.match(/TCOIN_[A-Za-z0-9_-]+/i)
+  const m = content.match(/TCOIN_?[A-Za-z0-9][A-Za-z0-9_-]*/i)
   return m ? m[0].toUpperCase() : null
+}
+
+/**
+ * Uppercase + keep only A-Z0-9. Banks routinely strip underscores, spaces and
+ * punctuation from the transfer memo, so normalising both the bank content and
+ * the stored transferContent before comparing is the only reliable match.
+ */
+export function normalizeBankContent(s: string | null | undefined): string {
+  return (s ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '')
+}
+
+/**
+ * True when a raw bank transfer content corresponds to an order's stored
+ * `transferContent`, tolerant of stripped underscores/spaces. e.g. content
+ * "TCOINPDFYZ3SE Ma giao dich..." matches stored "TCOIN_PDFYZ3SE".
+ */
+export function contentMatchesTransfer(
+  bankContent: string | null | undefined,
+  transferContent: string | null | undefined,
+): boolean {
+  const target = normalizeBankContent(transferContent)
+  if (target.length === 0) return false
+  return normalizeBankContent(bankContent).includes(target)
 }
 
 /**

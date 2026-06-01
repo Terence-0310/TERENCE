@@ -5,8 +5,9 @@ import { createMockPrisma, type MockPrisma } from '@/tests/helpers/mock-prisma'
 // ── Mock dependencies ──
 let mockPrisma: MockPrisma
 
-const { mockMarkOrderPaid } = vi.hoisted(() => ({
+const { mockMarkOrderPaid, mockFindOrder } = vi.hoisted(() => ({
   mockMarkOrderPaid: vi.fn(),
+  mockFindOrder: vi.fn(),
 }))
 
 vi.mock('@/src/be/shared/db/prisma', () => ({
@@ -15,6 +16,10 @@ vi.mock('@/src/be/shared/db/prisma', () => ({
 
 vi.mock('@/src/be/services/topup-order.service', () => ({
   markOrderPaid: mockMarkOrderPaid,
+  // The controller now resolves orders via findOrderByBankContent (normalised
+  // matching, tolerant of banks stripping the underscore) instead of an exact
+  // prisma.topupOrder.findFirst lookup. Mock it directly.
+  findOrderByBankContent: mockFindOrder,
 }))
 
 import { POST as sepayWebhookRoute } from '@/app/api/webhooks/sepay/route'
@@ -83,7 +88,7 @@ describe('POST /api/webhooks/sepay', () => {
   })
 
   it('should log and ignore if order is not found', async () => {
-    mockPrisma.topupOrder.findFirst.mockResolvedValue(null)
+    mockFindOrder.mockResolvedValue(null)
     const req = createReq({ transferType: 'in', transferAmount: 10000, content: 'TCOIN_INVALID' })
     const res = await sepayWebhookRoute(req)
     const { status, body } = await parseResponse<{ data?: { message?: string } }>(res)
@@ -96,7 +101,7 @@ describe('POST /api/webhooks/sepay', () => {
   })
 
   it('should ignore (idempotent) if order is already PAID with same txn', async () => {
-    mockPrisma.topupOrder.findFirst.mockResolvedValue({
+    mockFindOrder.mockResolvedValue({
       id: 'order-1',
       status: 'PAID',
       amountVnd: 10000,
@@ -112,7 +117,7 @@ describe('POST /api/webhooks/sepay', () => {
   })
 
   it('should log and ignore if order is in a non-PENDING / non-matching-PAID state', async () => {
-    mockPrisma.topupOrder.findFirst.mockResolvedValue({
+    mockFindOrder.mockResolvedValue({
       id: 'order-1',
       status: 'EXPIRED',
       amountVnd: 10000,
@@ -129,7 +134,7 @@ describe('POST /api/webhooks/sepay', () => {
   })
 
   it('should log and ignore if transfer amount is insufficient', async () => {
-    mockPrisma.topupOrder.findFirst.mockResolvedValue({
+    mockFindOrder.mockResolvedValue({
       id: 'order-1',
       status: 'PENDING',
       amountVnd: 50000,
@@ -148,7 +153,7 @@ describe('POST /api/webhooks/sepay', () => {
   })
 
   it('should process webhook and mark order as paid on success', async () => {
-    mockPrisma.topupOrder.findFirst.mockResolvedValue({
+    mockFindOrder.mockResolvedValue({
       id: 'order-1',
       status: 'PENDING',
       amountVnd: 50000,
@@ -185,7 +190,7 @@ describe('POST /api/webhooks/sepay', () => {
   })
 
   it('accepts x-api-key header as an alternative to Authorization', async () => {
-    mockPrisma.topupOrder.findFirst.mockResolvedValue(null)
+    mockFindOrder.mockResolvedValue(null)
     const req = createMockRequest('/api/webhooks/sepay', {
       method: 'POST',
       headers: { 'x-api-key': 'secret123' },

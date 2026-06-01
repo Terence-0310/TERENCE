@@ -12,7 +12,7 @@ import {
   extractOrderCode,
   SEPAY_LOG_TAGS,
 } from './sepay'
-import { markOrderPaid, createBankQrOrder, getOrderById, expireStaleOrders } from '@/src/be/services/topup-order.service'
+import { markOrderPaid, createBankQrOrder, getOrderById, expireStaleOrders, findOrderByBankContent } from '@/src/be/services/topup-order.service'
 
 const log = logger.child({ module: 'payments-service' })
 
@@ -82,11 +82,11 @@ export class PaymentsService {
 
     const orderCode = extractOrderCode(content)
     if (!orderCode) {
-      log.warn({ tag: SEPAY_LOG_TAGS.IGNORED, txnId }, 'No TCOIN_ code in content')
+      log.warn({ tag: SEPAY_LOG_TAGS.IGNORED, txnId }, 'No TCOIN code in content')
       return { ok: false, status: 200, message: 'No order code in content' }
     }
 
-    const matchedOrder = await PaymentsService.findMatchingOrder(orderCode, amount)
+    const matchedOrder = await PaymentsService.findMatchingOrder(content, amount)
     if (!matchedOrder) {
       log.warn({ tag: SEPAY_LOG_TAGS.NOT_FOUND, code: orderCode, amount }, 'No PENDING order matched')
       return { ok: false, status: 200, message: 'No matching order found' }
@@ -131,13 +131,12 @@ export class PaymentsService {
 
   /**
    * Find a PENDING (or already-PAID matching) order whose transferContent
-   * matches the extracted code. Amount must be >= order total — if the user
-   * over-paid we still credit, but never under-pay.
+   * matches the bank content (normalised — banks strip underscores, so an
+   * exact `transferContent` equality never matches a real transfer). Amount
+   * must be >= order total — over-pay still credits, under-pay never does.
    */
-  private static async findMatchingOrder(orderCode: string, amount: number) {
-    const order = await prisma.topupOrder.findFirst({
-      where: { transferContent: orderCode },
-    })
+  private static async findMatchingOrder(content: string, amount: number) {
+    const order = await findOrderByBankContent(content)
     if (!order) return null
     if (amount < order.amountVnd) {
       log.warn({

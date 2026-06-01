@@ -198,6 +198,20 @@ export class TcoinController {
       return notFound('Order not found')
     }
 
+    // Active reconciliation: while the FE polls a still-PENDING order, ask
+    // SePay directly whether the transfer has landed. This auto-confirms the
+    // payment (credit + receipt email via markOrderPaid) even if the push
+    // webhook never arrived. Best-effort — falls back to the stored status.
+    if (order.status === 'PENDING') {
+      try {
+        const { reconcileOrderViaApi } = await import('@/src/be/modules/payments/sepay-api')
+        const updated = await reconcileOrderViaApi(order)
+        if (updated) order = updated
+      } catch {
+        /* polling is best-effort — ignore and return the stored status */
+      }
+    }
+
     return ok({ status: order.status })
   }
 

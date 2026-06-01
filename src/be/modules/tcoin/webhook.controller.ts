@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/src/be/shared/db/prisma'
 import { ok, serverError, unauthorized } from '@/src/be/shared/api-handler'
-import { markOrderPaid } from '@/src/be/services/topup-order.service'
+import { markOrderPaid, findOrderByBankContent } from '@/src/be/services/topup-order.service'
 import { logger } from '@/src/be/shared/utils/logger'
 import { verifySePayAuth, extractOrderCode, SEPAY_LOG_TAGS } from '@/src/be/modules/payments/sepay'
 
@@ -83,12 +83,11 @@ export class WebhookController {
         data: { orderCode: fullCode, transactionId: txnId || null },
       })
 
-      // 5) Find the order. We match by `transferContent` (full TCOIN_xxx)
-      //    rather than the order's short code, because the new free-amount
-      //    flow stores codes like TCOIN_<u6>_<ts> that include underscores.
-      const order = await prisma.topupOrder.findFirst({
-        where: { transferContent: fullCode },
-      })
+      // 5) Find the order. Match by NORMALISED content (banks strip the
+      //    underscore: a `TCOIN_PDFYZ3SE` transfer arrives as `TCOINPDFYZ3SE`),
+      //    so we compare normalised forms across recent orders rather than an
+      //    exact `transferContent` equality that real transfers never satisfy.
+      const order = await findOrderByBankContent(content)
 
       if (!order) {
         await prisma.bankWebhookLog.update({
