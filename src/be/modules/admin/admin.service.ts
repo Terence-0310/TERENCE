@@ -93,7 +93,9 @@ export class AdminService {
           select: { createdAt: true }
         }),
         prisma.topupOrder.findMany({
-          where: { status: 'COMPLETED', createdAt: { gte: chartData[0].date } },
+          // Paid top-ups use status 'PAID' (set by markOrderPaid). The old
+          // 'COMPLETED' filter never matched, so revenue was always 0đ.
+          where: { status: 'PAID', createdAt: { gte: chartData[0].date } },
           select: { createdAt: true, amountVnd: true }
         })
       ])

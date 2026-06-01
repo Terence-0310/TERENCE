@@ -7,6 +7,7 @@ import { WatchPageContainer } from '@/src/fe/components/player/WatchPageContaine
 import { ServerEpisodeList } from '@/src/fe/components/watch/ServerEpisodeList'
 import { WatchActionButtons } from '@/src/fe/components/watch/WatchActionButtons'
 import { LiveViewerBadge } from '@/src/fe/components/watch/LiveViewerBadge'
+import { PageViewTracker } from '@/src/fe/components/analytics/PageViewTracker'
 
 import { getMovieDetail } from '@/src/be/services/tmdb/movie-service'
 import { getTvDetail } from '@/src/be/services/tmdb/tv-service'
@@ -257,6 +258,7 @@ export default async function WatchPage({ params, searchParams }: PageProps) {
                       {movieTitle}
                     </h1>
                     <LiveViewerBadge movieId={dbMovieId} />
+                    <PageViewTracker path={`/watch/${dbMovieId}`} movieId={dbMovieId} />
                   </div>
                   {(episodeData?.episode || episodeList.length > 0) && (
                     <p className="mt-1 text-[13px] font-medium text-white/60">

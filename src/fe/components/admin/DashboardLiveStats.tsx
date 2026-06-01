@@ -33,7 +33,6 @@ export function DashboardLiveStats() {
           <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
           <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
         </span>
-        <span className="text-sm font-bold text-[#25396f] dark:text-white">Thời gian thực</span>
         <Activity className="h-4 w-4 text-emerald-400" />
         {stats == null && online == null && (
           <span className="text-[11px] text-gray-400">đang kết nối…</span>

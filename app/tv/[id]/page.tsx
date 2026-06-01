@@ -5,6 +5,7 @@ import { Star, Calendar, Play, ArrowLeft, Tv, Clock } from 'lucide-react'
 import { getTvDetail, getSeasonDetail } from '@/src/be/services/tmdb/tv-service'
 import { MovieComments } from '@/src/fe/components/shared/MovieComments'
 import { RelatedNews } from '@/src/fe/components/news/RelatedNews'
+import { PageViewTracker } from '@/src/fe/components/analytics/PageViewTracker'
 import { prisma } from '@/src/be/shared/db/prisma'
 import { generateSlug } from '@/src/be/modules/admin/validators'
 import type { Metadata } from 'next'
@@ -121,6 +122,7 @@ export default async function SeriesDetailPage({ params, searchParams }: PagePro
 
   return (
     <main className="min-h-screen bg-background">
+      <PageViewTracker path={`/tv/${id}`} />
       {/* ═══════ HERO BACKDROP ═══════ */}
       <section className="relative h-[55vh] min-h-[420px] overflow-hidden md:h-[65vh]">
         {series.backdropUrl && series.backdropUrl !== '/placeholder.jpg' ? (
