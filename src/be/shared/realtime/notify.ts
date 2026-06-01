@@ -65,6 +65,7 @@ export const RT_EVENTS = {
 
   // Live viewer presence
   MOVIE_VIEWERS: 'movie:viewers',   // per-movie room: { movieId, count }
+  MOVIE_VIEWCOUNT: 'movie:viewcount', // { movieId, viewCount } — total views ticked up by a real watch
   TOPVIEW_STATS: 'topview:stats',   // topview room: live most-watched list
 
   // Admin dashboard

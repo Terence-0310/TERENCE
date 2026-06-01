@@ -88,6 +88,34 @@ async function computeDashboardSnapshot() {
       }),
     ])
 
+    // Top movies by total views + today's tracked views + live concurrent
+    // viewers (from socket presence) → powers the admin "Top View" stats table.
+    const topMoviesRaw = await prisma.movie.findMany({
+      where: { deletedAt: null, status: 'published' },
+      orderBy: { viewCount: 'desc' },
+      take: 8,
+      select: { id: true, title: true, slug: true, viewCount: true, posterUrl: true, thumbUrl: true },
+    })
+    const movieIds = topMoviesRaw.map((m) => m.id)
+    const todayGrouped = movieIds.length
+      ? await prisma.pageView.groupBy({
+          by: ['movieId'],
+          where: { movieId: { in: movieIds }, createdAt: { gte: today } },
+          _count: { _all: true },
+        })
+      : []
+    const todayByMovie = new Map(todayGrouped.map((r) => [r.movieId, r._count._all]))
+    const topMovies = topMoviesRaw.map((m) => ({
+      id: m.id,
+      title: m.title,
+      slug: m.slug,
+      posterUrl: m.posterUrl,
+      thumbUrl: m.thumbUrl,
+      viewCount: m.viewCount,
+      viewsToday: todayByMovie.get(m.id) ?? 0,
+      liveViewers: getMovieViewerCount(m.id),
+    }))
+
     return {
       onlineUsers: getOnlineUserCount(),
       tcoinEarnedToday: tcoinEarnedToday._sum.amount ?? 0,
@@ -95,6 +123,7 @@ async function computeDashboardSnapshot() {
       activeAdsCount,
       adImpressionsToday,
       redeemsToday,
+      topMovies,
       ts: Date.now(),
     }
   } catch (err) {
@@ -113,7 +142,21 @@ async function broadcastDashboard(io: Server) {
 
 function ensureDashboardLoop(io: Server) {
   if (dashboardInterval) return
-  dashboardInterval = setInterval(() => { void broadcastDashboard(io) }, 30_000)
+  // 12s heartbeat keeps the admin "Top View" table (today views + live viewers)
+  // reasonably fresh without hammering Postgres.
+  dashboardInterval = setInterval(() => { void broadcastDashboard(io) }, 12_000)
+}
+
+// Debounced dashboard broadcast — fired on presence changes (movie join/leave)
+// so the admin table's "đang xem" column updates within ~1.5s instead of
+// waiting for the next heartbeat.
+let dashboardDebounce: NodeJS.Timeout | null = null
+function scheduleDashboard(io: Server) {
+  if (dashboardDebounce) return
+  dashboardDebounce = setTimeout(() => {
+    dashboardDebounce = null
+    void broadcastDashboard(io)
+  }, 1500)
 }
 
 // ─── Live viewer presence + Top View leaderboard ───────────────────
@@ -274,6 +317,7 @@ export function registerRealtimeHandlers(io: Server, socket: Socket) {
     addViewer(movieId, socket.id)
     emitMovieViewers(movieId)
     scheduleTopview(io)
+    scheduleDashboard(io)
   })
 
   socket.on('movie:leave', (payload: unknown) => {
@@ -285,6 +329,7 @@ export function registerRealtimeHandlers(io: Server, socket: Socket) {
       socket.leave(movieRoom(target))
       emitMovieViewers(target)
       scheduleTopview(io)
+      scheduleDashboard(io)
     }
   })
 
@@ -388,6 +433,7 @@ export function registerRealtimeHandlers(io: Server, socket: Socket) {
     if (movieId) {
       emitMovieViewers(movieId)
       scheduleTopview(io)
+      scheduleDashboard(io)
     }
   })
 }

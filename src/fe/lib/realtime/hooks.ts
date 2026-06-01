@@ -173,6 +173,17 @@ export function useWatchCompletedListener(
 
 // ─── Admin dashboard ────────────────────────────────────────────────
 
+export interface TopMovieStat {
+  id: string
+  title: string
+  slug: string | null
+  posterUrl: string | null
+  thumbUrl: string | null
+  viewCount: number
+  viewsToday: number
+  liveViewers: number
+}
+
 export interface DashboardStats {
   onlineUsers: number
   tcoinEarnedToday: number
@@ -180,15 +191,20 @@ export interface DashboardStats {
   activeAdsCount: number
   adImpressionsToday: number
   redeemsToday: number
+  topMovies?: TopMovieStat[]
   ts: number
 }
 
 export function useAdminDashboardRealtime(userId: string | null): {
   stats: DashboardStats | null
   onlineUsers: number | null
+  topMovies: TopMovieStat[]
 } {
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [online, setOnline] = useState<number | null>(null)
+  // Kept separate from `stats` so a MOVIE_VIEWCOUNT bump (between heartbeats)
+  // updates a single row without waiting for the next full snapshot.
+  const [topMovies, setTopMovies] = useState<TopMovieStat[]>([])
 
   useEffect(() => {
     if (!userId) return
@@ -202,10 +218,23 @@ export function useAdminDashboardRealtime(userId: string | null): {
     }
   }, [userId])
 
-  useSocketEvent<DashboardStats>(RT.DASH_STATS, (p) => setStats(p), userId)
+  useSocketEvent<DashboardStats>(RT.DASH_STATS, (p) => {
+    setStats(p)
+    if (Array.isArray(p.topMovies)) setTopMovies(p.topMovies)
+  }, userId)
   useSocketEvent<{ count: number }>(RT.USERS_ONLINE, (p) => setOnline(p.count), userId)
 
-  return { stats, onlineUsers: online }
+  // Realtime per-movie total-view bump: a real watch ticks the count up + adds
+  // one to today's tally for that row, instantly, between snapshots.
+  useSocketEvent<{ movieId: string; viewCount: number }>(RT.MOVIE_VIEWCOUNT, (p) => {
+    setTopMovies((prev) =>
+      prev.map((m) =>
+        m.id === p.movieId ? { ...m, viewCount: p.viewCount, viewsToday: m.viewsToday + 1 } : m,
+      ),
+    )
+  }, userId)
+
+  return { stats, onlineUsers: online, topMovies }
 }
 
 // ─── Movie room: live viewers + review events ───────────────────────

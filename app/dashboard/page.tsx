@@ -7,6 +7,7 @@ import { prisma } from '@/src/be/shared/db/prisma'
 import { redirect } from 'next/navigation'
 import { GlobalStatsChart } from '@/src/fe/components/admin/GlobalStatsChart'
 import { DashboardLiveStats } from '@/src/fe/components/admin/DashboardLiveStats'
+import { DashboardTopMovies } from '@/src/fe/components/admin/DashboardTopMovies'
 
 interface StatItem {
   title: string
@@ -132,6 +133,9 @@ export default async function DashboardPage() {
 
       {/* Growth Chart */}
       <GlobalStatsChart data={rawStats.chartData || []} />
+
+      {/* Realtime Top View stats table */}
+      <DashboardTopMovies />
 
       {/* Charts Row */}
       <div className="grid gap-6 lg:grid-cols-2">

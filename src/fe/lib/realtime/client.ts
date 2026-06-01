@@ -88,6 +88,7 @@ export const RT = {
   NOTIFICATION_NEW: 'notification:new',
 
   MOVIE_VIEWERS: 'movie:viewers',
+  MOVIE_VIEWCOUNT: 'movie:viewcount',
   TOPVIEW_STATS: 'topview:stats',
 
   DASH_STATS:   'dashboard:stats',

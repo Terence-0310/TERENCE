@@ -34,19 +34,28 @@ export class AnalyticsService {
       }
     })
 
-    // 2. Increment movie viewCount if a movieId is provided
+    // 2. Increment movie viewCount + broadcast the new total in realtime so the
+    //    admin stats table, the movie's watch room, and the Top View leaderboard
+    //    all tick up the moment someone opens the movie (hybrid: the existing
+    //    base count plus real watches).
     if (data.movieId) {
-      // Fire & forget
-      prisma.movie.updateMany({
-        where: { id: data.movieId },
-        data: {
-          viewCount: {
-            increment: 1
-          }
+      void (async () => {
+        try {
+          const updated = await prisma.movie.update({
+            where: { id: data.movieId! },
+            data: { viewCount: { increment: 1 } },
+            select: { viewCount: true },
+          })
+          const { notifyAdmins, notifyRoom, RT_EVENTS } = await import('@/src/be/shared/realtime/notify')
+          const payload = { movieId: data.movieId, viewCount: updated.viewCount }
+          notifyAdmins(RT_EVENTS.MOVIE_VIEWCOUNT, payload)
+          // Room names must match socket-handlers.ts (movieRoom + TOPVIEW_ROOM).
+          notifyRoom(`movie:${data.movieId}`, RT_EVENTS.MOVIE_VIEWCOUNT, payload)
+          notifyRoom('topview:listeners', RT_EVENTS.MOVIE_VIEWCOUNT, payload)
+        } catch (err: any) {
+          log.error({ movieId: data.movieId, err: err instanceof Error ? err.message : err }, 'Failed to increment viewCount for movie')
         }
-      }).catch((err: any) => {
-        log.error({ movieId: data.movieId, err: err instanceof Error ? err.message : err }, 'Failed to increment viewCount for movie')
-      })
+      })()
     }
     
     // 3. Similarly for shorts if shortId is provided
