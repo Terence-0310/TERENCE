@@ -38,7 +38,8 @@ describe('lib/env', () => {
   // because validation only recognised the legacy secret name.
   describe('validateEnv() — SePay payments (production)', () => {
     function setProdBaseline() {
-      process.env.NODE_ENV = 'production'
+      // NODE_ENV is typed read-only; cast to assign it in the test.
+      ;(process.env as Record<string, string>).NODE_ENV = 'production'
       process.env.DATABASE_URL = 'postgres://x'
       process.env.NEXTAUTH_SECRET = 's'
       process.env.NEXTAUTH_URL = 'https://x'

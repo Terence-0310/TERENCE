@@ -135,6 +135,11 @@ export default function TCoinPage() {
 
   // Top-up modal
   const [activeOrder, setActiveOrder] = useState<ActiveOrder | null>(null)
+  // Whether the QR modal is OPEN. Kept separate from `activeOrder` so that a
+  // pending order surfaced on page load shows a dismissible banner instead of
+  // force-reopening the modal every time the user returns to /tcoin. Only an
+  // explicit action (create order / "Tiếp tục thanh toán") opens it.
+  const [showQr, setShowQr] = useState(false)
   const [topupBusy, setTopupBusy] = useState<string | null>(null)
   const [now, setNow] = useState(() => Date.now())
   const pollRef = useRef<NodeJS.Timeout | null>(null)
@@ -185,6 +190,7 @@ export default function TCoinPage() {
     onPaid: () => {
       toast.success('Thanh toán thành công. TCoin đã được cộng vào ví.', { icon: null })
       setActiveOrder(null)
+      setShowQr(false)
       fetchOverview()
     },
     onTransaction: (p) => {
@@ -219,10 +225,12 @@ export default function TCoinPage() {
         if (data.status === 'PAID') {
           toast.success('Thanh toán thành công. TCoin đã được cộng vào ví.', { icon: null })
           setActiveOrder(null)
+          setShowQr(false)
           fetchOverview()
         } else if (['EXPIRED', 'FAILED', 'CANCELED'].includes(data.status)) {
           toast.error('Đơn nạp đã hết hạn hoặc bị huỷ.', { icon: null })
           setActiveOrder(null)
+          setShowQr(false)
         }
       } catch {
         /* silent — sẽ thử lại lần sau */
@@ -290,10 +298,28 @@ export default function TCoinPage() {
         body: JSON.stringify({ packageId: pkg.id }),
       })
       setActiveOrder({ ...order, status: 'PENDING' })
+      setShowQr(true)
     } catch (err: any) {
       toast.error(err?.message || 'Không tạo được đơn nạp', { icon: null })
     } finally {
       setTopupBusy(null)
+    }
+  }
+
+  // Cancel the pending order (shared by the QR modal and the pending-order
+  // banner). Clears local state + refreshes overview so the banner disappears.
+  const handleCancelActiveOrder = async () => {
+    if (!activeOrder) return
+    const key = activeOrder.code || activeOrder.id
+    try {
+      await api(`/api/tcoin/order/${key}`, { method: 'DELETE' })
+      toast.success('Đã huỷ đơn nạp', { icon: null })
+    } catch (err: any) {
+      toast.error(err?.message || 'Huỷ đơn thất bại', { icon: null })
+    } finally {
+      setActiveOrder(null)
+      setShowQr(false)
+      fetchOverview()
     }
   }
 
@@ -462,6 +488,62 @@ export default function TCoinPage() {
             </div>
           </div>
         </section>
+
+        {/* ── Pending-order banner ──
+            Shown when a PENDING order exists but the QR modal is closed, so
+            returning to /tcoin offers a dismissible "resume" prompt instead of
+            force-reopening the modal. */}
+        {activeOrder && !showQr && (
+          <section className="rounded-2xl border border-primary/30 bg-primary/10 p-4 md:p-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/20 text-base">⏳</span>
+                <div>
+                  <p className="text-sm font-bold text-white">Bạn có một đơn nạp đang chờ thanh toán</p>
+                  <p className="mt-0.5 text-xs text-white/60">
+                    Mã{' '}
+                    <span className="font-mono text-white/80">
+                      {activeOrder.transferContent || activeOrder.code}
+                    </span>
+                    {' · '}
+                    <span className="font-semibold text-white/80">
+                      {activeOrder.amountVnd.toLocaleString('vi-VN')}đ
+                    </span>
+                    {(() => {
+                      const remain = Math.max(
+                        0,
+                        Math.floor((new Date(activeOrder.expiresAt).getTime() - now) / 1000),
+                      )
+                      if (remain <= 0) return <> · <span className="text-red-400">đã hết hạn</span></>
+                      const mm = String(Math.floor(remain / 60)).padStart(2, '0')
+                      const ss = String(remain % 60).padStart(2, '0')
+                      return (
+                        <>
+                          {' · còn '}
+                          <span className="font-semibold text-primary">{mm}:{ss}</span>
+                        </>
+                      )
+                    })()}
+                  </p>
+                </div>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <button
+                  onClick={() => setShowQr(true)}
+                  className="rounded-xl bg-primary px-4 py-2 text-sm font-bold text-primary-foreground transition hover:bg-primary/90"
+                >
+                  Tiếp tục thanh toán
+                </button>
+                <button
+                  onClick={handleCancelActiveOrder}
+                  className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white/70 transition hover:bg-white/10"
+                >
+                  Huỷ
+                </button>
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* ── Mua TCoin ── */}
         <section id="mua-tcoin">
@@ -687,23 +769,15 @@ export default function TCoinPage() {
         </section>
       </div>
 
-      {activeOrder && (
+      {activeOrder && showQr && (
         <QrModal
           order={activeOrder}
           now={now}
-          onClose={() => setActiveOrder(null)}
-          onCancel={async () => {
-            const key = activeOrder.code || activeOrder.id
-            try {
-              await api(`/api/tcoin/order/${key}`, { method: 'DELETE' })
-              toast.success('Đã huỷ đơn nạp', { icon: null })
-            } catch (err: any) {
-              toast.error(err?.message || 'Huỷ đơn thất bại', { icon: null })
-            } finally {
-              setActiveOrder(null)
-              fetchOverview()
-            }
-          }}
+          // "Đóng" / "Để sau" only hides the modal — the order stays PENDING so
+          // the user can resume from the banner. It no longer auto-reopens on
+          // return to the page.
+          onClose={() => setShowQr(false)}
+          onCancel={handleCancelActiveOrder}
         />
       )}
 
