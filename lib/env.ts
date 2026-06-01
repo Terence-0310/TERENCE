@@ -32,15 +32,10 @@ const REQUIRED_IN_PRODUCTION = {
 // "If you turn on this feature, you must also configure these."
 // Boot warns when a feature group has *some* env vars but not all.
 const FEATURE_GROUPS = [
-  {
-    name: 'SePay payments',
-    detect: ['SEPAY_API_KEY', 'SEPAY_WEBHOOK_SECRET'],
-    // Bank identity is now configured via SEPAY_BANK_CODE/SEPAY_BANK_ACCOUNT
-    // (VIETQR_BANK_ID/VIETQR_ACCOUNT_NO are legacy aliases still accepted by
-    // vietqr.ts). Either pair satisfies the QR builder, so the check below
-    // is enforced in a custom rule, not by listing keys here.
-    require: ['SEPAY_API_KEY', 'SEPAY_WEBHOOK_SECRET'],
-  },
+  // NOTE: SePay is validated by a dedicated custom rule below (3b), not here,
+  // because its requirements involve aliases (SEPAY_WEBHOOK_API_KEY OR the
+  // legacy SEPAY_WEBHOOK_SECRET; SEPAY_BANK_* OR legacy VIETQR_*) that the
+  // simple "all keys must exist" loop can't express.
   {
     name: 'Elasticsearch',
     detect: ['ELASTICSEARCH_HOST'],
@@ -128,14 +123,30 @@ export function validateEnv() {
     }
   }
 
-  // 3b) SePay bank identity: accept either SEPAY_BANK_* or VIETQR_* pair.
-  // We only warn/fatal when SePay is detected as active (has API key).
-  const sepayActive = !!process.env.SEPAY_API_KEY || !!process.env.SEPAY_WEBHOOK_SECRET
+  // 3b) SePay payments — custom rule (handles aliases the generic loop can't).
+  // Active when ANY SePay var is set. When active, require:
+  //   • a webhook secret: SEPAY_WEBHOOK_API_KEY (canonical) OR the legacy
+  //     SEPAY_WEBHOOK_SECRET — both are read by sepay.ts getWebhookSecret().
+  //   • a bank identity pair: SEPAY_BANK_CODE + SEPAY_BANK_ACCOUNT (or legacy
+  //     VIETQR_BANK_ID + VIETQR_ACCOUNT_NO).
+  // SEPAY_API_KEY (the user-API polling token) is OPTIONAL — webhook-only is a
+  // valid setup, and polling-only degrades gracefully.
+  const sepayActive =
+    !!process.env.SEPAY_API_KEY ||
+    !!process.env.SEPAY_WEBHOOK_API_KEY ||
+    !!process.env.SEPAY_WEBHOOK_SECRET
   if (sepayActive) {
+    const sepayMissing: string[] = []
+    if (!process.env.SEPAY_WEBHOOK_API_KEY && !process.env.SEPAY_WEBHOOK_SECRET) {
+      sepayMissing.push('SEPAY_WEBHOOK_API_KEY (or legacy SEPAY_WEBHOOK_SECRET)')
+    }
     const hasSepayPair = !!process.env.SEPAY_BANK_CODE && !!process.env.SEPAY_BANK_ACCOUNT
     const hasLegacyPair = !!process.env.VIETQR_BANK_ID && !!process.env.VIETQR_ACCOUNT_NO
     if (!hasSepayPair && !hasLegacyPair) {
-      const msg = 'SePay payments: set SEPAY_BANK_CODE + SEPAY_BANK_ACCOUNT (or legacy VIETQR_BANK_ID + VIETQR_ACCOUNT_NO)'
+      sepayMissing.push('SEPAY_BANK_CODE + SEPAY_BANK_ACCOUNT (or legacy VIETQR_BANK_ID + VIETQR_ACCOUNT_NO)')
+    }
+    if (sepayMissing.length > 0) {
+      const msg = `SePay payments partially configured — missing: ${sepayMissing.join('; ')}`
       if (isProd) fatal.push(msg)
       else warnings.push(msg)
     }

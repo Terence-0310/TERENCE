@@ -33,6 +33,50 @@ describe('lib/env', () => {
     })
   })
 
+  // Regression: a prod deploy with the canonical SEPAY_WEBHOOK_API_KEY (and no
+  // legacy SEPAY_WEBHOOK_SECRET) plus a polling token used to crash-loop boot
+  // because validation only recognised the legacy secret name.
+  describe('validateEnv() — SePay payments (production)', () => {
+    function setProdBaseline() {
+      process.env.NODE_ENV = 'production'
+      process.env.DATABASE_URL = 'postgres://x'
+      process.env.NEXTAUTH_SECRET = 's'
+      process.env.NEXTAUTH_URL = 'https://x'
+      process.env.NEXT_PUBLIC_SITE_URL = 'https://x'
+      process.env.CRON_SECRET = 'c'
+    }
+
+    it('accepts canonical SEPAY_WEBHOOK_API_KEY + polling token (the setup that previously crashed)', () => {
+      setProdBaseline()
+      process.env.SEPAY_API_KEY = 'token'
+      process.env.SEPAY_WEBHOOK_API_KEY = 'whk'
+      delete process.env.SEPAY_WEBHOOK_SECRET
+      process.env.SEPAY_BANK_CODE = 'MBBank'
+      process.env.SEPAY_BANK_ACCOUNT = '0385272094'
+      expect(() => validateEnv()).not.toThrow()
+    })
+
+    it('still accepts the legacy SEPAY_WEBHOOK_SECRET name', () => {
+      setProdBaseline()
+      delete process.env.SEPAY_API_KEY
+      delete process.env.SEPAY_WEBHOOK_API_KEY
+      process.env.SEPAY_WEBHOOK_SECRET = 'legacy'
+      process.env.SEPAY_BANK_CODE = 'MBBank'
+      process.env.SEPAY_BANK_ACCOUNT = '0385272094'
+      expect(() => validateEnv()).not.toThrow()
+    })
+
+    it('throws in prod when SePay is active but no webhook secret of either name', () => {
+      setProdBaseline()
+      process.env.SEPAY_API_KEY = 'token'
+      delete process.env.SEPAY_WEBHOOK_API_KEY
+      delete process.env.SEPAY_WEBHOOK_SECRET
+      process.env.SEPAY_BANK_CODE = 'MBBank'
+      process.env.SEPAY_BANK_ACCOUNT = '0385272094'
+      expect(() => validateEnv()).toThrow('SEPAY_WEBHOOK_API_KEY')
+    })
+  })
+
   describe('getRequiredEnv()', () => {
     it('should return env value when set', () => {
       process.env.MY_TEST_VAR = 'hello'
