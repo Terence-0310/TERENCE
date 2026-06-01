@@ -11,7 +11,6 @@
 // changes) plus instant MOVIE_VIEWCOUNT bumps. See useAdminDashboardRealtime.
 
 import Link from 'next/link'
-import { Eye, Flame, Film } from 'lucide-react'
 import { useAuth } from '@/src/fe/features/auth/contexts/auth-context'
 import { useAdminDashboardRealtime } from '@/src/fe/lib/realtime/hooks'
 
@@ -27,15 +26,8 @@ export function DashboardTopMovies() {
     <div className="rounded-2xl border border-white/[0.06] bg-white dark:bg-[#151e2f] shadow-[0_0.25rem_1rem_rgba(0,0,0,0.05)] dark:shadow-none p-5 md:p-6">
       <div className="mb-4 flex items-center justify-between">
         <div>
-          <div className="flex items-center gap-2">
-            <Flame className="h-5 w-5 text-orange-400" />
-            <h3 className="text-[18px] font-black text-[#25396f] dark:text-white">Thống kê Top View</h3>
-            <span className="relative ml-1 flex h-2.5 w-2.5">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
-            </span>
-          </div>
-          <p className="mt-0.5 text-xs font-medium text-gray-400">Xếp theo người đang xem & lượt xem hôm nay</p>
+          <h3 className="text-[18px] font-black text-[#25396f] dark:text-white">Thống kê Top View</h3>
+          <p className="mt-0.5 text-xs font-medium text-gray-400">Xếp theo người đang xem &amp; lượt xem hôm nay</p>
         </div>
         <Link href="/top-view" className="text-sm font-bold text-primary hover:text-primary transition-colors">
           Xem bảng xếp hạng →
@@ -84,9 +76,7 @@ export function DashboardTopMovies() {
                           className="h-12 w-9 shrink-0 rounded-md object-cover bg-gray-100 dark:bg-white/5"
                         />
                       ) : (
-                        <span className="flex h-12 w-9 shrink-0 items-center justify-center rounded-md bg-gray-100 dark:bg-white/5">
-                          <Film className="h-4 w-4 text-gray-400" />
-                        </span>
+                        <span className="h-12 w-9 shrink-0 rounded-md bg-gray-100 dark:bg-white/5" />
                       )}
                       <span className="line-clamp-2 max-w-[220px] text-sm font-bold text-[#25396f] dark:text-white">
                         {m.title}
@@ -95,12 +85,7 @@ export function DashboardTopMovies() {
                   </td>
                   <td className="px-2 py-3 text-right">
                     {m.liveViewers > 0 ? (
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-red-500/10 px-2.5 py-1 text-[11px] font-bold text-red-400">
-                        <span className="relative flex h-2 w-2">
-                          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
-                          <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500" />
-                        </span>
-                        <Eye className="h-3.5 w-3.5" />
+                      <span className="inline-flex items-center rounded-full bg-red-500/10 px-2.5 py-1 text-[11px] font-bold tabular-nums text-red-400">
                         {fmt(m.liveViewers)}
                       </span>
                     ) : (
