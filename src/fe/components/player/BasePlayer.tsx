@@ -98,6 +98,11 @@ export interface BasePlayerProps {
 
   // ── Paused center play button ──
   showBigPlayButton?: boolean
+
+  // ── Seek-bar hover preview ──
+  // Returns the sprite-sheet region to show for a given playback time, or null
+  // when no thumbnail is available yet. Provided by the parent (HLSPlayer).
+  thumbnailAt?: (time: number) => { spriteUrl: string; x: number; y: number; w: number; h: number } | null
 }
 
 // ── Component ──
@@ -109,6 +114,7 @@ export function BasePlayer({
   onTogglePlay, onSeek,
   leftControls, rightControls, topOverlay, loadingOverlay, children,
   showBigPlayButton = true,
+  thumbnailAt,
 }: BasePlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const hideControlsTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -118,6 +124,10 @@ export function BasePlayer({
   const [volume, setVolume] = useState(1)
   const [isMuted, setIsMuted] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  // Seek-bar hover preview (timestamp + optional sprite thumbnail).
+  const [hoverPreview, setHoverPreview] = useState<
+    { leftPct: number; time: number; thumb: { spriteUrl: string; x: number; y: number; w: number; h: number } | null } | null
+  >(null)
 
   // ── Derived ──
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0
@@ -187,6 +197,16 @@ export function BasePlayer({
     const time = Math.max(0, Math.min((x / rect.width) * duration, duration))
     onSeek(time)
   }, [duration, onSeek])
+
+  // ── Progress bar hover (preview thumbnail + timestamp) ──
+  const handleProgressHover = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (duration <= 0) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width))
+    const pct = rect.width > 0 ? x / rect.width : 0
+    const time = pct * duration
+    setHoverPreview({ leftPct: pct * 100, time, thumb: thumbnailAt ? thumbnailAt(time) : null })
+  }, [duration, thumbnailAt])
 
   // ── Auto-hide controls ──
   const handleMouseMove = useCallback(() => {
@@ -337,7 +357,32 @@ export function BasePlayer({
           <div
             className="group/progress relative h-1.5 cursor-pointer rounded-full bg-white/15 transition-all hover:h-2.5"
             onClick={handleProgressBarClick}
+            onMouseMove={handleProgressHover}
+            onMouseLeave={() => setHoverPreview(null)}
           >
+            {/* Hover preview — sprite thumbnail (if generated) + timestamp */}
+            {hoverPreview && (
+              <div
+                className="pointer-events-none absolute bottom-full z-30 mb-3 flex -translate-x-1/2 flex-col items-center"
+                style={{ left: `${hoverPreview.leftPct}%` }}
+              >
+                {hoverPreview.thumb && (
+                  <div
+                    className="mb-1 overflow-hidden rounded-md border border-white/20 bg-black shadow-2xl"
+                    style={{
+                      width: hoverPreview.thumb.w,
+                      height: hoverPreview.thumb.h,
+                      backgroundImage: `url(${hoverPreview.thumb.spriteUrl})`,
+                      backgroundPosition: `-${hoverPreview.thumb.x}px -${hoverPreview.thumb.y}px`,
+                      backgroundRepeat: 'no-repeat',
+                    }}
+                  />
+                )}
+                <span className="rounded bg-black/85 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-white shadow">
+                  {formatTime(hoverPreview.time)}
+                </span>
+              </div>
+            )}
             {/* Buffered */}
             <div
               className="absolute inset-y-0 left-0 rounded-full bg-white/20"

@@ -20,6 +20,7 @@ import {
   AlertTriangle, RotateCcw, ChevronRight, Loader2, Info, X, Lock
 } from 'lucide-react'
 import { useHLS } from '@/src/fe/features/player/hooks/useHLS'
+import { useSeekThumbnails } from '@/src/fe/features/player/hooks/useSeekThumbnails'
 import { usePlayer } from '@/src/fe/features/player/hooks/usePlayer'
 import type { PlayerServer, PlayerMovieMeta } from '@/src/fe/features/player/hooks/usePlayer'
 import { formatTime } from '@/lib/player/time-format'
@@ -95,6 +96,9 @@ export function HLSPlayer({
   canUseHD = false,
   videoRef: providedVideoRef,
 }: HLSPlayerProps) {
+  // Seek-bar hover preview thumbnails (lazily generated server-side).
+  const thumbnailAt = useSeekThumbnails(movieId, episodeSlug)
+
   // ── Refs ──
   const internalRef = useRef<HTMLVideoElement>(null)
   const videoRef = providedVideoRef || internalRef
@@ -813,6 +817,7 @@ export function HLSPlayer({
       extraErrorAction={inlineErrorExtra}
       onTogglePlay={togglePlay}
       onSeek={handleSeek}
+      thumbnailAt={thumbnailAt}
       leftControls={nextEpisodeBtn}
       rightControls={rightCtrl}
       topOverlay={serverBadge}
