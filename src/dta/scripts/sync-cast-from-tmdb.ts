@@ -224,16 +224,25 @@ async function main() {
   const movieId = get('movieId')
   const castPerMovie = parseInt(get('castPerMovie') || '10', 10)
   const concurrency = parseInt(get('concurrency') || '4', 10)
+  // --publishedOnly: restrict to the search-visible catalog (skip drafts).
+  // --missingOnly:   skip movies that already have cast/crew rows, so a
+  //                  backfill over a large catalog only spends TMDB calls
+  //                  on the films that actually need them. Both are idempotent.
+  const publishedOnly = args.includes('--publishedOnly')
+  const missingOnly = args.includes('--missingOnly')
 
   console.log('╔══════════════════════════════════════════╗')
   console.log('║  TERENCE — Cast sync from TMDB           ║')
   console.log('╚══════════════════════════════════════════╝')
+  console.log(`  publishedOnly=${publishedOnly}  missingOnly=${missingOnly}`)
 
   const movies = await prisma.movie.findMany({
     where: {
       isActive: true,
       deletedAt: null,
       tmdbId: { not: null },
+      ...(publishedOnly ? { status: 'published' } : {}),
+      ...(missingOnly ? { people: { none: {} } } : {}),
       ...(movieId ? { id: movieId } : {}),
     },
     select: { id: true, tmdbId: true, contentType: true, title: true },
