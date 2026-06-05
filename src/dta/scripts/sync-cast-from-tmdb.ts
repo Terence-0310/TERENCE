@@ -98,13 +98,23 @@ async function syncMovieCast(movie: { id: string; tmdbId: number; contentType: s
   }
 
   // Top-N cast by `order` field (already 0-indexed from TMDB).
-  const topCast = (credits.cast || [])
-    .filter((c) => c && c.id && c.name)
-    .sort((a, b) => (a.order ?? 99) - (b.order ?? 99))
-    .slice(0, opts.castPerMovie)
+  // Dedupe by person id first — TMDB occasionally lists the same actor
+  // twice (e.g. credited for two characters), which would otherwise
+  // collide on the (movieId, personId, role) unique key and roll back the
+  // whole per-movie transaction.
+  const dedupeById = <T extends { id: number }>(arr: T[]): T[] => {
+    const seen = new Set<number>()
+    return arr.filter((x) => (seen.has(x.id) ? false : (seen.add(x.id), true)))
+  }
+  const topCast = dedupeById(
+    (credits.cast || [])
+      .filter((c) => c && c.id && c.name)
+      .sort((a, b) => (a.order ?? 99) - (b.order ?? 99))
+  ).slice(0, opts.castPerMovie)
 
-  // First director from crew.
-  const directors = (credits.crew || []).filter((c) => c?.job === 'Director')
+  // First director(s) from crew — deduped so a person credited as Director
+  // more than once doesn't collide on the unique key.
+  const directors = dedupeById((credits.crew || []).filter((c) => c?.job === 'Director' && c?.id && c?.name))
 
   if (topCast.length === 0 && directors.length === 0) {
     return { inserted: 0, skipped: 'empty cast and crew' }
