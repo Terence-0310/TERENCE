@@ -175,6 +175,17 @@ export async function joinRoom(input: JoinRoomInput) {
     return { room, participant, state: room.state, isRejoin: true }
   }
 
+  // Capacity check — enforce maxMembers BEFORE admitting a new participant.
+  // `room.participants` are the non-left rows; count those actually present
+  // (online and admitted, i.e. not in the PENDING waiting room) so a "Cặp đôi"
+  // (2-seat) room can't be over-filled. Rejoins above bypass this by design.
+  const presentCount = room.participants.filter(
+    (p) => p.isOnline && p.status !== 'PENDING',
+  ).length
+  if (room.maxMembers > 0 && presentCount >= room.maxMembers) {
+    throw new WatchPartyError('ROOM_FULL', `Phòng đã đầy (tối đa ${room.maxMembers} người).`)
+  }
+
   const participant = await repo.createParticipant({
     roomId: room.id,
     userId: validUserId,

@@ -85,7 +85,11 @@ export function WatchPartyOverlay({
     roomCode,
     user,
     isHost: true, // Host by default if creating; joining sets isHost from server
-    allowMemberControl: false,
+    // Bidirectional sync: ANY participant's play/pause/seek propagates to the
+    // others (not host-only). Without this a guest seeking the timeline left
+    // everyone else's player untouched — the room felt "not realtime". The
+    // sync service already de-echoes remote actions so this won't loop.
+    allowMemberControl: true,
     onRemotePlay: (time) => {
       const video = videoRef?.current
       if (!video) return

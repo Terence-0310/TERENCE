@@ -141,7 +141,10 @@ export function useWatchParty(options: UseWatchPartyOptions): UseWatchPartyRetur
           if (errData?.code === 'ROOM_LOCKED') {
             setIsLockedOut(true)
           } else {
-            log.error({}, 'Failed to join room')
+            // Surface the server reason (e.g. ROOM_FULL "Phòng đã đầy…") so the
+            // user understands why the join was rejected instead of nothing.
+            toast.error(errData?.error || 'Không thể tham gia phòng')
+            log.error({ code: errData?.code }, 'Failed to join room')
           }
           setIsLoading(false)
           return

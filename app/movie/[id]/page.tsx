@@ -346,7 +346,10 @@ export default async function MovieDetailPage({ params }: PageProps) {
       )}
 
       {/* ═══════ COMMENTS ═══════ */}
-      <MovieComments movieId={movie.id} />
+      {/* Reviews/comments are keyed by the DB Movie id (cuid), NOT the TMDB
+          numeric id. Prefer the persisted row (ensureTmdbMovieRow above) so the
+          section loads on TMDB-id movie pages too — same pattern as the TV page. */}
+      <MovieComments movieId={dbMovie?.id ?? String(movie.id)} />
 
       {/* ═══════ RELATED ═══════ */}
       {movie.relatedMovies?.length > 0 && (
