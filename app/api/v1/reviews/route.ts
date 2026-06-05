@@ -107,7 +107,27 @@ export async function POST(req: Request) {
         { status: 400 },
       )
     }
-    const { movieId, rating, content, isSpoiler } = parsed.data
+    const { movieId: movieRef, rating, content, isSpoiler } = parsed.data
+
+    // Resolve the movie reference to a real Movie.id. The client may pass a DB
+    // cuid, a slug, OR a TMDB numeric id (movie pages render from TMDB and the
+    // DB row is lazily created). Resolving here prevents a foreign-key crash
+    // (which surfaced as "Internal Server Error") when the raw TMDB id was sent.
+    const movie = await prisma.movie.findFirst({
+      where: {
+        OR: [
+          { id: movieRef },
+          { slug: movieRef },
+          ...(/^\d+$/.test(movieRef) ? [{ tmdbId: Number(movieRef) }] : []),
+        ],
+        deletedAt: null,
+      },
+      select: { id: true },
+    })
+    if (!movie) {
+      return NextResponse.json({ success: false, error: 'Phim không tồn tại' }, { status: 404 })
+    }
+    const movieId = movie.id
 
     // Atomic create-review. The TCoin reward is intentionally credited
     // OUTSIDE this transaction via `rewardReview()` — that service uses its
