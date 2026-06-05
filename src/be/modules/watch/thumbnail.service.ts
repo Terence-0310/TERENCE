@@ -31,12 +31,21 @@ const THUMB_W = 160
 const THUMB_H = 90
 const MAX_THUMBS = 120 // cap frames so generation stays bounded on long films
 const MIN_INTERVAL = 5 // seconds — finest granularity
-const EXTRACT_CONCURRENCY = 4
+const EXTRACT_CONCURRENCY = 2
 const FRAME_TIMEOUT_MS = 25_000
 
 // In-process guard so two concurrent requests for the same episode don't both
 // spawn ffmpeg. (A `.lock` file additionally guards across process restarts.)
 const inFlight = new Set<string>()
+
+// GLOBAL throttle: ffmpeg is CPU-heavy. Allow only ONE episode generation at a
+// time across the whole process — without this, several watch-page loads each
+// spawned EXTRACT_CONCURRENCY ffmpeg workers in parallel, spiking server load
+// (18+) and timing out the app (504). Excess requests just get `generating`
+// and the client poll re-triggers later when the slot is free. ffmpeg also
+// runs at `nice -19` (see run()) so it can never starve the Node event loop.
+const MAX_CONCURRENT_GENERATIONS = 1
+let activeGenerations = 0
 
 export interface ThumbnailStatus {
   status: 'ready' | 'generating' | 'none'
@@ -66,7 +75,10 @@ async function exists(p: string): Promise<boolean> {
 /** Run a command, resolving with stdout; rejects on non-zero exit or timeout. */
 function run(cmd: string, args: string[], timeoutMs: number): Promise<string> {
   return new Promise((resolve, reject) => {
-    const child = spawn(cmd, args, { windowsHide: true })
+    // Run at lowest CPU priority (nice -19) so frame extraction never competes
+    // with the Node server for CPU. Falls back to direct spawn if `nice` is
+    // somehow unavailable.
+    const child = spawn('nice', ['-n', '19', cmd, ...args], { windowsHide: true })
     let out = ''
     let err = ''
     const timer = setTimeout(() => {
@@ -145,7 +157,11 @@ export async function generateThumbnails(
     return { status: 'ready', vttUrl: `${pub}/thumbs.vtt`, spriteUrl: `${pub}/sprite.jpg` }
   }
   if (inFlight.has(abs)) return { status: 'generating' }
+  // Global cap: if another episode is already generating, defer — the client
+  // keeps polling and a later request will grab the slot once it's free.
+  if (activeGenerations >= MAX_CONCURRENT_GENERATIONS) return { status: 'generating' }
   inFlight.add(abs)
+  activeGenerations++
 
   const tmp = path.join(abs, 'tmp')
   try {
@@ -218,6 +234,7 @@ export async function generateThumbnails(
     log.warn({ movieId, ep, err: e instanceof Error ? e.message : e }, 'Thumbnail generation failed')
     return { status: 'none' }
   } finally {
+    activeGenerations--
     inFlight.delete(abs)
   }
 }
