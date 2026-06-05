@@ -45,8 +45,13 @@ async function ensureTmdbMovieRow(movie: Awaited<ReturnType<typeof getMovieDetai
         backdropUrl: movie.backdropUrl || null,
         rating: movie.voteAverage || 0,
         isActive: true,
-        isPublished: true,
-        status: 'published',
+        // Persisted as DRAFT, NOT published: a TMDB-only row has no streaming
+        // source (only a trailer), so it must stay out of the published/
+        // searchable catalog. It exists solely so comments/likes/title-display
+        // have a Movie id to join on. It graduates to `published` only when a
+        // real source (OPhim episode / VideoSource) is attached by sync/admin.
+        isPublished: false,
+        status: 'draft',
         metadataSource: 'tmdb',
       },
     })
@@ -55,13 +60,9 @@ async function ensureTmdbMovieRow(movie: Awaited<ReturnType<typeof getMovieDetai
     created = await prisma.movie.findFirst({ where: { tmdbId: movie.id } })
   }
 
-  // Fire-and-forget ES index. Don't block the page render on this.
-  if (created?.id) {
-    const movieId = created.id
-    import('@/src/be/modules/search/movie-search-indexer')
-      .then(({ indexMovie }) => indexMovie(movieId))
-      .catch(() => {})
-  }
+  // Intentionally NOT indexed into Elasticsearch: draft/sourceless rows must
+  // not pollute search (this on-demand path previously published 100k+ such
+  // rows). indexMovie() self-guards on status==='published' anyway.
 
   return created
 }

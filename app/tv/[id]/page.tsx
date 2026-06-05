@@ -47,8 +47,11 @@ async function ensureTmdbSeriesMovie(series: Awaited<ReturnType<typeof getTvDeta
         backdropUrl: series.backdropUrl || null,
         rating: series.voteAverage || 0,
         isActive: true,
-        isPublished: true,
-        status: 'published',
+        // DRAFT, not published — see ensureTmdbMovieRow in app/movie/[id]/page.tsx.
+        // A TMDB-only series has no streaming source, so it stays out of the
+        // published/searchable catalog and only exists to anchor reviews/likes.
+        isPublished: false,
+        status: 'draft',
         metadataSource: 'tmdb',
       },
     })
@@ -58,14 +61,8 @@ async function ensureTmdbSeriesMovie(series: Awaited<ReturnType<typeof getTvDeta
     created = await prisma.movie.findFirst({ where: { tmdbId: series.id } })
   }
 
-  // Fire-and-forget Elasticsearch index push so newly-persisted titles are
-  // searchable immediately (instead of waiting for the 2 AM reindex cron).
-  if (created?.id) {
-    const movieId = created.id
-    import('@/src/be/modules/search/movie-search-indexer')
-      .then(({ indexMovie }) => indexMovie(movieId))
-      .catch(() => {})
-  }
+  // Intentionally NOT indexed into Elasticsearch: draft/sourceless rows must
+  // not pollute search. indexMovie() self-guards on status==='published'.
 
   return created
 }
