@@ -21,8 +21,8 @@ import {
   addViewer,
   removeViewerSocket,
   getMovieViewerCount,
-  getTopViewedMovies,
 } from './notify'
+import { computeTopViewRanking } from '@/src/be/modules/analytics/top-view.service'
 
 const log = logger.child({ module: 'realtime' })
 
@@ -88,70 +88,9 @@ async function computeDashboardSnapshot() {
       }),
     ])
 
-    // Admin "Top View" table — ranked by ACTIVITY (live viewers, then today's
-    // views, then all-time). Candidate ids come from three sources so a movie
-    // that is being watched OR viewed today surfaces even if it isn't an
-    // all-time top title:
-    //   1) currently-watched movies (socket presence)
-    //   2) most-viewed-today (PageView groupBy)
-    //   3) all-time top by viewCount (fallback filler so the table is never empty)
-    const liveTop = getTopViewedMovies(12) // [{ movieId, count }]
-    const [todayTop, allTimeTop] = await Promise.all([
-      prisma.pageView.groupBy({
-        by: ['movieId'],
-        where: { movieId: { not: null }, createdAt: { gte: today } },
-        _count: { _all: true },
-        orderBy: { _count: { movieId: 'desc' } },
-        take: 12,
-      }),
-      prisma.movie.findMany({
-        where: { deletedAt: null, status: 'published' },
-        orderBy: { viewCount: 'desc' },
-        take: 8,
-        select: { id: true },
-      }),
-    ])
-
-    const idSet = new Set<string>()
-    for (const l of liveTop) idSet.add(l.movieId)
-    for (const t of todayTop) if (t.movieId) idSet.add(t.movieId)
-    for (const m of allTimeTop) idSet.add(m.id)
-    const candidateIds = Array.from(idSet)
-
-    let topMovies: Array<{ id: string; title: string; slug: string | null; posterUrl: string | null; thumbUrl: string | null; viewCount: number; viewsToday: number; liveViewers: number }> = []
-    if (candidateIds.length) {
-      const [metas, todayExact] = await Promise.all([
-        prisma.movie.findMany({
-          where: { id: { in: candidateIds } },
-          select: { id: true, title: true, slug: true, viewCount: true, posterUrl: true, thumbUrl: true },
-        }),
-        prisma.pageView.groupBy({
-          by: ['movieId'],
-          where: { movieId: { in: candidateIds }, createdAt: { gte: today } },
-          _count: { _all: true },
-        }),
-      ])
-      const liveMap = new Map(liveTop.map((l) => [l.movieId, l.count]))
-      const todayMap = new Map(todayExact.map((r) => [r.movieId, r._count._all]))
-      topMovies = metas
-        .map((m) => ({
-          id: m.id,
-          title: m.title,
-          slug: m.slug,
-          posterUrl: m.posterUrl,
-          thumbUrl: m.thumbUrl,
-          viewCount: m.viewCount,
-          viewsToday: todayMap.get(m.id) ?? 0,
-          liveViewers: liveMap.get(m.id) ?? 0,
-        }))
-        .sort(
-          (a, b) =>
-            b.liveViewers - a.liveViewers ||
-            b.viewsToday - a.viewsToday ||
-            b.viewCount - a.viewCount,
-        )
-        .slice(0, 8)
-    }
+    // Admin "Top View" table — shared activity ranking (live viewers → views
+    // today → all-time). Same logic the public /top-view board uses.
+    const topMovies = await computeTopViewRanking(8)
 
     return {
       onlineUsers: getOnlineUserCount(),
@@ -218,35 +157,22 @@ let topviewTimer: NodeJS.Timeout | null = null
 async function doBroadcastTopview(io: Server) {
   const room = io.sockets.adapter.rooms.get(TOPVIEW_ROOM)
   if (!room || room.size === 0) return
-  const top = getTopViewedMovies(10)
-  if (top.length === 0) {
-    io.to(TOPVIEW_ROOM).emit(RT_EVENTS.TOPVIEW_STATS, { items: [], ts: Date.now() })
-    return
-  }
   try {
-    const ids = top.map((t) => t.movieId)
-    const movies = await prisma.movie.findMany({
-      where: { id: { in: ids } },
-      select: { id: true, title: true, slug: true, posterUrl: true, thumbUrl: true, contentType: true, tmdbId: true },
-    })
-    const byId = new Map(movies.map((m) => [m.id, m]))
-    const items = top
-      .map((t, i) => {
-        const m = byId.get(t.movieId)
-        if (!m) return null
-        return {
-          rank: i + 1,
-          movieId: t.movieId,
-          viewers: t.count,
-          title: m.title,
-          slug: m.slug,
-          posterUrl: m.posterUrl,
-          thumbUrl: m.thumbUrl,
-          contentType: m.contentType,
-          tmdbId: m.tmdbId,
-        }
-      })
-      .filter(Boolean)
+    // Shared activity ranking: live viewers → views today → all-time.
+    const ranked = await computeTopViewRanking(10)
+    const items = ranked.map((m, i) => ({
+      rank: i + 1,
+      movieId: m.id,
+      viewers: m.liveViewers,
+      viewsToday: m.viewsToday,
+      viewCount: m.viewCount,
+      title: m.title,
+      slug: m.slug,
+      posterUrl: m.posterUrl,
+      thumbUrl: m.thumbUrl,
+      contentType: m.contentType,
+      tmdbId: m.tmdbId,
+    }))
     io.to(TOPVIEW_ROOM).emit(RT_EVENTS.TOPVIEW_STATS, { items, ts: Date.now() })
   } catch (err) {
     log.error({ err: err instanceof Error ? err.message : err }, 'topview broadcast failed')

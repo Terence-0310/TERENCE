@@ -33,8 +33,10 @@ export function getClient(): Client {
     _client = new Client({
       node: host,
       auth,
-      requestTimeout: 10000,
-      maxRetries: 2,
+      // Fail fast: a dead ES must not make every search hang before
+      // falling back to Prisma. One attempt, 5s cap.
+      requestTimeout: 5000,
+      maxRetries: 0,
       sniffOnStart: false,
     })
   }
@@ -49,22 +51,47 @@ export function getMoviesIndex(): string {
 }
 
 /**
- * Check if Elasticsearch is available. Caches result for 60s.
+ * Check if Elasticsearch is available.
+ *
+ * Asymmetric caching to fix the "works sometimes, dumb sometimes" problem:
+ *   - A HEALTHY result is cached 60s → no ping spam on every search.
+ *   - A FAILED result is cached only 5s → a transient blip (GC pause, brief
+ *     network hiccup) no longer blackballs ES for a whole minute and silently
+ *     downgrades every search to the weaker Prisma LIKE fallback; ES is
+ *     re-probed 5s later and search snaps back to full quality.
+ *
+ * The probe itself uses a 2s no-retry timeout so detecting a dead ES is cheap
+ * and never adds latency to the search request that triggered the check.
  */
 let _lastCheck = 0
+const POSITIVE_TTL = 60_000
+const NEGATIVE_TTL = 5_000
+
 export async function isAvailable(): Promise<boolean> {
   const now = Date.now()
-  if (_available !== null && now - _lastCheck < 60_000) return _available
+  const ttl = _available ? POSITIVE_TTL : NEGATIVE_TTL
+  if (_available !== null && now - _lastCheck < ttl) return _available
 
   try {
-    const client = getClient()
-    await client.ping()
+    // Short, no-retry ping so detecting a dead ES costs ~2s, not ~10s.
+    // searchMovies() gates on this, so a slow ping would slow every search.
+    await getClient().ping({}, { requestTimeout: 2000, maxRetries: 0 })
     _available = true
   } catch {
     _available = false
   }
   _lastCheck = now
   return _available
+}
+
+/**
+ * Circuit-breaker hook: callers that actually hit ES and get an error report
+ * it here so subsequent requests skip ES (fast Prisma fallback) for NEGATIVE_TTL
+ * instead of each one paying the full request timeout. Re-probed after 5s.
+ */
+export function reportUnavailable() {
+  _available = false
+  _lastCheck = Date.now()
 }
 
 /**

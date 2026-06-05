@@ -57,11 +57,6 @@ export class AnalyticsService {
         }
       })()
     }
-    
-    // 3. Similarly for shorts if shortId is provided
-    if (data.shortId) {
-      // Feature reserved for when Short model is integrated into Prisma Schema.
-    }
 
     return pageView
   }

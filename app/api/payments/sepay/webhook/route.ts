@@ -6,7 +6,7 @@
 // ============================================
 
 import { NextRequest, NextResponse } from 'next/server'
-import { PaymentsService } from '@/src/be/modules/payments/payments.service'
+import { getPaymentProvider } from '@/src/be/modules/payments/provider-registry'
 import { logger } from '@/src/be/shared/utils/logger'
 import { prisma } from '@/src/be/shared/db/prisma'
 
@@ -63,7 +63,9 @@ export async function POST(request: NextRequest) {
 
     // Pass the full Headers object — verifySePayAuth() inspects both
     // Authorization (Apikey / Bearer / raw) and x-api-key shapes.
-    const result = await PaymentsService.processSePayWebhook(rawBody, request.headers)
+    // Route through the provider registry so the live path exercises the
+    // pluggable PaymentProvider abstraction (SePay is one of many gateways).
+    const result = await getPaymentProvider('sepay').handleWebhook(rawBody, request.headers)
 
     if (!result.ok) {
       // Map service result to a stable status:

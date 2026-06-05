@@ -333,16 +333,21 @@ export interface TopViewItem {
   rank: number
   movieId: string
   viewers: number
+  viewsToday: number
+  viewCount: number
   title: string
-  slug: string
+  slug: string | null
   posterUrl: string | null
   thumbUrl: string | null
   contentType: string
   tmdbId: number | null
 }
 
-export function useTopViewLive(userId: string | null): { items: TopViewItem[]; ts: number | null } {
-  const [items, setItems] = useState<TopViewItem[]>([])
+export function useTopViewLive(
+  userId: string | null,
+  initial: TopViewItem[] = [],
+): { items: TopViewItem[]; ts: number | null } {
+  const [items, setItems] = useState<TopViewItem[]>(initial)
   const [ts, setTs] = useState<number | null>(null)
 
   useEffect(() => {

@@ -120,6 +120,13 @@ export default async function SeriesDetailPage({ params, searchParams }: PagePro
   // TMDB-only series otherwise have no Movie record to attach reviews to.
   const dbMovie = await ensureTmdbSeriesMovie(series)
 
+  // Prefer the canonical catalogue (DB/OPhim) title + overview for display so
+  // what the user SEES matches what search indexes — avoids the OPhim-vs-TMDB
+  // title mismatch (e.g. DB "Thị Trấn Ác Mộng" vs TMDB "Bẫy") that made a movie
+  // un-findable by the name shown on its own page.
+  if (dbMovie?.title) series.title = dbMovie.title
+  if (dbMovie?.description) series.overview = dbMovie.description
+
   return (
     <main className="min-h-screen bg-background">
       <PageViewTracker path={`/tv/${id}`} />

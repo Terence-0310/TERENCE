@@ -28,6 +28,7 @@ const NAV_ITEMS = [
   { label: 'Phim lẻ', href: '/movies', primary: true },
   { label: 'Phim bộ', href: '/series', primary: true },
   { label: 'Xem chung', href: '/xem-chung', primary: true },
+  { label: 'Shorts', href: '/shorts', primary: false },
   { label: 'Phim Top View', href: '/top-view', primary: false },
   { label: 'Chủ Đề', href: '/browse', primary: false },
   { label: 'Diễn viên', href: '/people', primary: false },

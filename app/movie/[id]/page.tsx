@@ -116,7 +116,13 @@ export default async function MovieDetailPage({ params }: PageProps) {
   // Persist TMDB metadata into our DB on first view so the title becomes
   // searchable + commentable. Indexing into Elasticsearch is fire-and-forget
   // inside ensureTmdbMovieRow.
-  ensureTmdbMovieRow(movie).catch(() => {})
+  const dbMovie = await ensureTmdbMovieRow(movie).catch(() => null)
+
+  // Prefer the canonical catalogue (DB/OPhim) title + overview for display so
+  // what the user SEES matches what search indexes — avoids the OPhim-vs-TMDB
+  // title mismatch that made a movie un-findable by the name shown on its page.
+  if (dbMovie?.title) movie.title = dbMovie.title
+  if (dbMovie?.description) movie.overview = dbMovie.description
 
   const director = movie.crew?.find((c: any) => c.job === 'Director')
 

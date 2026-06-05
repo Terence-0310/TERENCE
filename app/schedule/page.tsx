@@ -49,9 +49,13 @@ export default async function SchedulePage({ searchParams }: { searchParams: Pro
       {/* Schedule slots */}
       {currentDay && currentDay.slots.length > 0 ? (
         <div className="space-y-3">
-          {currentDay.slots.map((slot) => (
-            <div
+          {currentDay.slots.map((slot) => {
+            const Row = slot.movieSlug ? Link : 'div'
+            const rowProps = slot.movieSlug ? { href: `/watch/${slot.movieSlug}` } : {}
+            return (
+            <Row
               key={slot.id}
+              {...(rowProps as any)}
               className="flex items-center gap-4 rounded-xl border border-white/[0.06] bg-card/40 p-4 transition hover:bg-card/60"
             >
               {/* Poster placeholder */}
@@ -83,8 +87,9 @@ export default async function SchedulePage({ searchParams }: { searchParams: Pro
                   {slot.price}
                 </span>
               </div>
-            </div>
-          ))}
+            </Row>
+            )
+          })}
         </div>
       ) : (
         <div className="flex min-h-[40vh] flex-col items-center justify-center text-center">

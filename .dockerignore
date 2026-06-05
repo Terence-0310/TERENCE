@@ -25,6 +25,13 @@ docs/
 *.db
 *.db-journal
 
+# ── DB dumps / backups (root-level only — keep prisma migration .sql) ──
+/*.sql
+/*.dump
+
+# ── Personal gift source (served copy lives in public/mychi) ──
+FUN/
+
 # ── Tests / Coverage ──
 tests/
 coverage/

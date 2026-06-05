@@ -25,7 +25,7 @@
 // a movie matched only by description, actor, or genre. When no title
 // matches, an exact actor / director phrase wins next.
 
-import { getClient, getMoviesIndex, isAvailable } from './elastic-client'
+import { getClient, getMoviesIndex, isAvailable, reportUnavailable } from './elastic-client'
 import { prisma } from '@/lib/db/prisma'
 import { sanitizeSearchQuery } from '@/src/be/shared/utils/sanitizer'
 import { logger } from '@/src/be/shared/utils/logger'
@@ -667,6 +667,9 @@ export async function searchMovies(
       }
     }
   } catch (error) {
+    // Trip the breaker so the NEXT search skips ES (fast Prisma) instead of
+    // paying the request timeout again — ES is re-probed after 5s.
+    reportUnavailable()
     log.warn({ err: error instanceof Error ? error.message : error }, 'ES search failed, falling back to Prisma')
   }
 
@@ -701,6 +704,7 @@ export async function suggestMovies(query: string, limit: number = 8): Promise<{
       return { items, source: 'elasticsearch' }
     }
   } catch (error) {
+    reportUnavailable()
     log.warn({ err: error instanceof Error ? error.message : error }, 'ES suggest failed, falling back to Prisma')
   }
 

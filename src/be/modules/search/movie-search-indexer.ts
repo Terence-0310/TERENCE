@@ -268,8 +268,10 @@ export async function indexMovie(movieId: string): Promise<boolean> {
     return false
   }
 
-  // Skip inactive / soft-deleted from the index entirely.
-  if (!movie.isActive || movie.deletedAt) {
+  // Only PUBLISHED movies are searchable. Skip (and evict) inactive,
+  // soft-deleted, or not-yet-published (draft/hidden/archived) movies so
+  // search never surfaces titles the user can't actually open elsewhere.
+  if (!movie.isActive || movie.deletedAt || movie.status !== 'published') {
     await deleteMovieFromIndex(movieId)
     return false
   }
@@ -330,9 +332,9 @@ export async function reindexAll(batchSize: number = 100): Promise<{ total: numb
   // Recreate index
   await createIndex(true)
 
-  // Count total
+  // Count total (published only — must match the search-visible set).
   stats.total = await prisma.movie.count({
-    where: { isActive: true, deletedAt: null },
+    where: { isActive: true, deletedAt: null, status: 'published' },
   })
 
   log.info({ total: stats.total, batchSize }, 'Reindexing movies in batches')
@@ -342,7 +344,7 @@ export async function reindexAll(batchSize: number = 100): Promise<{ total: numb
   while (true) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const findArgs: any = {
-      where: { isActive: true, deletedAt: null },
+      where: { isActive: true, deletedAt: null, status: 'published' },
       include: {
         genres: { include: { genre: { select: { name: true, slug: true } } } },
         countries: { include: { country: { select: { name: true, slug: true } } } },

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { getRecommendationsForUser } from '@/src/be/modules/movies/recommendation.service'
 import { serializeMovieCard } from '@/src/be/modules/movies/serializers'
 import { apiSuccess, apiError } from '@/src/be/shared/api-response'
@@ -14,20 +14,16 @@ export async function GET(req: NextRequest) {
     const limitStr = req.nextUrl.searchParams.get('limit')
     const limit = limitStr ? Math.min(parseInt(limitStr, 10), 30) : 12
 
-    const userId = session?.user?.id
-    if (!userId) {
-      // Trả về gợi ý cho Guest (Fallback trending)
-      const recommendations = await getRecommendationsForUser('guest', limit)
-      const serialized = recommendations.map((m: any) => serializeMovieCard(m))
-      return NextResponse.json(apiSuccess(serialized))
-    }
-
+    // 'guest' triggers the trending fallback inside the service.
+    const userId = session?.user?.id || 'guest'
     const recommendations = await getRecommendationsForUser(userId, limit)
     const serialized = recommendations.map((m: any) => serializeMovieCard(m))
 
-    return NextResponse.json(apiSuccess(serialized))
+    // apiSuccess already returns a NextResponse — return it directly
+    // (wrapping it in NextResponse.json double-encodes the body).
+    return apiSuccess(serialized)
   } catch (error) {
     log.error({ err: error instanceof Error ? error.message : error }, '/v1/movies/recommendations GET error')
-    return NextResponse.json(apiError('Internal Server Error', 500), { status: 500 })
+    return apiError('Internal Server Error', 500)
   }
 }

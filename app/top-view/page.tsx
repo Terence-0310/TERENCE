@@ -6,6 +6,8 @@ import type { Movie } from '@/types/movie'
 import { prisma } from '@/src/be/shared/db/prisma'
 import { MovieCard } from '@/src/fe/components/shared/MovieCard'
 import { TopViewLive } from '@/src/fe/components/home/TopViewLive'
+import { computeTopViewRanking } from '@/src/be/modules/analytics/top-view.service'
+import type { TopViewItem } from '@/src/fe/lib/realtime/hooks'
 
 export const metadata: Metadata = {
   title: 'Bảng Xếp Hạng Top View — Terence',
@@ -190,6 +192,25 @@ export default async function TopViewPage({ searchParams }: { searchParams: Prom
   const { movies, total } = await fetchPage(page)
   const totalPages = Math.max(1, Math.ceil(total / PER_PAGE))
 
+  // Activity ranking (live viewers → views today → all-time) — same logic as
+  // the admin dashboard. SSR-seeded into TopViewLive; updates live via socket.
+  const liveInitial: TopViewItem[] = (await computeTopViewRanking(10)).map((m, i) => ({
+    rank: i + 1,
+    movieId: m.id,
+    viewers: m.liveViewers,
+    viewsToday: m.viewsToday,
+    viewCount: m.viewCount,
+    title: m.title,
+    slug: m.slug,
+    posterUrl:
+      m.posterUrl ||
+      m.thumbUrl ||
+      (m.tmdbId ? `/api/tmdb-image/${m.tmdbId}?type=poster&isTv=${m.contentType === 'series' || m.contentType === 'tv'}` : null),
+    thumbUrl: m.thumbUrl,
+    contentType: m.contentType,
+    tmdbId: m.tmdbId,
+  }))
+
   const isFirstPage = page === 1
   const top3 = isFirstPage ? movies.slice(0, 3) : []
   const restMovies = isFirstPage ? movies.slice(3) : movies
@@ -202,9 +223,9 @@ export default async function TopViewPage({ searchParams }: { searchParams: Prom
     <main className="min-h-screen bg-background pb-24 md:pb-12">
 
       <div className="mx-auto max-w-7xl px-5 md:px-8 lg:px-10">
-        {/* Realtime "đang xem nhiều nhất" — live concurrent viewers. */}
+        {/* Realtime activity board (live viewers → today → all-time). */}
         <div className="pt-10">
-          <TopViewLive />
+          <TopViewLive initial={liveInitial} />
         </div>
 
         {movies.length === 0 ? (
@@ -220,7 +241,7 @@ export default async function TopViewPage({ searchParams }: { searchParams: Prom
               <section className="py-12">
                 <div className="mb-6 flex items-center gap-3">
                   <Crown className="h-5 w-5 text-yellow-500" />
-                  <h2 className="text-xl font-bold tracking-tight text-white">Top 3 dẫn đầu</h2>
+                  <h2 className="text-xl font-bold tracking-tight text-white">Top 3 mọi thời điểm</h2>
                 </div>
                 <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
                   {top3.map((movie, i) => (
