@@ -55,9 +55,11 @@ export function MovieCard({ movie, priority = false, showRank, landscape = false
         <div className={`absolute inset-0 bg-gradient-to-t ${landscape ? 'from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100' : 'from-black/90 via-black/10 to-transparent opacity-80 group-hover:opacity-100'} transition-opacity duration-300`} />
 
         {/* Source badge — top-left. Trailer (TMDB-only, no source yet) vs
-            quality tag (owned/watchable title). */}
-        {!landscape && movie.isExternal && (
-          <div className="absolute left-2 top-2 rounded-lg bg-amber-500/90 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-black backdrop-blur-sm">
+            quality tag (owned/watchable title). The Trailer badge shows in both
+            portrait and landscape so "Phim tương tự" rows mark unwatchable
+            (trailer-only) titles instead of looking like real movies. */}
+        {movie.isExternal && !showRank && (
+          <div className="absolute left-2 top-2 z-10 rounded-lg bg-amber-500/90 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-black backdrop-blur-sm">
             Trailer
           </div>
         )}

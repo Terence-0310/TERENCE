@@ -10,6 +10,7 @@ import { PageViewTracker } from '@/src/fe/components/analytics/PageViewTracker'
 import { prisma } from '@/src/be/shared/db/prisma'
 import { generateSlug } from '@/src/be/modules/admin/validators'
 import { FavoriteButton } from '@/src/fe/components/shared/FavoriteButton'
+import { annotateRelatedWatchable } from '@/src/be/modules/movies/related-annotate'
 import type { Metadata } from 'next'
 
 /**
@@ -125,6 +126,10 @@ export default async function MovieDetailPage({ params }: PageProps) {
   // title mismatch that made a movie un-findable by the name shown on its page.
   if (dbMovie?.title) movie.title = dbMovie.title
   if (dbMovie?.description) movie.overview = dbMovie.description
+
+  // Mark "Phim tương tự" entries: watchable ones link to the player, the rest
+  // get a "Trailer" badge so the row stays rich without misleading the user.
+  movie.relatedMovies = await annotateRelatedWatchable(movie.relatedMovies)
 
   const director = movie.crew?.find((c: any) => c.job === 'Director')
 

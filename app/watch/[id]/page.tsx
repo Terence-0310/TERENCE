@@ -11,6 +11,7 @@ import { PageViewTracker } from '@/src/fe/components/analytics/PageViewTracker'
 
 import { getMovieDetail } from '@/src/be/services/tmdb/movie-service'
 import { getTvDetail } from '@/src/be/services/tmdb/tv-service'
+import { annotateRelatedWatchable } from '@/src/be/modules/movies/related-annotate'
 import { getMoviePlaybackData, getMoviePlaybackByTmdbId, getMoviePlaybackByTitle, getMultiServerSources } from '@/src/be/modules/watch/playback.service'
 import { resolveMovieSource } from '@/src/be/services/video-source'
 import { MovieRow } from '@/src/fe/components/shared/MovieRow'
@@ -130,6 +131,12 @@ export default async function WatchPage({ params, searchParams }: PageProps) {
   const movieSlug = dbPlayback?.movie?.slug || id
   const dbMovieId = dbPlayback?.movie?.id || id
   const director = tmdbMovie?.crew?.find((c) => c.job === 'Director')
+
+  // Mark "Phim tương tự" entries so trailer-only titles show a "Trailer" badge
+  // (watchable ones link straight to the player).
+  if (movie?.relatedMovies?.length) {
+    movie.relatedMovies = await annotateRelatedWatchable(movie.relatedMovies)
+  }
 
   // Back-link target. Derive it from the DB movie's own identity rather than
   // `tmdbMovie`: that record is fetched from the TMDB *movie* endpoint using the
