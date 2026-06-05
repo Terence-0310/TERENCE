@@ -19,6 +19,21 @@ export interface Movie {
   runtime: number | null
   runtimeFormatted: string
   mediaType: 'movie' | 'tv'
+
+  // ── Optional catalog/search enrichment (set by hybrid search) ──────
+  // Present when the item comes from our own catalog (Elasticsearch) so the
+  // card can route to the player and show full info. Absent for plain TMDB
+  // discovery results.
+  slug?: string
+  /** Override the card's link target (e.g. /watch/<slug> for owned titles). */
+  customUrl?: string
+  /** true ⇒ TMDB-only result with no streaming source yet (trailer only). */
+  isExternal?: boolean
+  quality?: string | null
+  director?: string | null
+  castNames?: string[]
+  /** e.g. "Tập 12/24" or "Full" — shown on series cards. */
+  episodeLabel?: string | null
 }
 
 export interface MovieDetail extends Movie {

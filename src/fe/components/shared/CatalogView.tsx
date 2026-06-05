@@ -101,7 +101,7 @@ export function CatalogView({
         {result.items.length > 0 ? (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
             {result.items.map((m, i) => (
-              <div key={m.id} className="animate-card-reveal relative hover:z-[60]" style={{ '--i': i } as React.CSSProperties}>
+              <div key={m.customUrl || `${m.mediaType}-${m.id}-${i}`} className="animate-card-reveal relative hover:z-[60]" style={{ '--i': i } as React.CSSProperties}>
                 <MovieCard movie={m} />
               </div>
             ))}

@@ -31,6 +31,7 @@ interface MovieForIndex {
   language: string | null
   thumbUrl: string | null
   posterUrl: string | null
+  backdropUrl: string | null
   rating: number | null
   viewCount: number
   episodeCurrent: string | null
@@ -179,6 +180,7 @@ export function buildDocument(movie: MovieForIndex) {
     language: movie.language,
     thumbUrl: movie.thumbUrl,
     posterUrl: movie.posterUrl,
+    backdropUrl: movie.backdropUrl,
     rating: movie.rating || 0,
     viewCount: movie.viewCount || 0,
     // Popularity is a simple derived float so the function_score can

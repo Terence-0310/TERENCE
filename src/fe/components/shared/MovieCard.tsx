@@ -54,6 +54,19 @@ export function MovieCard({ movie, priority = false, showRank, landscape = false
         {/* Hover gradient or Vignette */}
         <div className={`absolute inset-0 bg-gradient-to-t ${landscape ? 'from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100' : 'from-black/90 via-black/10 to-transparent opacity-80 group-hover:opacity-100'} transition-opacity duration-300`} />
 
+        {/* Source badge — top-left. Trailer (TMDB-only, no source yet) vs
+            quality tag (owned/watchable title). */}
+        {!landscape && movie.isExternal && (
+          <div className="absolute left-2 top-2 rounded-lg bg-amber-500/90 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-black backdrop-blur-sm">
+            Trailer
+          </div>
+        )}
+        {!landscape && !movie.isExternal && movie.quality && (
+          <div className="absolute left-2 top-2 rounded-lg bg-primary/90 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-teal-950 backdrop-blur-sm">
+            {movie.quality}
+          </div>
+        )}
+
         {/* Rating badge — top-right */}
         {!landscape && movie.voteAverage > 0 && (
           <div className="absolute right-2 top-2 flex items-center gap-1 rounded-lg bg-black/60 px-2 py-1 text-[11px] font-bold text-primary backdrop-blur-sm border border-primary/20">
@@ -158,10 +171,22 @@ export function MovieCard({ movie, priority = false, showRank, landscape = false
             {movie.year > 0 && <span>{movie.year}</span>}
             {movie.runtimeFormatted && <span>{movie.runtimeFormatted}</span>}
             <span className="border border-white/30 px-1.5 py-[1px] rounded text-[10px] text-white/70 uppercase leading-none">{movie.mediaType === 'tv' ? 'Phim Bộ' : 'Phim Lẻ'}</span>
+            {movie.quality && !movie.isExternal && (
+              <span className="rounded bg-primary/20 px-1.5 py-[1px] text-[10px] font-bold uppercase leading-none text-primary">{movie.quality}</span>
+            )}
+            {movie.episodeLabel && (
+              <span className="border border-white/30 px-1.5 py-[1px] rounded text-[10px] text-white/70 leading-none">{movie.episodeLabel}</span>
+            )}
+            {movie.isExternal && (
+              <span className="rounded bg-amber-500/20 px-1.5 py-[1px] text-[10px] font-bold uppercase leading-none text-amber-400">Trailer</span>
+            )}
           </div>
 
           <div className="mt-0.5">
             <h3 className="font-bold text-white text-[15px] leading-tight line-clamp-1">{movie.title}</h3>
+            {movie.originalTitle && movie.originalTitle !== movie.title && (
+              <p className="text-[11px] text-white/45 line-clamp-1">{movie.originalTitle}</p>
+            )}
           </div>
 
           {movie.genres && movie.genres.length > 0 && (
@@ -175,6 +200,20 @@ export function MovieCard({ movie, priority = false, showRank, landscape = false
                  </span>
                ))}
             </div>
+          )}
+
+          {/* Full info — director + lead cast (from our catalog). */}
+          {movie.director && (
+            <p className="text-[11px] leading-snug text-white/55 line-clamp-1">
+              <span className="text-white/40">Đạo diễn: </span>
+              <span className="text-white/80">{movie.director}</span>
+            </p>
+          )}
+          {movie.castNames && movie.castNames.length > 0 && (
+            <p className="text-[11px] leading-snug text-white/55 line-clamp-1">
+              <span className="text-white/40">Diễn viên: </span>
+              <span className="text-white/80">{movie.castNames.join(', ')}</span>
+            </p>
           )}
         </div>
       </div>

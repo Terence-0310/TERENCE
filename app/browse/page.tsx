@@ -1,9 +1,70 @@
-import { searchMovies as searchMoviesES, isLikelyPersonName } from '@/src/be/modules/search/movie-search-service'
+import { searchMovies as searchMoviesES, isLikelyPersonName, type SearchResultItem } from '@/src/be/modules/search/movie-search-service'
 import { getTrending, getPopular, getTopRated, getNowPlaying, getUpcoming, getMoviesByGenre, getMoviesByCountry, getGenres } from '@/src/be/services/tmdb/movie-service'
+import { searchMovies as searchTmdbMovies } from '@/src/be/services/tmdb/search-service'
+import { searchTv as searchTmdbTv } from '@/src/be/services/tmdb/tv-service'
 import { searchTmdbPersonWithCredits } from '@/src/be/modules/tmdb/legacy/person-search'
 import { CatalogView } from '@/src/fe/components/shared/CatalogView'
 import type { Metadata } from 'next'
-import type { Genre } from '@/types/movie'
+import type { Genre, Movie } from '@/types/movie'
+
+// Map one Elasticsearch hit (our owned, watchable catalog) into the Movie
+// shape the catalog grid renders. `customUrl` points straight at the player
+// and the enrichment fields (director / cast / quality / episodes) let the
+// card show full info. isExternal:false marks it as a real, watchable title.
+function esItemToMovie(m: SearchResultItem): Movie {
+  return {
+    id: (m.tmdbId || m.slug) as unknown as number,
+    title: m.title,
+    originalTitle: m.originalTitle || m.title,
+    overview: '',
+    posterUrl: m.posterUrl || m.thumbUrl || null,
+    backdropUrl: m.backdropUrl || m.thumbUrl || m.posterUrl || null,
+    releaseDate: m.year ? `${m.year}-01-01` : '',
+    year: m.year || 0,
+    voteAverage: Math.round((m.rating || 0) * 10) / 10,
+    voteCount: 0,
+    popularity: 0,
+    genreIds: [],
+    genres: m.categories.map((c) => ({ id: 0, name: c, slug: c })),
+    runtime: 0,
+    runtimeFormatted: '',
+    mediaType: m.contentType === 'series' ? 'tv' : 'movie',
+    slug: m.slug,
+    customUrl: `/watch/${m.slug}`,
+    isExternal: false,
+    quality: m.quality,
+    director: m.director,
+    castNames: m.actors ? m.actors.split(',').map((s) => s.trim()).filter(Boolean).slice(0, 4) : [],
+    episodeLabel: m.contentType === 'series'
+      ? (m.episodeCurrent || (m.episodeTotal && m.episodeTotal > 1 ? `${m.episodeTotal} tập` : null))
+      : null,
+  }
+}
+
+// Normalise a TMDB discovery item (movie OR tv — the tv mapper uses
+// `firstAirDate` and omits genres/runtime) into the Movie shape, flagged as a
+// trailer-only external result.
+function externalToMovie(m: Record<string, unknown>): Movie {
+  return {
+    id: m.id as number,
+    title: (m.title as string) || '',
+    originalTitle: (m.originalTitle as string) || (m.title as string) || '',
+    overview: (m.overview as string) || '',
+    posterUrl: (m.posterUrl as string) ?? null,
+    backdropUrl: (m.backdropUrl as string) ?? null,
+    releaseDate: (m.releaseDate as string) || (m.firstAirDate as string) || '',
+    year: (m.year as number) || 0,
+    voteAverage: (m.voteAverage as number) || 0,
+    voteCount: (m.voteCount as number) || 0,
+    popularity: (m.popularity as number) || 0,
+    genreIds: (m.genreIds as number[]) || [],
+    genres: (m.genres as Genre[]) || [],
+    runtime: (m.runtime as number) ?? null,
+    runtimeFormatted: (m.runtimeFormatted as string) || '',
+    mediaType: (m.mediaType as 'movie' | 'tv') || 'movie',
+    isExternal: true,
+  }
+}
 
 interface PageProps {
   searchParams: Promise<{ q?: string; genre?: string; category?: string; page?: string; country?: string }>
@@ -79,31 +140,51 @@ export default async function BrowsePage({ searchParams }: PageProps) {
         }
         title = `Phim của ${personResult.person.name}`
       } else {
+        // ── Hybrid search ───────────────────────────────────────────
+        // 1) Elasticsearch = our watchable catalog (ranked, full info) → first.
+        // 2) TMDB title search = "đầy đủ" supplement so titles we don't own yet
+        //    (trailer-only, e.g. brand-new films) are still findable. Deduped
+        //    against ES by tmdbId and flagged isExternal so the card labels them.
         const esResult = await searchMoviesES(query, page, 20)
+        const esIds = new Set(esResult.items.map((i) => i.tmdbId).filter(Boolean) as number[])
 
-        result = {
-          items: esResult.items.map((m) => ({
-            id: (m.tmdbId || m.slug) as string | number,
-            title: m.title,
-            originalTitle: m.originalTitle || m.title,
-            overview: '',
-            posterUrl: m.posterUrl || m.thumbUrl,
-            backdropUrl: m.thumbUrl || m.posterUrl,
-            releaseDate: m.year ? `${m.year}-01-01` : '',
-            year: m.year || 0,
-            voteAverage: m.rating || 0,
-            voteCount: 0,
-            popularity: 0,
-            genreIds: [],
-            genres: m.categories.map((c) => ({ id: 0, name: c, slug: c })),
-            runtime: 0,
-            runtimeFormatted: '',
-            mediaType: (m.contentType === 'movie' ? 'movie' : 'tv') as 'movie' | 'tv',
-          })),
-          page: esResult.page,
-          totalPages: esResult.totalPages,
-          totalResults: esResult.total,
-          source: esResult.source,
+        // Fetch the TMDB supplement on page 1 always; on deeper pages only when
+        // ES has nothing (keeps pagination stable when ES is the primary list).
+        let externals: Movie[] = []
+        let tmdbTotalPages = 0
+        let tmdbTotalResults = 0
+        if (page === 1 || esResult.items.length === 0) {
+          const [mv, tv] = await Promise.all([
+            searchTmdbMovies(query, page).catch(() => null),
+            searchTmdbTv(query, page).catch(() => null),
+          ])
+          const seen = new Set<number>()
+          externals = ([...(mv?.items || []), ...(tv?.items || [])] as unknown as Array<Record<string, unknown>>)
+            .filter((m) => {
+              const id = m.id as number
+              return id && !esIds.has(id) && !seen.has(id) && (seen.add(id), true)
+            })
+            .sort((a, b) => ((b.popularity as number) || 0) - ((a.popularity as number) || 0))
+            .map(externalToMovie)
+          tmdbTotalPages = Math.max(mv?.totalPages || 0, tv?.totalPages || 0)
+          tmdbTotalResults = (mv?.totalResults || 0) + (tv?.totalResults || 0)
+        }
+
+        const esMapped = esResult.items.map(esItemToMovie)
+
+        if (esMapped.length === 0) {
+          // Nothing watchable → show the TMDB catalogue so the title is never
+          // "not found" (the click-through detail page works via TMDB).
+          result = { items: externals, page, totalPages: tmdbTotalPages, totalResults: tmdbTotalResults, source: 'tmdb' }
+        } else {
+          // Watchable first, then up to 12 trailer-only extras on page 1.
+          result = {
+            items: page === 1 ? [...esMapped, ...externals.slice(0, 12)] : esMapped,
+            page: esResult.page,
+            totalPages: esResult.totalPages,
+            totalResults: esResult.total,
+            source: esResult.source,
+          }
         }
 
         if (isEasterEgg && page === 1) {

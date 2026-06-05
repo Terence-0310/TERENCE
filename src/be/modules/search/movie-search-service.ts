@@ -63,6 +63,12 @@ export interface SearchResultItem {
   episodeTotal: number | null
   categories: string[]
   countries: string[]
+  // Enrichment for richer result cards — populated from the index so the
+  // catalog grid can show full info (director / lead cast / backdrop) without
+  // an extra DB round-trip.
+  backdropUrl: string | null
+  director: string | null
+  actors: string | null
   score: number
 }
 
@@ -317,8 +323,9 @@ async function searchElastic(
     query: esQuery,
     _source: [
       'id', 'slug', 'title', 'originalTitle', 'year', 'tmdbId', 'contentType',
-      'quality', 'language', 'thumbUrl', 'posterUrl', 'rating',
+      'quality', 'language', 'thumbUrl', 'posterUrl', 'backdropUrl', 'rating',
       'episodeCurrent', 'episodeTotal', 'categories', 'countries',
+      'directorText', 'actorText',
     ] as string[],
   })
 
@@ -331,6 +338,9 @@ async function searchElastic(
     rating: (hit._source.rating as number) || 0,
     categories: (hit._source.categories as string[]) || [],
     countries: (hit._source.countries as string[]) || [],
+    backdropUrl: (hit._source.backdropUrl as string) || null,
+    director: (hit._source.directorText as string) || null,
+    actors: (hit._source.actorText as string) || null,
   })) as SearchResultItem[]
 
   return {
@@ -500,10 +510,11 @@ async function searchPrismaFallback(
   const select = {
     id: true, slug: true, title: true, originalTitle: true, year: true,
     tmdbId: true, contentType: true, quality: true, language: true,
-    thumbUrl: true, posterUrl: true, rating: true,
+    thumbUrl: true, posterUrl: true, backdropUrl: true, rating: true,
     episodeCurrent: true, episodeTotal: true,
     genres:    { include: { genre:   { select: { slug: true } } } },
     countries: { include: { country: { select: { slug: true } } } },
+    people: { include: { person: { select: { name: true } } }, orderBy: { sortOrder: 'asc' } },
   } as const
 
   // Pull `take` rows starting from `skip`. To honour the two-tier order
@@ -548,6 +559,9 @@ async function searchPrismaFallback(
       episodeTotal: m.episodeTotal,
       categories: m.genres?.map((c) => c.genre.slug) || [],
       countries: m.countries.map((c) => c.country.slug),
+      backdropUrl: m.backdropUrl,
+      director: m.people?.filter((p) => p.role === 'director').map((p) => p.person.name).join(', ') || null,
+      actors: m.people?.filter((p) => p.role === 'actor').map((p) => p.person.name).join(', ') || null,
       score: 0,
     })),
     // Prefer broad total so pagination doesn't surprise the caller.
