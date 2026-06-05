@@ -449,7 +449,10 @@ export default async function WatchPage({ params, searchParams }: PageProps) {
                   Chi tiết
                 </Link>
               )}
-              <WatchActionButtons shareTitle={`Xem ${dbPlayback?.movie?.title || tmdbMovie?.title || 'phim'} — Terence`} />
+              <WatchActionButtons
+                shareTitle={`Xem ${dbPlayback?.movie?.title || tmdbMovie?.title || 'phim'} — Terence`}
+                movieId={dbPlayback?.movie?.id ?? tmdbMovie?.id}
+              />
               <Link
                 href="/xem-chung"
                 className="inline-flex items-center gap-1.5 rounded-lg bg-primary/10 px-4 py-2.5 text-xs font-medium text-primary border border-primary/20 transition hover:bg-primary/20"

@@ -1,16 +1,18 @@
 'use client'
 
-import { Heart, Share2 } from 'lucide-react'
+import { Share2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { FavoriteButton } from '@/src/fe/components/shared/FavoriteButton'
 
 interface Props {
   shareTitle: string
+  /** DB id / slug / tmdbId of the movie — enables the favorite toggle. */
+  movieId?: string | number
 }
 
-// Replaces the previous title-only "dead" buttons in /watch/[id]. "Chia sẻ"
-// now uses the Web Share API with a clipboard fallback. "Yêu thích" is
-// rendered disabled with a tooltip until the wishlist backend exists.
-export function WatchActionButtons({ shareTitle }: Props) {
+// Buttons in /watch/[id]. "Chia sẻ" uses the Web Share API with a clipboard
+// fallback. "Yêu thích" toggles via /api/v1/favorites.
+export function WatchActionButtons({ shareTitle, movieId }: Props) {
   const handleShare = async () => {
     if (typeof window === 'undefined') return
     const url = window.location.href
@@ -33,15 +35,7 @@ export function WatchActionButtons({ shareTitle }: Props) {
 
   return (
     <>
-      <button
-        type="button"
-        disabled
-        aria-label="Yêu thích (đang phát triển)"
-        title="Tính năng yêu thích đang được phát triển"
-        className="rounded-lg bg-white/5 p-2.5 text-white/25 border border-white/[0.06] cursor-not-allowed"
-      >
-        <Heart className="h-4 w-4" />
-      </button>
+      {movieId != null && <FavoriteButton movieId={movieId} />}
       <button
         type="button"
         onClick={handleShare}

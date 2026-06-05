@@ -9,6 +9,7 @@ import { RelatedNews } from '@/src/fe/components/news/RelatedNews'
 import { PageViewTracker } from '@/src/fe/components/analytics/PageViewTracker'
 import { prisma } from '@/src/be/shared/db/prisma'
 import { generateSlug } from '@/src/be/modules/admin/validators'
+import { FavoriteButton } from '@/src/fe/components/shared/FavoriteButton'
 import type { Metadata } from 'next'
 
 /**
@@ -262,6 +263,10 @@ export default async function MovieDetailPage({ params }: PageProps) {
                   Trailer
                 </a>
               )}
+              <FavoriteButton
+                movieId={dbMovie?.id ?? String(movie.id)}
+                className="inline-flex items-center justify-center rounded-xl bg-white/5 px-5 py-3.5 text-white/70 border border-white/10 transition hover:bg-white/10 hover:text-white"
+              />
             </div>
 
             {/* Overview */}
