@@ -185,34 +185,27 @@ export async function upsertEpisodes(
 ): Promise<number> {
   let count = 0
   for (const ep of episodes) {
-    const existing = await syncPrisma.episode.findFirst({
+    await syncPrisma.episode.upsert({
       where: {
-        movieId,
-        episodeSlug: ep.episodeSlug,
-        serverName: ep.serverName,
-      },
-    })
-
-    if (existing) {
-      await syncPrisma.episode.update({
-        where: { id: existing.id },
-        data: {
-          sourceName: ep.sourceName,
-          episodeName: ep.episodeName,
+        movieId_episodeNumber_serverName: {
+          movieId,
           episodeNumber: ep.episodeNumber,
-          episodeOrder: ep.episodeOrder,
-          streamType: ep.streamType,
-          streamUrl: ep.streamUrl,
-          sourceUrl: ep.sourceUrl,
-          status: ep.status,
-          isActive: ep.isActive,
+          serverName: ep.serverName,
         },
-      })
-    } else {
-      await syncPrisma.episode.create({
-        data: { movieId, ...ep },
-      })
-    }
+      },
+      update: {
+        sourceName: ep.sourceName,
+        episodeName: ep.episodeName,
+        episodeSlug: ep.episodeSlug,
+        episodeOrder: ep.episodeOrder,
+        streamType: ep.streamType,
+        streamUrl: ep.streamUrl,
+        sourceUrl: ep.sourceUrl,
+        status: ep.status,
+        isActive: ep.isActive,
+      },
+      create: { movieId, ...ep },
+    })
     count++
   }
   return count

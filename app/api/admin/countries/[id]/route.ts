@@ -3,7 +3,7 @@ import { prisma } from '@/src/be/shared/db/prisma'
 import { requireAdmin, logAdminAction } from '@/src/be/modules/admin/admin.utils'
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await requireAdmin('editor')
+  const auth = await requireAdmin('metadata.manage')
   if ('error' in auth) return auth.error
   const { id } = await params
   const body = await request.json()
@@ -13,7 +13,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await requireAdmin('admin')
+  const auth = await requireAdmin('metadata.delete')
   if ('error' in auth) return auth.error
   const { id } = await params
   await prisma.movieCountry.deleteMany({ where: { countryId: id } })

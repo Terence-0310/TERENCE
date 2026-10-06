@@ -9,10 +9,22 @@ const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/webm']
 const ALLOWED_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp']
 
+// Extension is always derived from the verified type — never from the
+// client's filename — so an upload can't land as e.g. `.html` and be served
+// from our origin.
+const EXTENSION_BY_MIME: Record<string, string> = {
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+  'video/mp4': '.mp4',
+  'video/webm': '.webm',
+}
+
 // ─── Size limits ────────────────────────────────────────────────
 const MAX_MOVIE_IMAGE_SIZE = 5 * 1024 * 1024  // 5MB for movie posters/backdrops/thumbnails
 const MAX_GENERAL_IMAGE_SIZE = 10 * 1024 * 1024 // 10MB general
 const MAX_VIDEO_SIZE = 500 * 1024 * 1024       // 500MB
+export const MAX_AVATAR_SIZE = 5 * 1024 * 1024 // 5MB
 
 export type MovieMediaField = 'poster' | 'backdrop' | 'thumbnail'
 
@@ -37,9 +49,30 @@ function sanitizeFileName(name: string): string {
     .slice(0, 200)
 }
 
-function generateUniqueFileName(originalName: string): string {
-  const ext = path.extname(originalName).toLowerCase()
-  const base = path.basename(originalName, ext)
+/**
+ * Detect the real file type from its first bytes (magic numbers). Returns
+ * null for anything that isn't one of the allowed image/video formats.
+ */
+function sniffMimeType(buf: Buffer): string | null {
+  if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'image/jpeg'
+  if (buf.length >= 8 && buf.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return 'image/png'
+  if (buf.length >= 12 && buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP') return 'image/webp'
+  if (buf.length >= 12 && buf.toString('ascii', 4, 8) === 'ftyp') return 'video/mp4'
+  if (buf.length >= 4 && buf[0] === 0x1a && buf[1] === 0x45 && buf[2] === 0xdf && buf[3] === 0xa3) return 'video/webm'
+  return null
+}
+
+/** Keep only safe path segments (letters, digits, `_`, `-`) — blocks `..` traversal. */
+function sanitizeSubDir(subDir: string): string {
+  const segments = subDir
+    .split(/[\\/]+/)
+    .map((seg) => seg.replace(/[^a-zA-Z0-9_-]/g, ''))
+    .filter(Boolean)
+  return segments.length > 0 ? segments.join('/') : 'general'
+}
+
+function generateUniqueFileName(originalName: string, ext: string): string {
+  const base = path.basename(originalName, path.extname(originalName))
   const timestamp = Date.now()
   const random = Math.random().toString(36).substring(2, 8)
   return `${sanitizeFileName(base)}_${timestamp}_${random}${ext}`
@@ -115,9 +148,13 @@ export async function handleMovieMediaUpload(
   await ensureDir(targetDir)
 
   // Generate secure filename
-  const fileName = generateMovieMediaFileName(movieId, file.name)
-  const filePath = path.join(targetDir, fileName)
   const buffer = Buffer.from(await file.arrayBuffer())
+  const sniffed = sniffMimeType(buffer)
+  if (!sniffed || !ALLOWED_IMAGE_TYPES.includes(sniffed)) {
+    throw new Error('Nội dung file không phải ảnh JPEG/PNG/WebP hợp lệ')
+  }
+  const fileName = generateMovieMediaFileName(movieId, `x${EXTENSION_BY_MIME[sniffed]}`)
+  const filePath = path.join(targetDir, fileName)
 
   // Write file
   await fs.writeFile(filePath, buffer)
@@ -129,7 +166,7 @@ export async function handleMovieMediaUpload(
     data: {
       fileName,
       originalName: file.name,
-      mimeType: file.type,
+      mimeType: sniffed,
       size: file.size,
       path: filePath,
       url,
@@ -137,35 +174,49 @@ export async function handleMovieMediaUpload(
     },
   })
 
-  return { fileName, originalName: file.name, mimeType: file.type, size: file.size, path: filePath, url }
+  return { fileName, originalName: file.name, mimeType: sniffed, size: file.size, path: filePath, url }
 }
 
 // ─── General Upload (legacy support) ────────────────────────────
 
+export interface FileUploadOptions {
+  /** Reject videos (e.g. avatars). */
+  imagesOnly?: boolean
+  /** Override the size cap in bytes. */
+  maxSize?: number
+}
+
 export async function handleFileUpload(
   file: File,
-  subDir: string = 'general',
-  uploadedBy?: string
+  rawSubDir: string = 'general',
+  uploadedBy?: string,
+  options: FileUploadOptions = {},
 ): Promise<UploadResult> {
-  const mimeType = file.type
-  const isImage = ALLOWED_IMAGE_TYPES.includes(mimeType)
-  const isVideo = ALLOWED_VIDEO_TYPES.includes(mimeType)
+  const buffer = Buffer.from(await file.arrayBuffer())
+  // Trust the bytes, not the client-declared Content-Type.
+  const mimeType = sniffMimeType(buffer)
+  const isImage = !!mimeType && ALLOWED_IMAGE_TYPES.includes(mimeType)
+  const isVideo = !!mimeType && ALLOWED_VIDEO_TYPES.includes(mimeType)
 
-  if (!isImage && !isVideo) {
-    throw new Error(`Loại file không được hỗ trợ: ${mimeType}`)
+  if (!mimeType || (!isImage && !isVideo) || (options.imagesOnly && !isImage)) {
+    throw new Error(
+      options.imagesOnly
+        ? 'Chỉ chấp nhận ảnh JPEG, PNG hoặc WebP'
+        : `Loại file không được hỗ trợ: ${file.type || 'không xác định'}`,
+    )
   }
 
-  const maxSize = isImage ? MAX_GENERAL_IMAGE_SIZE : MAX_VIDEO_SIZE
+  const maxSize = options.maxSize ?? (isImage ? MAX_GENERAL_IMAGE_SIZE : MAX_VIDEO_SIZE)
   if (file.size > maxSize) {
     throw new Error(`File quá lớn. Tối đa ${Math.round(maxSize / 1024 / 1024)}MB`)
   }
 
+  const subDir = sanitizeSubDir(rawSubDir)
   const targetDir = path.join(UPLOAD_DIR, subDir)
   await ensureDir(targetDir)
 
-  const fileName = generateUniqueFileName(file.name)
+  const fileName = generateUniqueFileName(file.name, EXTENSION_BY_MIME[mimeType])
   const filePath = path.join(targetDir, fileName)
-  const buffer = Buffer.from(await file.arrayBuffer())
 
   await fs.writeFile(filePath, buffer)
 

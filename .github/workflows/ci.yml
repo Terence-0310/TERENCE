@@ -32,16 +32,18 @@ jobs:
 
       - name: TypeScript check
         run: npx tsc --noEmit --pretty
-        continue-on-error: true
 
       - name: Lint
         run: npm run lint
-        continue-on-error: true
+
+      - name: Unit & integration tests
+        run: npm test
 
       - name: Build
         run: npm run build
         env:
-          DATABASE_URL: 'file:./prisma/dev.db'
+          DATABASE_URL: 'postgresql://ci:ci@localhost:5432/ci?schema=public'
+          NEXTAUTH_SECRET: 'ci-placeholder-secret'
           TMDB_API_KEY: 'ci-placeholder'
           TMDB_READ_ACCESS_TOKEN: 'ci-placeholder'
           TMDB_BASE_URL: 'https://api.themoviedb.org/3'

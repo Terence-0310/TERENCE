@@ -25,6 +25,7 @@ export const PERMISSIONS = {
   USER_UPDATE: 'user.update',
   USER_BLOCK: 'user.block',
   USER_ROLE_UPDATE: 'user.role.update',
+  USER_DELETE: 'user.delete',
   USER_PROFILE_READ: 'profile.read',
   USER_PROFILE_UPDATE: 'profile.update',
 
@@ -34,6 +35,16 @@ export const PERMISSIONS = {
   ADMINLOG_READ: 'adminlog.read',
   SETTINGS_READ: 'settings.read',
   SETTINGS_UPDATE: 'settings.update',
+
+  // Content & operations
+  NEWS_MANAGE: 'news.manage',
+  NEWS_DELETE: 'news.delete',
+  METADATA_MANAGE: 'metadata.manage', // genres, countries
+  METADATA_DELETE: 'metadata.delete',
+  UPLOAD_MANAGE: 'upload.manage',
+  ADS_MANAGE: 'ads.manage',
+  NOTIFICATION_BROADCAST: 'notification.broadcast',
+  SYSTEM_MANAGE: 'system.manage', // sync jobs, Elasticsearch, Redis
 
   // Generic
   WATCH_HISTORY_READ: 'watch-history.read',

@@ -12,6 +12,7 @@ import next from 'next'
 import { Server as SocketIOServer } from 'socket.io'
 import { registerWatchPartyHandlers } from './src/be/modules/watch-party/watch-party.socket'
 import { registerRealtimeHandlers } from './src/be/shared/realtime/socket-handlers'
+import { resolveSocketUser, getSocketUser } from './src/be/shared/realtime/socket-auth'
 import { expireStaleOrders } from './src/be/services/topup-order.service'
 import { validateEnv } from './lib/env'
 import { logger } from './src/be/shared/utils/logger'
@@ -74,23 +75,26 @@ app.prepare().then(() => {
   // Store global reference
   ;(global as any)._io = io
 
+  // ── Handshake auth ──
+  // Resolve the user from the NextAuth session cookie. Anonymous sockets are
+  // allowed (live viewer counts); handlers must use socket.data.user, never a
+  // client-supplied userId.
+  io.use(async (socket, nextFn) => {
+    socket.data.user = await resolveSocketUser(socket)
+    nextFn()
+  })
+
   // ── Connection handler ──
   io.on('connection', (socket) => {
     if (dev) {
       console.log(`[Socket.IO] Connected: ${socket.id}`)
     }
 
-    // Per-user notification room — joined when the client identifies itself.
+    // Per-user notification room — joined only for the authenticated user.
     // Used by webhook handlers (e.g. TCoin top-up paid) to push events to the
     // owning user without scanning all sockets. See src/be/shared/realtime/notify.ts.
-    socket.on('user:identify', (payload: unknown) => {
-      const userId =
-        typeof payload === 'object' && payload !== null && 'userId' in payload
-          ? (payload as { userId: unknown }).userId
-          : null
-      if (typeof userId !== 'string' || userId.length === 0 || userId.length > 64) return
-      socket.join(`user:${userId}`)
-    })
+    const authUser = getSocketUser(socket)
+    if (authUser) socket.join(`user:${authUser.id}`)
 
     // Register watch party handlers
     registerWatchPartyHandlers(io, socket)

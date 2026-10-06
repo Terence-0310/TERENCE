@@ -14,7 +14,7 @@ const FIELD_MAP: Record<string, { dbField: string; mediaField: MovieMediaField }
 
 // POST /api/admin/uploads/movie-media — unified upload for poster/backdrop/thumbnail
 export async function POST(req: NextRequest) {
-  const auth = await requireAdmin('uploads.manage')
+  const auth = await requireAdmin('upload.manage')
   if (auth instanceof Response) return auth
 
   try {

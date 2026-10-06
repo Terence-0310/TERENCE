@@ -54,8 +54,7 @@ export const joinRoomSchema = z.object({
     .min(1, 'displayName is required')
     .max(50)
     .transform((v) => v.trim()),
-  userId: z.string().nullable().optional(),
-  isApproved: z.boolean().optional(),
+  userId: z.string().nullable().optional(), // ignored — identity comes from the session
 })
 
 export type JoinRoomBody = z.infer<typeof joinRoomSchema>
@@ -111,7 +110,7 @@ export const updateRoomSchema = z.object({
   isLocked: z.boolean().optional(),
   // TCoin room-theme perk: host-selected theme id (validated against the registry).
   theme: z.string().max(40).optional(),
-  participantId: z.string().optional() // required if we want to enforce host-only check
+  participantId: z.string().min(1, 'participantId is required'), // acting host / co-host
 })
 
 export type UpdateRoomBody = z.infer<typeof updateRoomSchema>

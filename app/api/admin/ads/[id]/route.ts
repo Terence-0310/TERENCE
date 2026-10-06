@@ -15,7 +15,7 @@ export const dynamic = 'force-dynamic'
 interface RouteCtx { params: Promise<{ id: string }> }
 
 export async function GET(_req: NextRequest, ctx: RouteCtx) {
-  const guard = await requireAdmin()
+  const guard = await requireAdmin('ads.manage')
   if (guard instanceof NextResponse) return guard
   const { id } = await ctx.params
   const ad = await getAdById(id)
@@ -24,7 +24,7 @@ export async function GET(_req: NextRequest, ctx: RouteCtx) {
 }
 
 export async function PATCH(req: NextRequest, ctx: RouteCtx) {
-  const guard = await requireAdmin()
+  const guard = await requireAdmin('ads.manage')
   if (guard instanceof NextResponse) return guard
   const { id } = await ctx.params
 
@@ -44,7 +44,7 @@ export async function PATCH(req: NextRequest, ctx: RouteCtx) {
 }
 
 export async function DELETE(_req: NextRequest, ctx: RouteCtx) {
-  const guard = await requireAdmin()
+  const guard = await requireAdmin('ads.manage')
   if (guard instanceof NextResponse) return guard
   const { id } = await ctx.params
   try {

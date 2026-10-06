@@ -14,7 +14,7 @@ const refundSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
-    const authRes = await requireAdmin()
+    const authRes = await requireAdmin('payment.update')
     if (authRes instanceof Response) return authRes // 401/403
 
     const adminId = authRes.user.id

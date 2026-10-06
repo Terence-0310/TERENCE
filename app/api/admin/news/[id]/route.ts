@@ -23,7 +23,7 @@ const newsUpdateSchema = z.object({
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const auth = await requireAdmin('editor')
+    const auth = await requireAdmin('news.manage')
     if ('error' in auth) return auth.error
     const { id } = await params
 
@@ -39,7 +39,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const auth = await requireAdmin('editor')
+    const auth = await requireAdmin('news.manage')
     if ('error' in auth) return auth.error
     const { id } = await params
 
@@ -76,7 +76,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const auth = await requireAdmin('admin')
+    const auth = await requireAdmin('news.delete')
     if ('error' in auth) return auth.error
     const { id } = await params
     await prisma.newsPost.delete({ where: { id } })

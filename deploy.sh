@@ -46,7 +46,10 @@ echo -e "${GREEN}✓${NC} File .env tồn tại"
 # ── 4. Install dependencies ──
 echo ""
 echo "📦 Installing dependencies..."
-npm install --production=false || { echo -e "${RED}✗ npm install thất bại${NC}"; exit 1; }
+# `npm ci` installs exactly what package-lock.json pins (a plain `npm install`
+# can float e.g. livekit-client to a version that breaks the build).
+# --legacy-peer-deps matches how the lock file was generated (same as CI/Docker).
+npm ci --legacy-peer-deps || { echo -e "${RED}✗ npm ci thất bại${NC}"; exit 1; }
 echo -e "${GREEN}✓${NC} Dependencies đã cài xong"
 
 # ── 5. Generate Prisma client ──
@@ -60,6 +63,8 @@ echo ""
 echo "🗄️  Running Prisma migrations..."
 npx prisma migrate deploy || {
     echo "  ⚠️ Migration failed! Check DATABASE_URL in .env"
+    echo "  ⚠️ Lỗi P3005 (DB tạo bằng db push, chưa có lịch sử migration) → chạy một lần:"
+    echo "     npx prisma migrate resolve --applied 20261006000000_baseline"
     exit 1
 }
 echo -e "${GREEN}✓${NC} Database ready"

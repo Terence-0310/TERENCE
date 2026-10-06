@@ -4,8 +4,8 @@
 // Singleton Socket.IO client for TERENCE
 // ============================================
 // One socket per browser tab, shared by every realtime hook. Reconnects
-// automatically with backoff; emits `user:identify` on every (re)connect
-// so per-user rooms are restored after a network blip.
+// automatically with backoff. The server joins the per-user room from the
+// session cookie sent with each handshake, so rooms survive reconnects.
 //
 // All listeners are added with `on()` — *not* `once()` — so handlers
 // survive reconnects. Unmounting components must call the returned
@@ -21,9 +21,8 @@ export interface RealtimeOptions {
 }
 
 /**
- * Get (or create) the shared socket. Pass `userId` so the socket joins
- * the correct per-user room. If userId changes (e.g. on logout/login)
- * we re-identify rather than tearing down the connection.
+ * Get (or create) the shared socket. Pass `userId` so a login that happened
+ * after the socket connected triggers a fresh, authenticated handshake.
  */
 export function getRealtimeSocket(opts: RealtimeOptions): Socket {
   if (!socketInstance) {
@@ -37,21 +36,18 @@ export function getRealtimeSocket(opts: RealtimeOptions): Socket {
       timeout: 8_000,
     })
 
-    socketInstance.on('connect', () => {
-      if (currentUserId) {
-        socketInstance!.emit('user:identify', { userId: currentUserId })
-      }
-    })
-
     // Silent on connect errors — local `next dev` without the custom
     // server returns 404 here and we don't want toast spam.
     socketInstance.on('connect_error', () => { /* expected sometimes */ })
   }
 
+  // The server derives identity from the session cookie sent with the
+  // handshake, so a login/logout requires a fresh handshake to take effect.
+  // Guest hooks pass `null`, so only a new non-null id triggers a reconnect.
   if (opts.userId && opts.userId !== currentUserId) {
     currentUserId = opts.userId
     if (socketInstance.connected) {
-      socketInstance.emit('user:identify', { userId: opts.userId })
+      socketInstance.disconnect().connect()
     }
   }
 

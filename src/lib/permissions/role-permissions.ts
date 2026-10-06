@@ -29,8 +29,16 @@ export const ROLE_PERMISSION_MATRIX: Record<string, RolePermissionConfig[]> = {
     { permission: PERMISSIONS.PAYMENT_UPDATE, scope: 'all' },
     { permission: PERMISSIONS.ADMINLOG_READ, scope: 'all' },
     { permission: PERMISSIONS.SETTINGS_READ, scope: 'all' },
+    { permission: PERMISSIONS.NEWS_MANAGE, scope: 'all' },
+    { permission: PERMISSIONS.NEWS_DELETE, scope: 'all' },
+    { permission: PERMISSIONS.METADATA_MANAGE, scope: 'all' },
+    { permission: PERMISSIONS.METADATA_DELETE, scope: 'all' },
+    { permission: PERMISSIONS.UPLOAD_MANAGE, scope: 'all' },
+    { permission: PERMISSIONS.ADS_MANAGE, scope: 'all' },
+    { permission: PERMISSIONS.NOTIFICATION_BROADCAST, scope: 'all' },
+    { permission: PERMISSIONS.SYSTEM_MANAGE, scope: 'all' },
     // KHÔNG có settings.update
-    // KHÔNG có movie.delete
+    // KHÔNG có movie.delete / user.delete
   ],
 
   [ROLES.STAFF]: [
@@ -42,6 +50,8 @@ export const ROLE_PERMISSION_MATRIX: Record<string, RolePermissionConfig[]> = {
     { permission: PERMISSIONS.EPISODE_CREATE, scope: 'all' },
     { permission: PERMISSIONS.EPISODE_UPDATE, scope: 'all' },
     { permission: PERMISSIONS.REVIEW_READ, scope: 'all' },
+    { permission: PERMISSIONS.METADATA_MANAGE, scope: 'all' },
+    { permission: PERMISSIONS.UPLOAD_MANAGE, scope: 'all' },
     // KHÔNG có movie.delete
     // KHÔNG quản lý user
   ],
@@ -53,6 +63,8 @@ export const ROLE_PERMISSION_MATRIX: Record<string, RolePermissionConfig[]> = {
     { permission: PERMISSIONS.EPISODE_READ, scope: 'all' },
     { permission: PERMISSIONS.EPISODE_UPDATE, scope: 'all' },
     { permission: PERMISSIONS.REVIEW_READ, scope: 'all' },
+    { permission: PERMISSIONS.NEWS_MANAGE, scope: 'all' },
+    { permission: PERMISSIONS.UPLOAD_MANAGE, scope: 'all' },
     // KHÔNG create / delete / publish / users
   ],
 

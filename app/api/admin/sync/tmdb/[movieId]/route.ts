@@ -13,7 +13,7 @@ export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ movieId: string }> }
 ) {
-  const guard = await requireAdmin()
+  const guard = await requireAdmin('system.manage')
   if (!isUser(guard)) return guard
 
   try {

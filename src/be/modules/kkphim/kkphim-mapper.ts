@@ -70,8 +70,9 @@ function resolveImageUrl(url: string | null | undefined): string | null {
 
 // ─── Episode Total Parser ───────────────────────────────────────
 
-function parseEpisodeTotal(total: string | null | undefined): number | null {
+function parseEpisodeTotal(total: string | number | null | undefined): number | null {
   if (!total) return null
+  if (typeof total === 'number') return Number.isFinite(total) ? total : null
   // "50 Tập" → 50, "1" → 1, "?" → null
   const match = total.match(/(\d+)/)
   return match ? parseInt(match[1], 10) : null

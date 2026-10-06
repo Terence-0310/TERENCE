@@ -1,309 +1,461 @@
-import { PrismaClient } from '@prisma/client'
-import bcrypt from 'bcryptjs'
+import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcryptjs";
+import { randomBytes } from "crypto";
 
-const prisma = new PrismaClient()
+const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🌱 Seeding database (Schema v2)...')
+  console.log("🌱 Seeding database (Schema v2)...");
 
   // ── Users ──
-  const adminHash = await bcrypt.hash('Admin@12345', 12)
-  const userHash = await bcrypt.hash('User@12345', 12)
-  const staffHash = await bcrypt.hash('Staff@12345', 12)
+  // Seed passwords come from env. Outside production we fall back to the
+  // documented demo passwords; in production a missing env var yields a random
+  // password printed once, so a known default never reaches a live server.
+  // `upsert` only CREATES accounts — existing users keep their password/role.
+  const isProd = process.env.NODE_ENV === "production";
+  const seedPassword = (envKey: string, demo: string) => {
+    const fromEnv = process.env[envKey];
+    if (fromEnv) return fromEnv;
+    if (!isProd) return demo;
+    const generated = randomBytes(12).toString("base64url");
+    console.log(`   🔑 ${envKey} not set — generated password for new account: ${generated}`);
+    return generated;
+  };
+  const adminHash = await bcrypt.hash(seedPassword("SEED_ADMIN_PASSWORD", "Admin@12345"), 12);
+  const userHash = await bcrypt.hash(seedPassword("SEED_USER_PASSWORD", "User@12345"), 12);
+  const staffHash = await bcrypt.hash(seedPassword("SEED_STAFF_PASSWORD", "Staff@12345"), 12);
 
   const admin = await prisma.user.upsert({
-    where: { email: 'admin@terence.vn' },
-    update: { passwordHash: adminHash, role: 'SUPER_ADMIN', name: 'Admin Terence' },
-    create: { email: 'admin@terence.vn', name: 'Admin Terence', passwordHash: adminHash, role: 'SUPER_ADMIN', isActive: true },
-  })
+    where: { email: "admin@terence.vn" },
+    update: {},
+    create: {
+      email: "admin@terence.vn",
+      name: "Admin Terence",
+      passwordHash: adminHash,
+      role: "SUPER_ADMIN",
+      isActive: true,
+    },
+  });
 
   const regular = await prisma.user.upsert({
-    where: { email: 'user@terence.vn' },
-    update: { passwordHash: userHash, role: 'USER', name: 'Người dùng Demo' },
-    create: { email: 'user@terence.vn', name: 'Người dùng Demo', passwordHash: userHash, role: 'USER', isActive: true },
-  })
+    where: { email: "user@terence.vn" },
+    update: {},
+    create: {
+      email: "user@terence.vn",
+      name: "Người dùng Demo",
+      passwordHash: userHash,
+      role: "USER",
+      isActive: true,
+    },
+  });
 
   await prisma.user.upsert({
-    where: { email: 'staff@terence.vn' },
-    update: { passwordHash: staffHash, role: 'STAFF', name: 'Staff Demo' },
-    create: { email: 'staff@terence.vn', name: 'Staff Demo', passwordHash: staffHash, role: 'STAFF', isActive: true },
-  })
+    where: { email: "staff@terence.vn" },
+    update: {},
+    create: {
+      email: "staff@terence.vn",
+      name: "Staff Demo",
+      passwordHash: staffHash,
+      role: "STAFF",
+      isActive: true,
+    },
+  });
 
   await prisma.user.upsert({
-    where: { email: 'editor@terence.vn' },
-    update: { passwordHash: staffHash, role: 'EDITOR', name: 'Editor Demo' },
-    create: { email: 'editor@terence.vn', name: 'Editor Demo', passwordHash: staffHash, role: 'EDITOR', isActive: true },
-  })
+    where: { email: "editor@terence.vn" },
+    update: {},
+    create: {
+      email: "editor@terence.vn",
+      name: "Editor Demo",
+      passwordHash: staffHash,
+      role: "EDITOR",
+      isActive: true,
+    },
+  });
 
   // ── Genres (new — replaces legacy Category) ──
-  console.log('   🎭 Seeding genres (Fetching from OPhim)...')
-  
-  const tmdbGenreMap: Record<string, number> = {
-    'hanh-dong': 28, 'phieu-luu': 12, 'hoat-hinh': 16, 'hai': 35, 'hai-huoc': 35,
-    'hinh-su': 80, 'tai-lieu': 99, 'chinh-kich': 18, 'gia-dinh': 10751,
-    'gia-tuong': 14, 'lich-su': 36, 'kinh-di': 27, 'am-nhac': 10402,
-    'bi-an': 9648, 'lang-man': 10749, 'khoa-hoc-vien-tuong': 878,
-    'giat-gan': 53, 'chien-tranh': 10752, 'vien-tay': 37, 'truyen-hinh': 10770,
-  }
+  console.log("   🎭 Seeding genres (Fetching from OPhim)...");
 
-  let genreData: Array<{ name: string; slug: string; tmdbId: number | null }> = []
+  const tmdbGenreMap: Record<string, number> = {
+    "hanh-dong": 28,
+    "phieu-luu": 12,
+    "hoat-hinh": 16,
+    hai: 35,
+    "hai-huoc": 35,
+    "hinh-su": 80,
+    "tai-lieu": 99,
+    "chinh-kich": 18,
+    "gia-dinh": 10751,
+    "gia-tuong": 14,
+    "lich-su": 36,
+    "kinh-di": 27,
+    "am-nhac": 10402,
+    "bi-an": 9648,
+    "lang-man": 10749,
+    "khoa-hoc-vien-tuong": 878,
+    "giat-gan": 53,
+    "chien-tranh": 10752,
+    "vien-tay": 37,
+    "truyen-hinh": 10770,
+  };
+
+  let genreData: Array<{ name: string; slug: string; tmdbId: number | null }> =
+    [];
   try {
-    const res = await fetch('https://ophim1.com/v1/api/the-loai')
+    const res = await fetch("https://ophim1.com/v1/api/the-loai");
     if (res.ok) {
-      const data = await res.json()
+      const data = await res.json();
       if (data?.data?.items) {
         genreData = data.data.items.map((i: any) => ({
           name: i.name,
           slug: i.slug,
-          tmdbId: tmdbGenreMap[i.slug] || null
-        }))
+          tmdbId: tmdbGenreMap[i.slug] || null,
+        }));
       }
     }
   } catch (err) {
-    console.warn('     ⚠️ Failed to fetch genres from OPhim, using fallback.')
+    console.warn("     ⚠️ Failed to fetch genres from OPhim, using fallback.");
   }
 
   if (genreData.length === 0) {
     // Fallback if API fails
     genreData = [
-      { name: 'Hành Động', slug: 'hanh-dong', tmdbId: 28 },
-      { name: 'Phiêu Lưu', slug: 'phieu-luu', tmdbId: 12 },
-      { name: 'Hoạt Hình', slug: 'hoat-hinh', tmdbId: 16 },
-      { name: 'Hài', slug: 'hai', tmdbId: 35 },
-      { name: 'Hình Sự', slug: 'hinh-su', tmdbId: 80 },
-      { name: 'Tài Liệu', slug: 'tai-lieu', tmdbId: 99 },
-      { name: 'Chính Kịch', slug: 'chinh-kich', tmdbId: 18 },
-      { name: 'Gia Đình', slug: 'gia-dinh', tmdbId: 10751 },
-      { name: 'Giả Tưởng', slug: 'gia-tuong', tmdbId: 14 },
-      { name: 'Lịch Sử', slug: 'lich-su', tmdbId: 36 },
-      { name: 'Kinh Dị', slug: 'kinh-di', tmdbId: 27 },
-      { name: 'Âm Nhạc', slug: 'am-nhac', tmdbId: 10402 },
-      { name: 'Bí Ẩn', slug: 'bi-an', tmdbId: 9648 },
-      { name: 'Lãng Mạn', slug: 'lang-man', tmdbId: 10749 },
-      { name: 'Khoa Học Viễn Tưởng', slug: 'khoa-hoc-vien-tuong', tmdbId: 878 },
-      { name: 'Giật Gân', slug: 'giat-gan', tmdbId: 53 },
-      { name: 'Chiến Tranh', slug: 'chien-tranh', tmdbId: 10752 },
-      { name: 'Viễn Tây', slug: 'vien-tay', tmdbId: 37 },
-      { name: 'Truyền Hình', slug: 'truyen-hinh', tmdbId: 10770 },
-      { name: 'Tâm Lý', slug: 'tam-ly', tmdbId: null },
-      { name: 'Tình Cảm', slug: 'tinh-cam', tmdbId: null },
-    ]
+      { name: "Hành Động", slug: "hanh-dong", tmdbId: 28 },
+      { name: "Phiêu Lưu", slug: "phieu-luu", tmdbId: 12 },
+      { name: "Hoạt Hình", slug: "hoat-hinh", tmdbId: 16 },
+      { name: "Hài", slug: "hai", tmdbId: 35 },
+      { name: "Hình Sự", slug: "hinh-su", tmdbId: 80 },
+      { name: "Tài Liệu", slug: "tai-lieu", tmdbId: 99 },
+      { name: "Chính Kịch", slug: "chinh-kich", tmdbId: 18 },
+      { name: "Gia Đình", slug: "gia-dinh", tmdbId: 10751 },
+      { name: "Giả Tưởng", slug: "gia-tuong", tmdbId: 14 },
+      { name: "Lịch Sử", slug: "lich-su", tmdbId: 36 },
+      { name: "Kinh Dị", slug: "kinh-di", tmdbId: 27 },
+      { name: "Âm Nhạc", slug: "am-nhac", tmdbId: 10402 },
+      { name: "Bí Ẩn", slug: "bi-an", tmdbId: 9648 },
+      { name: "Lãng Mạn", slug: "lang-man", tmdbId: 10749 },
+      { name: "Khoa Học Viễn Tưởng", slug: "khoa-hoc-vien-tuong", tmdbId: 878 },
+      { name: "Giật Gân", slug: "giat-gan", tmdbId: 53 },
+      { name: "Chiến Tranh", slug: "chien-tranh", tmdbId: 10752 },
+      { name: "Viễn Tây", slug: "vien-tay", tmdbId: 37 },
+      { name: "Truyền Hình", slug: "truyen-hinh", tmdbId: 10770 },
+      { name: "Tâm Lý", slug: "tam-ly", tmdbId: null },
+      { name: "Tình Cảm", slug: "tinh-cam", tmdbId: null },
+    ];
   }
 
-  const genreMap: Record<string, string> = {}
+  const genreMap: Record<string, string> = {};
   for (const g of genreData) {
     const created = await prisma.genre.upsert({
       where: { slug: g.slug },
       update: { name: g.name, tmdbId: g.tmdbId },
       create: { name: g.name, slug: g.slug, tmdbId: g.tmdbId },
-    })
-    genreMap[g.slug] = created.id
+    });
+    genreMap[g.slug] = created.id;
   }
-
 
   // ── Countries ──
-  console.log('   🌍 Seeding countries (Fetching from OPhim)...')
+  console.log("   🌍 Seeding countries (Fetching from OPhim)...");
 
   const countryCodeMap: Record<string, string> = {
-    'my': 'US', 'han-quoc': 'KR', 'nhat-ban': 'JP', 'trung-quoc': 'CN',
-    'thai-lan': 'TH', 'an-do': 'IN', 'anh': 'GB', 'phap': 'FR', 'duc': 'DE',
-    'y': 'IT', 'tay-ban-nha': 'ES', 'viet-nam': 'VN', 'hong-kong': 'HK',
-    'dai-loan': 'TW', 'nga': 'RU', 'brazil': 'BR', 'mexico': 'MX', 'uc': 'AU',
-    'canada': 'CA', 'thuy-dien': 'SE', 'philippines': 'PH', 'indonesia': 'ID',
-    'malaysia': 'MY', 'singapore': 'SG'
-  }
+    my: "US",
+    "han-quoc": "KR",
+    "nhat-ban": "JP",
+    "trung-quoc": "CN",
+    "thai-lan": "TH",
+    "an-do": "IN",
+    anh: "GB",
+    phap: "FR",
+    duc: "DE",
+    y: "IT",
+    "tay-ban-nha": "ES",
+    "viet-nam": "VN",
+    "hong-kong": "HK",
+    "dai-loan": "TW",
+    nga: "RU",
+    brazil: "BR",
+    mexico: "MX",
+    uc: "AU",
+    canada: "CA",
+    "thuy-dien": "SE",
+    philippines: "PH",
+    indonesia: "ID",
+    malaysia: "MY",
+    singapore: "SG",
+  };
 
-  let countryData: Array<{ name: string; slug: string; code: string | null }> = []
+  let countryData: Array<{ name: string; slug: string; code: string | null }> =
+    [];
   try {
-    const res = await fetch('https://ophim1.com/v1/api/quoc-gia')
+    const res = await fetch("https://ophim1.com/v1/api/quoc-gia");
     if (res.ok) {
-      const data = await res.json()
+      const data = await res.json();
       if (data?.data?.items) {
         countryData = data.data.items.map((i: any) => ({
           name: i.name,
           slug: i.slug,
-          code: countryCodeMap[i.slug] || null
-        }))
+          code: countryCodeMap[i.slug] || null,
+        }));
       }
     }
   } catch (err) {
-    console.warn('     ⚠️ Failed to fetch countries from OPhim, using fallback.')
+    console.warn(
+      "     ⚠️ Failed to fetch countries from OPhim, using fallback.",
+    );
   }
 
   if (countryData.length === 0) {
     countryData = [
-      { name: 'Mỹ', slug: 'my', code: 'US' },
-      { name: 'Hàn Quốc', slug: 'han-quoc', code: 'KR' },
-      { name: 'Nhật Bản', slug: 'nhat-ban', code: 'JP' },
-      { name: 'Trung Quốc', slug: 'trung-quoc', code: 'CN' },
-      { name: 'Thái Lan', slug: 'thai-lan', code: 'TH' },
-      { name: 'Ấn Độ', slug: 'an-do', code: 'IN' },
-      { name: 'Anh', slug: 'anh', code: 'GB' },
-      { name: 'Pháp', slug: 'phap', code: 'FR' },
-      { name: 'Đức', slug: 'duc', code: 'DE' },
-      { name: 'Ý', slug: 'y', code: 'IT' },
-      { name: 'Tây Ban Nha', slug: 'tay-ban-nha', code: 'ES' },
-      { name: 'Việt Nam', slug: 'viet-nam', code: 'VN' },
-      { name: 'Hồng Kông', slug: 'hong-kong', code: 'HK' },
-      { name: 'Đài Loan', slug: 'dai-loan', code: 'TW' },
-      { name: 'Nga', slug: 'nga', code: 'RU' },
-      { name: 'Brazil', slug: 'brazil', code: 'BR' },
-      { name: 'Mexico', slug: 'mexico', code: 'MX' },
-      { name: 'Úc', slug: 'uc', code: 'AU' },
-      { name: 'Canada', slug: 'canada', code: 'CA' },
-      { name: 'Thụy Điển', slug: 'thuy-dien', code: 'SE' },
-    ]
+      { name: "Mỹ", slug: "my", code: "US" },
+      { name: "Hàn Quốc", slug: "han-quoc", code: "KR" },
+      { name: "Nhật Bản", slug: "nhat-ban", code: "JP" },
+      { name: "Trung Quốc", slug: "trung-quoc", code: "CN" },
+      { name: "Thái Lan", slug: "thai-lan", code: "TH" },
+      { name: "Ấn Độ", slug: "an-do", code: "IN" },
+      { name: "Anh", slug: "anh", code: "GB" },
+      { name: "Pháp", slug: "phap", code: "FR" },
+      { name: "Đức", slug: "duc", code: "DE" },
+      { name: "Ý", slug: "y", code: "IT" },
+      { name: "Tây Ban Nha", slug: "tay-ban-nha", code: "ES" },
+      { name: "Việt Nam", slug: "viet-nam", code: "VN" },
+      { name: "Hồng Kông", slug: "hong-kong", code: "HK" },
+      { name: "Đài Loan", slug: "dai-loan", code: "TW" },
+      { name: "Nga", slug: "nga", code: "RU" },
+      { name: "Brazil", slug: "brazil", code: "BR" },
+      { name: "Mexico", slug: "mexico", code: "MX" },
+      { name: "Úc", slug: "uc", code: "AU" },
+      { name: "Canada", slug: "canada", code: "CA" },
+      { name: "Thụy Điển", slug: "thuy-dien", code: "SE" },
+    ];
   }
 
-  const countryMap: Record<string, string> = {}
+  const countryMap: Record<string, string> = {};
   for (const c of countryData) {
     const created = await prisma.country.upsert({
       where: { slug: c.slug },
       update: { name: c.name, code: c.code },
       create: { name: c.name, slug: c.slug, code: c.code },
-    })
-    countryMap[c.slug] = created.id
+    });
+    countryMap[c.slug] = created.id;
   }
 
   // ── People (sample actors/directors) ──
-  console.log('   👤 Seeding people...')
+  console.log("   👤 Seeding people...");
   const peopleData = [
-    { name: 'Trấn Thành', slug: 'tran-thanh', knownFor: 'Acting' },
-    { name: 'Thu Trang', slug: 'thu-trang', knownFor: 'Acting' },
-    { name: 'Nguyễn Quang Dũng', slug: 'nguyen-quang-dung', knownFor: 'Directing' },
-    { name: 'Victor Vũ', slug: 'victor-vu', knownFor: 'Directing' },
-    { name: 'Lý Hải', slug: 'ly-hai', knownFor: 'Directing' },
-    { name: 'Ninh Dương Lan Ngọc', slug: 'ninh-duong-lan-ngoc', knownFor: 'Acting' },
-  ]
+    { name: "Trấn Thành", slug: "tran-thanh", knownFor: "Acting" },
+    { name: "Thu Trang", slug: "thu-trang", knownFor: "Acting" },
+    {
+      name: "Nguyễn Quang Dũng",
+      slug: "nguyen-quang-dung",
+      knownFor: "Directing",
+    },
+    { name: "Victor Vũ", slug: "victor-vu", knownFor: "Directing" },
+    { name: "Lý Hải", slug: "ly-hai", knownFor: "Directing" },
+    {
+      name: "Ninh Dương Lan Ngọc",
+      slug: "ninh-duong-lan-ngoc",
+      knownFor: "Acting",
+    },
+  ];
 
-  const peopleMap: Record<string, string> = {}
+  const peopleMap: Record<string, string> = {};
   for (const p of peopleData) {
     const created = await prisma.person.upsert({
       where: { slug: p.slug },
       update: { name: p.name, knownFor: p.knownFor },
       create: { name: p.name, slug: p.slug, knownFor: p.knownFor },
-    })
-    peopleMap[p.slug] = created.id
+    });
+    peopleMap[p.slug] = created.id;
   }
 
   // ── Movies ──
-  console.log('   🎬 Seeding movies...')
+  console.log("   🎬 Seeding movies...");
   const movieData = [
     {
-      title: 'Tử Chiến Trên Không', slug: 'tu-chien-tren-khong', contentType: 'movie', status: 'published',
-      year: 2026, quality: 'FHD', viewCount: 12345,
-      isFeatured: true, isPublished: true, isActive: true, sourceStatus: 'active',
-      language: 'vi', ageRating: 'C16',
-      shortDescription: 'Cuộc chiến trên bầu trời',
-      genreSlugs: ['hanh-dong', 'phieu-luu'],
-      countrySlugs: ['viet-nam'],
+      title: "Tử Chiến Trên Không",
+      slug: "tu-chien-tren-khong",
+      contentType: "movie",
+      status: "published",
+      year: 2026,
+      quality: "FHD",
+      viewCount: 12345,
+      isFeatured: true,
+      isPublished: true,
+      isActive: true,
+      sourceStatus: "active",
+      language: "vi",
+      ageRating: "C16",
+      shortDescription: "Cuộc chiến trên bầu trời",
+      genreSlugs: ["hanh-dong", "phieu-luu"],
+      countrySlugs: ["viet-nam"],
       peopleSlugs: [
-        { slug: 'nguyen-quang-dung', role: 'director' },
-        { slug: 'tran-thanh', role: 'actor', character: 'Trung úy Minh' },
-        { slug: 'thu-trang', role: 'actor', character: 'Đại tá Hương' },
+        { slug: "nguyen-quang-dung", role: "director" },
+        { slug: "tran-thanh", role: "actor", character: "Trung úy Minh" },
+        { slug: "thu-trang", role: "actor", character: "Đại tá Hương" },
       ],
     },
     {
-      title: 'Hoa Máu', slug: 'hoa-mau', contentType: 'movie', status: 'published',
-      year: 2026, quality: 'HD', viewCount: 9876,
-      isPublished: true, isActive: true, sourceStatus: 'active',
-      language: 'vi', ageRating: 'C18',
-      genreSlugs: ['hanh-dong', 'tam-ly'],
-      countrySlugs: ['viet-nam'],
-      peopleSlugs: [{ slug: 'victor-vu', role: 'director' }],
+      title: "Hoa Máu",
+      slug: "hoa-mau",
+      contentType: "movie",
+      status: "published",
+      year: 2026,
+      quality: "HD",
+      viewCount: 9876,
+      isPublished: true,
+      isActive: true,
+      sourceStatus: "active",
+      language: "vi",
+      ageRating: "C18",
+      genreSlugs: ["hanh-dong", "tam-ly"],
+      countrySlugs: ["viet-nam"],
+      peopleSlugs: [{ slug: "victor-vu", role: "director" }],
     },
     {
-      title: 'Danh Dự Cuối Cùng', slug: 'danh-du-cuoi-cung', contentType: 'movie', status: 'published',
-      year: 2025, quality: 'FHD', viewCount: 8765,
-      isPublished: true, isActive: true, sourceStatus: 'active',
-      language: 'ko',
-      genreSlugs: ['tam-ly', 'chinh-kich'],
-      countrySlugs: ['han-quoc'],
+      title: "Danh Dự Cuối Cùng",
+      slug: "danh-du-cuoi-cung",
+      contentType: "movie",
+      status: "published",
+      year: 2025,
+      quality: "FHD",
+      viewCount: 8765,
+      isPublished: true,
+      isActive: true,
+      sourceStatus: "active",
+      language: "ko",
+      genreSlugs: ["tam-ly", "chinh-kich"],
+      countrySlugs: ["han-quoc"],
       peopleSlugs: [],
     },
     {
-      title: 'Demon Slayer S5', slug: 'demon-slayer-s5', contentType: 'anime', status: 'published',
-      year: 2026, quality: 'FHD', viewCount: 25000,
-      isTrending: true, isFeatured: true, isPublished: true, isActive: true, sourceStatus: 'active',
-      language: 'ja', ageRating: 'C13',
-      genreSlugs: ['hoat-hinh', 'hanh-dong'],
-      countrySlugs: ['nhat-ban'],
+      title: "Demon Slayer S5",
+      slug: "demon-slayer-s5",
+      contentType: "anime",
+      status: "published",
+      year: 2026,
+      quality: "FHD",
+      viewCount: 25000,
+      isTrending: true,
+      isFeatured: true,
+      isPublished: true,
+      isActive: true,
+      sourceStatus: "active",
+      language: "ja",
+      ageRating: "C13",
+      genreSlugs: ["hoat-hinh", "hanh-dong"],
+      countrySlugs: ["nhat-ban"],
       peopleSlugs: [],
     },
     {
-      title: 'Tài Xế Ẩn Danh 3', slug: 'tai-xe-an-danh-3', contentType: 'movie', status: 'published',
-      year: 2026, quality: '4K', viewCount: 3210,
-      isRecommended: true, isPublished: true, isActive: true, sourceStatus: 'active',
-      language: 'vi',
-      genreSlugs: ['hanh-dong', 'hai'],
-      countrySlugs: ['viet-nam'],
-      peopleSlugs: [{ slug: 'ly-hai', role: 'director' }],
+      title: "Tài Xế Ẩn Danh 3",
+      slug: "tai-xe-an-danh-3",
+      contentType: "movie",
+      status: "published",
+      year: 2026,
+      quality: "4K",
+      viewCount: 3210,
+      isRecommended: true,
+      isPublished: true,
+      isActive: true,
+      sourceStatus: "active",
+      language: "vi",
+      genreSlugs: ["hanh-dong", "hai"],
+      countrySlugs: ["viet-nam"],
+      peopleSlugs: [{ slug: "ly-hai", role: "director" }],
     },
-  ]
+  ];
 
   // Generate 20 random dummy movies for local dev
+  const demoPosterUrls = [
+    "https://image.tmdb.org/t/p/w500/oYuLEt3zVCKq57qu2F8dT7NIa6f.jpg",
+    "https://image.tmdb.org/t/p/w500/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg",
+    "https://image.tmdb.org/t/p/w500/qJ2tW6WMUDux911r6m7haRef0WH.jpg",
+    "https://image.tmdb.org/t/p/w500/or06FN3Dka5tukK1e9sl16pB3iy.jpg",
+    "https://image.tmdb.org/t/p/w500/39wmItIWsg5sZMyRUHLkWBcuVCM.jpg",
+    "https://image.tmdb.org/t/p/w500/udDclJoHjfjb8Ekgsd4x5o1f3A.jpg",
+    "https://image.tmdb.org/t/p/w500/1pdfLvkbY9ohJlCjQH2CZjjYVvJ.jpg",
+    "https://image.tmdb.org/t/p/w500/1g0dhYtq4irTY1GPXvft6k4YLjm.jpg",
+  ];
+
   for (let i = 1; i <= 20; i++) {
-    const isSeries = Math.random() > 0.5
+    const isSeries = Math.random() > 0.5;
     const randomGenres = [
       genreData[Math.floor(Math.random() * genreData.length)].slug,
-      genreData[Math.floor(Math.random() * genreData.length)].slug
-    ]
-    const randomCountry = countryData[Math.floor(Math.random() * countryData.length)].slug
-    
+      genreData[Math.floor(Math.random() * genreData.length)].slug,
+    ];
+    const randomCountry =
+      countryData[Math.floor(Math.random() * countryData.length)].slug;
+
     movieData.push({
-      title: `Phim Local Demo ${i} - ${isSeries ? 'Series' : 'Movie'}`,
+      title: `Phim Local Demo ${i} - ${isSeries ? "Series" : "Movie"}`,
       slug: `phim-local-demo-${i}`,
-      contentType: isSeries ? 'series' : 'movie',
-      status: 'published',
+      contentType: isSeries ? "series" : "movie",
+      status: "published",
       year: 2020 + Math.floor(Math.random() * 6),
-      quality: Math.random() > 0.5 ? 'FHD' : 'HD',
+      quality: Math.random() > 0.5 ? "FHD" : "HD",
+      posterUrl: demoPosterUrls[(i - 1) % demoPosterUrls.length],
+      backdropUrl: demoPosterUrls[(i - 1) % demoPosterUrls.length],
       viewCount: Math.floor(Math.random() * 50000),
       isFeatured: Math.random() > 0.8,
       isRecommended: Math.random() > 0.7,
       isPublished: true,
       isActive: true,
-      sourceStatus: 'active',
-      language: 'vi',
-      ageRating: Math.random() > 0.5 ? 'C16' : 'P',
+      sourceStatus: "active",
+      language: "vi",
+      ageRating: Math.random() > 0.5 ? "C16" : "P",
       shortDescription: `Mô tả tự động cho bộ phim Demo số ${i}`,
       genreSlugs: Array.from(new Set(randomGenres)),
       countrySlugs: [randomCountry],
       peopleSlugs: [],
-    } as any)
+    } as any);
   }
 
   for (const m of movieData) {
-    const { genreSlugs, countrySlugs, peopleSlugs, ...movieFields } = m
+    const { genreSlugs, countrySlugs, peopleSlugs, ...movieFields } = m;
     const movie = await prisma.movie.upsert({
       where: { slug: m.slug },
-      update: { viewCount: m.viewCount, status: m.status },
+      update: {
+        viewCount: m.viewCount,
+        status: m.status,
+        isPublished: m.isPublished,
+        isActive: m.isActive,
+        sourceStatus: m.sourceStatus,
+        posterUrl: (m as any).posterUrl,
+        backdropUrl: (m as any).backdropUrl,
+      },
       create: {
         ...movieFields,
         createdBy: admin.email,
         description: `Mô tả phim ${m.title}. Đây là một bộ phim hấp dẫn.`,
       },
-    })
+    });
 
     // Link genres (new)
     for (const gSlug of genreSlugs) {
       if (genreMap[gSlug]) {
         await prisma.movieGenre.upsert({
-          where: { movieId_genreId: { movieId: movie.id, genreId: genreMap[gSlug] } },
+          where: {
+            movieId_genreId: { movieId: movie.id, genreId: genreMap[gSlug] },
+          },
           update: {},
           create: { movieId: movie.id, genreId: genreMap[gSlug] },
-        })
+        });
       }
     }
-
 
     // Link countries
     for (const cSlug of countrySlugs) {
       if (countryMap[cSlug]) {
         await prisma.movieCountry.upsert({
-          where: { movieId_countryId: { movieId: movie.id, countryId: countryMap[cSlug] } },
+          where: {
+            movieId_countryId: {
+              movieId: movie.id,
+              countryId: countryMap[cSlug],
+            },
+          },
           update: {},
           create: { movieId: movie.id, countryId: countryMap[cSlug] },
-        })
+        });
       }
     }
 
@@ -325,143 +477,196 @@ async function main() {
             role: p.role,
             character: (p as any).character || null,
           },
-        })
+        });
       }
     }
   }
 
   // ── Episodes for series/anime ──
-  console.log('   📺 Seeding episodes...')
+  console.log("   📺 Seeding episodes...");
   const seriesMovies = await prisma.movie.findMany({
-    where: { contentType: { in: ['series', 'anime'] } },
+    where: { contentType: { in: ["series", "anime"] } },
     include: { _count: { select: { episodes: true } } },
-  })
+  });
   for (const s of seriesMovies) {
     if (s._count.episodes > 0) {
-      console.log(`     ⏭  Skipping "${s.title}" — already has ${s._count.episodes} episodes`)
-      continue
+      console.log(
+        `     ⏭  Skipping "${s.title}" — already has ${s._count.episodes} episodes`,
+      );
+      continue;
     }
-    const epCount = s.contentType === 'anime' ? 12 : 5
+    const epCount = s.contentType === "anime" ? 12 : 5;
     for (let ep = 1; ep <= epCount; ep++) {
-      const epSlug = `${s.slug}-tap-${ep}`
-      const epId = `seed-${s.id}-${ep}`
-      await prisma.episode.create({
-        data: {
-          id: epId,
-          movieId: s.id,
-          episodeNumber: ep, episodeOrder: ep,
-          episodeName: `Tập ${ep}`, episodeSlug: `tap-${ep}`,
-          title: `Tập ${ep}`, slug: epSlug,
-          sourceName: 'Manual', serverName: 'Server #1',
-          streamType: 'hls',
-          streamUrl: process.env.DEMO_HLS_URL || 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
-          sourceUrl: process.env.DEMO_HLS_URL || 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
-          sortOrder: ep,
-          status: ep === epCount ? 'pending' : 'active',
-          isActive: ep !== epCount,
-          isPublished: ep !== epCount,
-          viewCount: Math.floor(Math.random() * 2000),
-        },
-      }).catch(() => { /* skip if duplicate */ })
+      const epSlug = `${s.slug}-tap-${ep}`;
+      const epId = `seed-${s.id}-${ep}`;
+      await prisma.episode
+        .create({
+          data: {
+            id: epId,
+            movieId: s.id,
+            episodeNumber: ep,
+            episodeOrder: ep,
+            episodeName: `Tập ${ep}`,
+            episodeSlug: `tap-${ep}`,
+            title: `Tập ${ep}`,
+            slug: epSlug,
+            sourceName: "Manual",
+            serverName: "Server #1",
+            streamType: "hls",
+            streamUrl:
+              process.env.DEMO_HLS_URL ||
+              "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+            sourceUrl:
+              process.env.DEMO_HLS_URL ||
+              "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+            sortOrder: ep,
+            status: ep === epCount ? "pending" : "active",
+            isActive: ep !== epCount,
+            isPublished: ep !== epCount,
+            viewCount: Math.floor(Math.random() * 2000),
+          },
+        })
+        .catch(() => {
+          /* skip if duplicate */
+        });
     }
     await prisma.movie.update({
       where: { id: s.id },
       data: { episodeCurrent: `${epCount}/${epCount}`, episodeTotal: epCount },
-    })
+    });
   }
 
   // ── Video sources for demo ──
-  console.log('   🎬 Seeding video sources...')
-  const DEMO_HLS_MAIN = process.env.DEMO_HLS_URL || 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8'
-  const DEMO_HLS_BACKUP = 'https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_fmp4/master.m3u8'
+  console.log("   🎬 Seeding video sources...");
+  const DEMO_HLS_MAIN =
+    process.env.DEMO_HLS_URL ||
+    "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8";
+  const DEMO_HLS_BACKUP =
+    "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_fmp4/master.m3u8";
 
   const demoStandaloneMovies = await prisma.movie.findMany({
-    where: { contentType: 'movie', isPublished: true, isActive: true },
+    where: { contentType: "movie", isPublished: true, isActive: true },
     include: { _count: { select: { episodes: true } } },
-    take: 2,
-  })
+  });
 
   for (const demoMovie of demoStandaloneMovies) {
-    if (demoMovie._count.episodes > 0) continue
-    const demoEpId = `demo-ep-${demoMovie.id}`
-    const ep = await prisma.episode.create({
-      data: {
-        id: demoEpId, movieId: demoMovie.id,
-        episodeNumber: 1, episodeOrder: 1,
-        episodeName: 'Tập Full', episodeSlug: 'tap-full',
-        title: demoMovie.title, slug: `${demoMovie.slug}-full`,
-        sourceName: 'Demo', serverName: 'Server HLS',
-        streamType: 'hls', streamUrl: DEMO_HLS_MAIN, sourceUrl: DEMO_HLS_MAIN,
-        sortOrder: 1, status: 'active', isActive: true, isPublished: true, duration: 634,
-      },
-    }).catch(() => null)
+    if (demoMovie._count.episodes > 0) continue;
+    const demoEpId = `demo-ep-${demoMovie.id}`;
+    const ep = await prisma.episode
+      .create({
+        data: {
+          id: demoEpId,
+          movieId: demoMovie.id,
+          episodeNumber: 1,
+          episodeOrder: 1,
+          episodeName: "Tập Full",
+          episodeSlug: "tap-full",
+          title: demoMovie.title,
+          slug: `${demoMovie.slug}-full`,
+          sourceName: "Demo",
+          serverName: "Server HLS",
+          streamType: "hls",
+          streamUrl: DEMO_HLS_MAIN,
+          sourceUrl: DEMO_HLS_MAIN,
+          sortOrder: 1,
+          status: "active",
+          isActive: true,
+          isPublished: true,
+          duration: 634,
+        },
+      })
+      .catch(() => null);
 
-    if (!ep) continue
+    if (!ep) continue;
 
-    await prisma.videoSource.create({
-      data: {
-        id: `demo-src-main-${demoMovie.id}`, episodeId: demoEpId,
-        sourceType: 'hls', url: DEMO_HLS_MAIN, label: 'Main HLS',
-        mimeType: 'application/x-mpegURL', isPrimary: true, isActive: true, priority: 10,
-      },
-    }).catch(() => {})
+    await prisma.videoSource
+      .create({
+        data: {
+          id: `demo-src-main-${demoMovie.id}`,
+          episodeId: demoEpId,
+          sourceType: "hls",
+          url: DEMO_HLS_MAIN,
+          label: "Main HLS",
+          mimeType: "application/x-mpegURL",
+          isPrimary: true,
+          isActive: true,
+          priority: 10,
+        },
+      })
+      .catch(() => {});
 
-    await prisma.videoSource.create({
-      data: {
-        id: `demo-src-backup-${demoMovie.id}`, episodeId: demoEpId,
-        sourceType: 'hls', url: DEMO_HLS_BACKUP, label: 'Backup HLS',
-        mimeType: 'application/x-mpegURL', isPrimary: false, isActive: true, priority: 5,
-      },
-    }).catch(() => {})
+    await prisma.videoSource
+      .create({
+        data: {
+          id: `demo-src-backup-${demoMovie.id}`,
+          episodeId: demoEpId,
+          sourceType: "hls",
+          url: DEMO_HLS_BACKUP,
+          label: "Backup HLS",
+          mimeType: "application/x-mpegURL",
+          isPrimary: false,
+          isActive: true,
+          priority: 5,
+        },
+      })
+      .catch(() => {});
   }
 
   // ── Wallets for demo users ──
-  console.log('   💰 Seeding wallets...')
+  console.log("   💰 Seeding wallets...");
   await prisma.wallet.upsert({
     where: { userId: admin.id },
     update: {},
     create: { userId: admin.id, balance: 10000 },
-  })
+  });
   await prisma.wallet.upsert({
     where: { userId: regular.id },
     update: {},
     create: { userId: regular.id, balance: 500 },
-  })
+  });
 
   // ── Sample wallet transactions ──
-  const adminWallet = await prisma.wallet.findUnique({ where: { userId: admin.id } })
+  const adminWallet = await prisma.wallet.findUnique({
+    where: { userId: admin.id },
+  });
   if (adminWallet) {
-    await prisma.walletTransaction.create({
-      data: {
-        userId: String(admin.id),
-        walletId: adminWallet.id,
-        type: 'topup',
-        direction: 'credit',
-        status: 'completed',
-        amount: 10000,
-        balanceBefore: 0,
-        balanceAfter: 10000,
-        metadata: { description: 'System bonus — Initial seed' },
-      },
-    }).catch(() => {})
+    await prisma.walletTransaction
+      .create({
+        data: {
+          userId: String(admin.id),
+          walletId: adminWallet.id,
+          type: "topup",
+          direction: "credit",
+          status: "completed",
+          amount: 10000,
+          balanceBefore: 0,
+          balanceAfter: 10000,
+          metadata: { description: "System bonus — Initial seed" },
+        },
+      })
+      .catch(() => {});
   }
 
   // ── Sample watch history ──
-  console.log('   👁️ Seeding watch history...')
+  console.log("   👁️ Seeding watch history...");
   const firstPublishedMovie = await prisma.movie.findFirst({
     where: { isPublished: true },
     include: { episodes: { where: { isActive: true }, take: 1 } },
-  })
+  });
   if (firstPublishedMovie) {
-    const targetEpisode = firstPublishedMovie.episodes[0] || null
+    const targetEpisode = firstPublishedMovie.episodes[0] || null;
     const existingWatch = await prisma.watchHistory.findFirst({
-      where: { userId: regular.id, movieId: firstPublishedMovie.id, episodeId: targetEpisode?.id || null },
-    })
+      where: {
+        userId: regular.id,
+        movieId: firstPublishedMovie.id,
+        episodeId: targetEpisode?.id || null,
+      },
+    });
     if (existingWatch) {
       await prisma.watchHistory.update({
         where: { id: existingWatch.id },
         data: { progress: 45.5, lastWatchedAt: new Date() },
-      })
+      });
     } else {
       await prisma.watchHistory.create({
         data: {
@@ -471,77 +676,98 @@ async function main() {
           progress: 45.5,
           currentTime: 2730,
           duration: 6000,
-          deviceType: 'desktop',
+          deviceType: "desktop",
         },
-      })
+      });
     }
   }
 
   // ── Sample favorite ──
   if (firstPublishedMovie) {
     await prisma.favorite.upsert({
-      where: { userId_movieId: { userId: regular.id, movieId: firstPublishedMovie.id } },
+      where: {
+        userId_movieId: { userId: regular.id, movieId: firstPublishedMovie.id },
+      },
       update: {},
       create: { userId: regular.id, movieId: firstPublishedMovie.id },
-    })
+    });
   }
 
   // ── Admin log ──
   await prisma.adminLog.create({
-    data: { actorId: admin.id, action: 'login', resource: 'user', metadataJson: JSON.stringify({ note: 'Seed initial login' }) },
-  })
+    data: {
+      actorId: admin.id,
+      action: "login",
+      resource: "user",
+      metadataJson: JSON.stringify({ note: "Seed initial login" }),
+    },
+  });
 
   // ── Sample reviews ──
-  console.log('   💬 Seeding reviews...')
-  const reviewMovies = await prisma.movie.findMany({ take: 3 })
+  console.log("   💬 Seeding reviews...");
+  const reviewMovies = await prisma.movie.findMany({ take: 3 });
   if (reviewMovies.length >= 3) {
     await prisma.review.upsert({
-      where: { userId_movieId: { userId: regular.id, movieId: reviewMovies[0].id } },
+      where: {
+        userId_movieId: { userId: regular.id, movieId: reviewMovies[0].id },
+      },
       update: {},
       create: {
         userId: regular.id,
         movieId: reviewMovies[0].id,
         rating: 9.5,
-        title: 'Tuyệt đỉnh',
-        content: 'Phim cực hay, góc máy và màu sắc khỏi bàn cãi. Xem xong vẫn còn ám ảnh với plot twist!',
-        status: 'approved'
-      }
+        title: "Tuyệt đỉnh",
+        content:
+          "Phim cực hay, góc máy và màu sắc khỏi bàn cãi. Xem xong vẫn còn ám ảnh với plot twist!",
+        status: "approved",
+      },
     });
 
     await prisma.review.upsert({
-      where: { userId_movieId: { userId: admin.id, movieId: reviewMovies[1].id } },
+      where: {
+        userId_movieId: { userId: admin.id, movieId: reviewMovies[1].id },
+      },
       update: {},
       create: {
         userId: admin.id,
         movieId: reviewMovies[1].id,
         rating: 8.0,
-        content: 'Cốt truyện ổn, diễn viên nhập vai tốt. Đáng để các dẫn đi xem vào cuối tuần.',
-        status: 'approved'
-      }
+        content:
+          "Cốt truyện ổn, diễn viên nhập vai tốt. Đáng để các dẫn đi xem vào cuối tuần.",
+        status: "approved",
+      },
     });
 
     await prisma.review.upsert({
-      where: { userId_movieId: { userId: regular.id, movieId: reviewMovies[2].id } },
+      where: {
+        userId_movieId: { userId: regular.id, movieId: reviewMovies[2].id },
+      },
       update: {},
       create: {
         userId: regular.id,
         movieId: reviewMovies[2].id,
         rating: 10,
-        content: 'Tuyệt tác của thập kỷ, không thể chờ thêm phần 2 😱. Admin up thêm phim của đạo diễn này nhé!',
-        status: 'approved'
-      }
+        content:
+          "Tuyệt tác của thập kỷ, không thể chờ thêm phần 2 😱. Admin up thêm phim của đạo diễn này nhé!",
+        status: "approved",
+      },
     });
   }
 
-  console.log('✅ Seed complete!')
-  console.log('   admin@terence.vn / Admin@12345 (super_admin)')
-  console.log('   staff@terence.vn / Staff@12345 (staff)')
-  console.log('   user@terence.vn  / User@12345  (user)')
-  console.log(`   ${movieData.length} movies, ${genreData.length} genres, ${countryData.length} countries`)
-  console.log('   💰 Wallets seeded for admin + demo user')
-  console.log('   ⭐ Favorites, watch history seeded')
+  console.log("✅ Seed complete!");
+  console.log("   admin@terence.vn / Admin@12345 (super_admin)");
+  console.log("   staff@terence.vn / Staff@12345 (staff)");
+  console.log("   user@terence.vn  / User@12345  (user)");
+  console.log(
+    `   ${movieData.length} movies, ${genreData.length} genres, ${countryData.length} countries`,
+  );
+  console.log("   💰 Wallets seeded for admin + demo user");
+  console.log("   ⭐ Favorites, watch history seeded");
 }
 
 main()
-  .catch((e) => { console.error(e); process.exit(1) })
-  .finally(() => prisma.$disconnect())
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  })
+  .finally(() => prisma.$disconnect());

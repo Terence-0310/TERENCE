@@ -77,7 +77,7 @@ export async function createBankQrOrder(userId: string, packageId: string) {
     }
   });
 
-  const instructions = buildTransferInstructions(code);
+  const instructions = buildTransferInstructions(transferContent);
 
   return {
     id: order.id,

@@ -5,7 +5,7 @@ import { logAdminAction, getClientIp } from '@/src/be/modules/admin/audit'
 
 // POST /api/admin/uploads — upload file
 export async function POST(req: NextRequest) {
-  const auth = await requireAdmin('uploads.manage')
+  const auth = await requireAdmin('upload.manage')
   if (auth instanceof Response) return auth
 
   try {
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
 
 // GET /api/admin/uploads — list uploads
 export async function GET(req: NextRequest) {
-  const auth = await requireAdmin('uploads.manage')
+  const auth = await requireAdmin('upload.manage')
   if (auth instanceof Response) return auth
 
   const sp = req.nextUrl.searchParams

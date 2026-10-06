@@ -7,6 +7,7 @@
 import type { Server, Socket } from 'socket.io'
 import { prisma } from '@/lib/db'
 import { logger } from '@/src/be/shared/utils/logger'
+import { getSocketUser } from '@/src/be/shared/realtime/socket-auth'
 
 const log = logger.child({ module: 'watch-party-socket' })
 
@@ -108,6 +109,55 @@ function checkRateLimit(socketId: string): boolean {
   return false
 }
 
+// ── Membership (verified at wp:join) ──
+// The client sends its participant id (from the join API) as `userId`. We
+// verify it against the DB once at wp:join and remember it per socket; every
+// later event acts as that participant, ignoring any ids in the payload.
+
+const MAX_CHAT_LENGTH = 1000
+
+interface Membership {
+  participantId: string
+  displayName: string
+}
+
+function memberships(socket: Socket): Map<string, Membership> {
+  if (!socket.data.wpRooms) socket.data.wpRooms = new Map<string, Membership>()
+  return socket.data.wpRooms as Map<string, Membership>
+}
+
+function membershipOf(socket: Socket, roomCode: unknown): Membership | null {
+  if (typeof roomCode !== 'string') return null
+  return memberships(socket).get(roomCode) ?? null
+}
+
+/** The verified member of `roomCode` — only if they are the current host. */
+function hostMembership(socket: Socket, roomCode: unknown): Membership | null {
+  const m = membershipOf(socket, roomCode)
+  if (!m) return null
+  const room = rooms.get(roomCode as string)
+  return room && room.hostId === m.participantId ? m : null
+}
+
+/**
+ * Check the participant exists in an ACTIVE room with this code, has been
+ * admitted (not PENDING/REJECTED/left) and — when tied to an account — belongs
+ * to the socket's authenticated user.
+ */
+async function verifyParticipant(socket: Socket, roomCode: string, participantId: string) {
+  const participant = await prisma.watchPartyParticipant.findUnique({
+    where: { id: participantId },
+    select: {
+      id: true, userId: true, displayName: true, role: true, status: true, leftAt: true,
+      room: { select: { roomCode: true, status: true } },
+    },
+  })
+  if (!participant || participant.room.roomCode !== roomCode || participant.room.status !== 'ACTIVE') return null
+  if (participant.status !== 'ACTIVE' || participant.leftAt) return null
+  if (participant.userId && participant.userId !== getSocketUser(socket)?.id) return null
+  return participant
+}
+
 // ── Socket event handler ──
 
 export function registerWatchPartyHandlers(io: Server, socket: Socket) {
@@ -125,14 +175,20 @@ export function registerWatchPartyHandlers(io: Server, socket: Socket) {
   // ───────────────────────────────────
   // JOIN ROOM
   // ───────────────────────────────────
-  socket.on('wp:join', (data: {
-    roomCode: string
-    userId: string
-    displayName: string
-    isHost: boolean
-  }) => {
-    const { roomCode, userId, displayName, isHost } = data
+  socket.on('wp:join', async (data: { roomCode: string; userId: string }) => {
+    if (!data || typeof data.roomCode !== 'string' || typeof data.userId !== 'string') return
+    const roomCode = data.roomCode
+    const participant = await verifyParticipant(socket, roomCode, data.userId)
+    if (!participant) {
+      socket.emit('wp:error', { message: 'Bạn chưa được tham gia phòng này' })
+      return
+    }
+
+    const userId = participant.id
+    const displayName = participant.displayName
+    const isHost = participant.role === 'HOST'
     const room = getOrCreateRoom(roomCode)
+    memberships(socket).set(roomCode, { participantId: userId, displayName })
 
     // Join socket.io room
     socket.join(roomCode)
@@ -144,8 +200,9 @@ export function registerWatchPartyHandlers(io: Server, socket: Socket) {
       userId,
     })
 
-    // Set host if needed
-    if (isHost || !room.hostId) {
+    // The DB host always takes control; otherwise the first member present
+    // controls playback until the host (re)joins.
+    if (isHost || !room.hostId || !room.participants.has(room.hostId)) {
       room.hostId = userId
       room.hostSocketId = socket.id
     }
@@ -173,96 +230,48 @@ export function registerWatchPartyHandlers(io: Server, socket: Socket) {
   })
 
   // ───────────────────────────────────
-  // PLAY (host only)
+  // PLAY / PAUSE / SEEK (host only)
   // ───────────────────────────────────
-  socket.on('wp:play', (data: { roomCode: string; userId: string; currentTime: number }) => {
-    const room = rooms.get(data.roomCode)
-    if (!room) return
-
-    // Only host can control
-    if (room.hostId !== data.userId) {
+  function handleControl(kind: 'play' | 'pause' | 'seek', data: { roomCode: string; currentTime: number }) {
+    const host = hostMembership(socket, data?.roomCode)
+    if (!host) {
       socket.emit('wp:error', { message: 'Chỉ host mới điều khiển được player' })
       return
     }
+    if (typeof data.currentTime !== 'number' || !Number.isFinite(data.currentTime) || data.currentTime < 0) return
+    const room = rooms.get(data.roomCode)!
 
     room.state = {
       playbackTime: data.currentTime,
-      isPlaying: true,
-      lastEventBy: data.userId,
+      isPlaying: kind === 'seek' ? room.state.isPlaying : kind === 'play',
+      lastEventBy: host.participantId,
       updatedAt: Date.now(),
     }
 
     // Broadcast to all others in room
-    socket.to(data.roomCode).emit('wp:play', {
+    socket.to(data.roomCode).emit(`wp:${kind}`, {
       currentTime: data.currentTime,
-      by: data.userId,
+      by: host.participantId,
     })
-  })
+  }
 
-  // ───────────────────────────────────
-  // PAUSE (host only)
-  // ───────────────────────────────────
-  socket.on('wp:pause', (data: { roomCode: string; userId: string; currentTime: number }) => {
-    const room = rooms.get(data.roomCode)
-    if (!room) return
-
-    if (room.hostId !== data.userId) {
-      socket.emit('wp:error', { message: 'Chỉ host mới điều khiển được player' })
-      return
-    }
-
-    room.state = {
-      playbackTime: data.currentTime,
-      isPlaying: false,
-      lastEventBy: data.userId,
-      updatedAt: Date.now(),
-    }
-
-    socket.to(data.roomCode).emit('wp:pause', {
-      currentTime: data.currentTime,
-      by: data.userId,
-    })
-  })
-
-  // ───────────────────────────────────
-  // SEEK (host only)
-  // ───────────────────────────────────
-  socket.on('wp:seek', (data: { roomCode: string; userId: string; currentTime: number }) => {
-    const room = rooms.get(data.roomCode)
-    if (!room) return
-
-    if (room.hostId !== data.userId) {
-      socket.emit('wp:error', { message: 'Chỉ host mới điều khiển được player' })
-      return
-    }
-
-    room.state = {
-      ...room.state,
-      playbackTime: data.currentTime,
-      lastEventBy: data.userId,
-      updatedAt: Date.now(),
-    }
-
-    socket.to(data.roomCode).emit('wp:seek', {
-      currentTime: data.currentTime,
-      by: data.userId,
-    })
-  })
+  socket.on('wp:play', (data: { roomCode: string; currentTime: number }) => handleControl('play', data))
+  socket.on('wp:pause', (data: { roomCode: string; currentTime: number }) => handleControl('pause', data))
+  socket.on('wp:seek', (data: { roomCode: string; currentTime: number }) => handleControl('seek', data))
 
   // ───────────────────────────────────
   // SYNC-TIME (host responds with current time)
   // ───────────────────────────────────
-  socket.on('wp:sync-time', (data: { roomCode: string; userId: string; currentTime: number; isPlaying: boolean }) => {
-    const room = rooms.get(data.roomCode)
-    if (!room) return
-
-    // Only accept from host
-    if (room.hostId !== data.userId) return
+  socket.on('wp:sync-time', (data: { roomCode: string; currentTime: number; isPlaying: boolean }) => {
+    const host = hostMembership(socket, data?.roomCode)
+    if (!host) return
+    if (typeof data.currentTime !== 'number' || !Number.isFinite(data.currentTime) || data.currentTime < 0) return
+    const room = rooms.get(data.roomCode)!
 
     room.state = {
       playbackTime: data.currentTime,
-      isPlaying: data.isPlaying,
-      lastEventBy: data.userId,
+      isPlaying: !!data.isPlaying,
+      lastEventBy: host.participantId,
       updatedAt: Date.now(),
     }
 
@@ -274,22 +283,51 @@ export function registerWatchPartyHandlers(io: Server, socket: Socket) {
     })
 
     // Persist to DB (throttled: max once per 5s per room)
-    persistStateToDB(data.roomCode, data.currentTime, data.isPlaying, data.userId)
+    persistStateToDB(data.roomCode, data.currentTime, !!data.isPlaying, host.participantId)
   })
 
   // ───────────────────────────────────
   // CHAT MESSAGE via socket
   // ───────────────────────────────────
-  socket.on('wp:chat', async (data: { roomCode: string; userId: string; displayName: string; content: string }) => {
-    const room = rooms.get(data.roomCode)
-    if (!room) return
+  async function persistChat(roomCode: string, member: Membership, content: string) {
+    try {
+      const dbRoom = await prisma.watchPartyRoom.findUnique({
+        where: { roomCode },
+        select: { id: true },
+      })
+      if (dbRoom) {
+        await prisma.watchPartyMessage.create({
+          data: {
+            roomId: dbRoom.id,
+            participantId: member.participantId,
+            senderName: member.displayName,
+            type: 'chat',
+            content,
+          },
+        })
+      }
+    } catch (err) {
+      log.error({ roomCode, err: err instanceof Error ? err.message : err }, 'DB persist message error')
+    }
+  }
+
+  function readChatContent(content: unknown): string | null {
+    if (typeof content !== 'string') return null
+    const trimmed = content.trim().slice(0, MAX_CHAT_LENGTH)
+    return trimmed.length > 0 ? trimmed : null
+  }
+
+  socket.on('wp:chat', async (data: { roomCode: string; content: string }) => {
+    const member = membershipOf(socket, data?.roomCode)
+    const content = readChatContent(data?.content)
+    if (!member || !content) return
 
     const message = {
       id: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-      senderName: data.displayName,
-      senderId: data.userId,
+      senderName: member.displayName,
+      senderId: member.participantId,
       type: 'chat',
-      content: data.content,
+      content,
       createdAt: new Date().toISOString(),
     }
 
@@ -297,132 +335,96 @@ export function registerWatchPartyHandlers(io: Server, socket: Socket) {
     io.in(data.roomCode).emit('wp:chat-message', message)
 
     // Background push to DB
-    try {
-      const dbRoom = await prisma.watchPartyRoom.findUnique({
-        where: { roomCode: data.roomCode },
-        select: { id: true }
-      })
-      if (dbRoom) {
-        // Find participant by userId or guest id
-        const participant = await prisma.watchPartyParticipant.findFirst({
-           where: { roomId: dbRoom.id, userId: data.userId }
-        });
-
-        await prisma.watchPartyMessage.create({
-          data: {
-            roomId: dbRoom.id,
-            participantId: participant?.id || null, 
-            senderName: data.displayName,
-            type: 'chat',
-            content: data.content,
-          }
-        })
-      }
-    } catch (err) {
-      log.error({ roomCode: data.roomCode, err: err instanceof Error ? err.message : err }, 'DB persist message error')
-    }
+    await persistChat(data.roomCode, member, content)
   })
 
   // ───────────────────────────────────
   // CHAT MESSAGE PERSIST ONLY (SFU Mode)
   // ───────────────────────────────────
-  socket.on('wp:chat-persist', async (data: { roomCode: string; userId: string; displayName: string; content: string }) => {
-    const room = rooms.get(data.roomCode)
-    if (!room) return
-
-    // Background push to DB only, no broadcast
-    try {
-      const dbRoom = await prisma.watchPartyRoom.findUnique({
-        where: { roomCode: data.roomCode },
-        select: { id: true }
-      })
-      if (dbRoom) {
-        const participant = await prisma.watchPartyParticipant.findFirst({
-           where: { roomId: dbRoom.id, userId: data.userId }
-        });
-
-        await prisma.watchPartyMessage.create({
-          data: {
-            roomId: dbRoom.id,
-            participantId: participant?.id || null, 
-            senderName: data.displayName,
-            type: 'chat',
-            content: data.content,
-          }
-        })
-      }
-    } catch (err) {
-      log.error({ roomCode: data.roomCode, err: err instanceof Error ? err.message : err }, 'DB persist message error')
-    }
+  socket.on('wp:chat-persist', async (data: { roomCode: string; content: string }) => {
+    const member = membershipOf(socket, data?.roomCode)
+    const content = readChatContent(data?.content)
+    if (!member || !content) return
+    await persistChat(data.roomCode, member, content)
   })
 
   // ───────────────────────────────────
   // CALL SIGNALING (WebRTC)
   // ───────────────────────────────────
-  socket.on('wp:call-signal', (data: { roomCode: string; type: string; fromId: string; fromName: string; targetId?: string; payload?: any }) => {
-    // Broadcast WebRTC signals to everyone else in the room
-    socket.to(data.roomCode).emit('wp:call-signal', data)
+  socket.on('wp:call-signal', (data: { roomCode: string; type: string; targetId?: string; payload?: unknown }) => {
+    const member = membershipOf(socket, data?.roomCode)
+    if (!member) return
+    // Sender identity comes from the verified membership, not the payload.
+    socket.to(data.roomCode).emit('wp:call-signal', {
+      ...data,
+      fromId: member.participantId,
+      fromName: member.displayName,
+    })
   })
 
   // ───────────────────────────────────
   // ROOM LOCK & APPROVAL (Host Only)
   // ───────────────────────────────────
-  socket.on('wp:toggle-lock', async (data: { roomCode: string; userId: string; isLocked: boolean }) => {
-    const room = rooms.get(data.roomCode)
-    if (!room || room.hostId !== data.userId) return
+  socket.on('wp:toggle-lock', async (data: { roomCode: string; isLocked: boolean }) => {
+    if (!hostMembership(socket, data?.roomCode)) return
 
     try {
       await prisma.watchPartyRoom.update({
         where: { roomCode: data.roomCode },
-        data: { isLocked: data.isLocked }
+        data: { isLocked: !!data.isLocked },
       })
-      io.in(data.roomCode).emit('wp:lock-changed', { isLocked: data.isLocked })
+      io.in(data.roomCode).emit('wp:lock-changed', { isLocked: !!data.isLocked })
     } catch (e) {
       log.error({ err: e instanceof Error ? e.message : e }, 'Toggle lock error')
     }
   })
 
-  socket.on('wp:request-join', (data: { roomCode: string; userId: string; displayName: string; socketId: string }) => {
+  socket.on('wp:request-join', (data: { roomCode: string; userId: string; displayName: string }) => {
+    if (!data || typeof data.roomCode !== 'string') return
     const room = rooms.get(data.roomCode)
     if (!room || !room.hostSocketId) return
-    // Forward request to host
-    io.to(room.hostSocketId).emit('wp:join-request', data)
+    // Forward request to host; the socket id is taken from the server side.
+    io.to(room.hostSocketId).emit('wp:join-request', {
+      roomCode: data.roomCode,
+      userId: typeof data.userId === 'string' ? data.userId : '',
+      displayName: typeof data.displayName === 'string' ? data.displayName.slice(0, 50) : '',
+      socketId: socket.id,
+    })
   })
 
-  socket.on('wp:approve-join', (data: { roomCode: string; userId: string; hostId: string; targetSocketId: string }) => {
-    const room = rooms.get(data.roomCode)
-    if (!room || room.hostId !== data.hostId) return
-    // Temporarily whitelist the user in memory so they can call join API, or we can just emit approved
+  // Approval itself is persisted by the REST approve endpoint; these events
+  // only tell the waiting socket to retry its join.
+  socket.on('wp:approve-join', (data: { roomCode: string; targetSocketId: string }) => {
+    if (!hostMembership(socket, data?.roomCode) || typeof data.targetSocketId !== 'string') return
     io.to(data.targetSocketId).emit('wp:join-approved', { roomCode: data.roomCode })
   })
 
-  socket.on('wp:reject-join', (data: { roomCode: string; userId: string; hostId: string; targetSocketId: string }) => {
-    const room = rooms.get(data.roomCode)
-    if (!room || room.hostId !== data.hostId) return
+  socket.on('wp:reject-join', (data: { roomCode: string; targetSocketId: string }) => {
+    if (!hostMembership(socket, data?.roomCode) || typeof data.targetSocketId !== 'string') return
     io.to(data.targetSocketId).emit('wp:join-rejected', { roomCode: data.roomCode })
   })
 
-  socket.on('wp:kick', async (data: { roomCode: string; hostId: string; targetId: string }) => {
-    const room = rooms.get(data.roomCode)
-    if (!room || room.hostId !== data.hostId) return
+  socket.on('wp:kick', async (data: { roomCode: string; targetId: string }) => {
+    if (!hostMembership(socket, data?.roomCode) || typeof data.targetId !== 'string') return
+    const room = rooms.get(data.roomCode)!
 
     const target = room.participants.get(data.targetId)
-    if (target) {
+    if (target && target.socketId !== socket.id) {
       io.to(target.socketId).emit('wp:kicked', { message: 'Bạn đã bị chủ phòng mời ra khỏi phòng.' })
-      // Disconnect them gracefully
-      handleLeave(data.roomCode, data.targetId)
+      // Remove the KICKED member's socket from the room (not the host's).
+      const targetSocket = io.sockets.sockets.get(target.socketId) ?? null
+      if (targetSocket) memberships(targetSocket).delete(data.roomCode)
+      handleLeave(data.roomCode, data.targetId, targetSocket)
     }
   })
 
   // ───────────────────────────────────
   // HOST TRANSFER
   // ───────────────────────────────────
-  socket.on('wp:transfer-host', (data: { roomCode: string; userId: string; newHostId: string }) => {
-    const room = rooms.get(data.roomCode)
-    if (!room) return
-
+  socket.on('wp:transfer-host', (data: { roomCode: string; newHostId: string }) => {
     // Only current host can transfer
-    if (room.hostId !== data.userId) return
+    if (!hostMembership(socket, data?.roomCode) || typeof data.newHostId !== 'string') return
+    const room = rooms.get(data.roomCode)!
 
     const newHost = room.participants.get(data.newHostId)
     if (!newHost) return
@@ -439,7 +441,8 @@ export function registerWatchPartyHandlers(io: Server, socket: Socket) {
   // ───────────────────────────────────
   // LEAVE / DISCONNECT
   // ───────────────────────────────────
-  function handleLeave(roomCode: string, userId: string) {
+  /** Remove `userId` from `roomCode`; `memberSocket` is that member's socket (null once disconnected). */
+  function handleLeave(roomCode: string, userId: string, memberSocket: Socket | null) {
     const room = rooms.get(roomCode)
     if (!room) return
 
@@ -448,8 +451,8 @@ export function registerWatchPartyHandlers(io: Server, socket: Socket) {
 
     room.participants.delete(userId)
 
-    // Notify others
-    socket.to(roomCode).emit('wp:user-left', {
+    // Notify the others (not the leaving member)
+    io.to(roomCode).except(participant.socketId).emit('wp:user-left', {
       userId,
       displayName: participant.displayName,
       participantCount: room.participants.size,
@@ -476,25 +479,23 @@ export function registerWatchPartyHandlers(io: Server, socket: Socket) {
       }
     }
 
-    socket.leave(roomCode)
+    memberSocket?.leave(roomCode)
   }
 
-  socket.on('wp:leave', (data: { roomCode: string; userId: string }) => {
-    handleLeave(data.roomCode, data.userId)
+  socket.on('wp:leave', (data: { roomCode: string }) => {
+    const member = membershipOf(socket, data?.roomCode)
+    if (!member) return
+    memberships(socket).delete(data.roomCode)
+    handleLeave(data.roomCode, member.participantId, socket)
   })
 
   socket.on('disconnect', () => {
     // Clear rate limit store
     rateLimitStore.delete(socket.id)
 
-    // Find which rooms this socket was in and clean up
-    for (const [roomCode, room] of rooms.entries()) {
-      for (const [userId, participant] of room.participants.entries()) {
-        if (participant.socketId === socket.id) {
-          handleLeave(roomCode, userId)
-          break
-        }
-      }
+    for (const [roomCode, member] of memberships(socket)) {
+      handleLeave(roomCode, member.participantId, null)
     }
+    memberships(socket).clear()
   })
 }

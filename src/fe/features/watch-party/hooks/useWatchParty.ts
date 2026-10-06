@@ -20,6 +20,23 @@ import { logger } from '@/src/fe/lib/logger'
 
 import { Socket } from 'socket.io-client'
 
+type PendingRequest = { userId: string; displayName: string; socketId: string }
+type ApiParticipant = WatchRoomMember & { status?: string; displayName?: string }
+
+/**
+ * The room API returns every not-left participant, including people still in
+ * the waiting room (PENDING) or turned away (REJECTED). Only admitted members
+ * belong in the member list; pending ones are the host's join requests.
+ */
+function splitParticipants(list: ApiParticipant[] = []): { members: WatchRoomMember[]; pending: PendingRequest[] } {
+  return {
+    members: list.filter((p) => !p.status || p.status === 'ACTIVE'),
+    pending: list
+      .filter((p) => p.status === 'PENDING')
+      .map((p) => ({ userId: p.id, displayName: p.displayName || p.guestName || 'Khách', socketId: '' })),
+  }
+}
+
 const log = logger.child({ module: 'useWatchParty' })
 
 // ── Types ──
@@ -106,7 +123,7 @@ export function useWatchParty(options: UseWatchPartyOptions): UseWatchPartyRetur
   const [memberId, setMemberId] = useState<string>('')
   const [isLockedOut, setIsLockedOut] = useState(false)
   const [isWaitlistApproved, setIsWaitlistApproved] = useState(false)
-  const [pendingRequests, setPendingRequests] = useState<{userId: string; displayName: string; socketId: string}[]>([])
+  const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([])
 
   const channelRef = useRef<RealtimeChannel | null>(null)
   const syncRef = useRef<PlayerSyncService | null>(null)
@@ -132,7 +149,6 @@ export function useWatchParty(options: UseWatchPartyOptions): UseWatchPartyRetur
             roomCode: code,
             userId: user.id,
             displayName: user.name,
-            isApproved: isWaitlistApproved,
           }),
         })
 
@@ -162,7 +178,10 @@ export function useWatchParty(options: UseWatchPartyOptions): UseWatchPartyRetur
           const stateData = await stateRes.json()
           if (cancelled) return
           setRoom(stateData.room)
-          setMembers(stateData.participants ?? [])
+          const { members: admitted, pending } = splitParticipants(stateData.participants)
+          setMembers(admitted)
+          // Requests made before the host (re)loaded the page.
+          if (isHost) setPendingRequests(pending)
           setMessages(stateData.messages ?? [])
         }
 
@@ -227,11 +246,12 @@ export function useWatchParty(options: UseWatchPartyOptions): UseWatchPartyRetur
           }
           
           if (isHost && event.type === 'JOIN_REQUEST') {
+            // Same request may also arrive over Socket.IO — toast only once.
             setPendingRequests((prev) => {
               if (prev.some(p => p.userId === event.participant.id)) return prev
+              toast.info(`${event.participant.displayName} muốn tham gia phòng`)
               return [...prev, { userId: event.participant.id, displayName: event.participant.displayName, socketId: '' }]
             })
-            toast.info(`${event.participant.displayName} muốn tham gia phòng`)
           }
         })
 
@@ -247,9 +267,11 @@ export function useWatchParty(options: UseWatchPartyOptions): UseWatchPartyRetur
         })
 
         if (isHost) {
-          channel.onRaw('wp:join-request', (data: { userId: string; displayName: string; socketId: string }) => {
+          // Emitted by the server when someone asks to join a locked room.
+          channel.onRaw('wp:join-request', (data: PendingRequest) => {
             setPendingRequests((prev) => {
               if (prev.some(p => p.userId === data.userId)) return prev
+              toast.info(`${data.displayName} muốn tham gia phòng`)
               return [...prev, data]
             })
           })
@@ -292,8 +314,10 @@ export function useWatchParty(options: UseWatchPartyOptions): UseWatchPartyRetur
       channelRef.current?.disconnect()
       channelRef.current = null
     }
+  // Re-run after the host approves a waitlist request: the server now sees an
+  // ACTIVE participant and admits the join.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomCode, user.id])
+  }, [roomCode, user.id, isWaitlistApproved])
 
   const setLiveKitRoomAction = useCallback((room: any) => {
     if (channelRef.current && typeof channelRef.current.setLiveKitRoom === 'function') {
@@ -371,13 +395,15 @@ export function useWatchParty(options: UseWatchPartyOptions): UseWatchPartyRetur
       if (res.ok) {
         const data = await res.json()
         setRoom(data.room)
-        setMembers(data.participants ?? [])
+        const { members: admitted, pending } = splitParticipants(data.participants)
+        setMembers(admitted)
+        if (isHost) setPendingRequests(pending)
         setMessages(data.messages ?? [])
       }
     } catch {
       // Silent
     }
-  }, [roomCode])
+  }, [roomCode, isHost])
 
   const [pendingParticipantId, setPendingParticipantId] = useState<string | null>(null)
 
@@ -472,9 +498,11 @@ export function useWatchParty(options: UseWatchPartyOptions): UseWatchPartyRetur
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'APPROVE', hostParticipantId: memberId, targetParticipantId: targetUserId }),
       })
-      if (res.ok) {
+      const data = await res.json().catch(() => null)
+      if (res.ok || data?.code === 'NOT_PENDING') {
         setPendingRequests((prev) => prev.filter(p => p.userId !== targetUserId))
       }
+      if (!res.ok) toast.error(data?.error || 'Không thể duyệt người dùng')
     } catch (e) {
       toast.error('Lỗi khi duyệt người dùng')
     }
@@ -488,9 +516,11 @@ export function useWatchParty(options: UseWatchPartyOptions): UseWatchPartyRetur
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'REJECT', hostParticipantId: memberId, targetParticipantId: targetUserId }),
       })
-      if (res.ok) {
+      const data = await res.json().catch(() => null)
+      if (res.ok || data?.code === 'NOT_PENDING') {
         setPendingRequests((prev) => prev.filter(p => p.userId !== targetUserId))
       }
+      if (!res.ok) toast.error(data?.error || 'Không thể từ chối người dùng')
     } catch (e) {
       toast.error('Lỗi khi từ chối người dùng')
     }

@@ -9,11 +9,12 @@ import { NextResponse } from 'next/server'
 import { PublicUser } from '@/src/be/modules/auth'
 
 /**
- * Verify the request is from an authenticated admin user (uses 5-level RBAC).
+ * Verify the request is from an authenticated admin user (uses 5-level RBAC),
+ * optionally holding a specific permission.
  * Returns the user if authorized, or a 401/403 NextResponse.
  */
-export async function requireAdmin(): Promise<PublicUser | NextResponse> {
-  const result = await baseRequireAdmin()
+export async function requireAdmin(permission?: string): Promise<PublicUser | NextResponse> {
+  const result = await baseRequireAdmin(permission)
   if (result instanceof Response) return result as NextResponse
   return result.user
 }

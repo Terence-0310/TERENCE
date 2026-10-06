@@ -19,7 +19,7 @@ const schema = z.object({
 }).strict()
 
 export async function POST(req: NextRequest) {
-  const auth = await requireAdmin('editor')
+  const auth = await requireAdmin('news.manage')
   if ('error' in auth) return auth.error
 
   let body: unknown = {}

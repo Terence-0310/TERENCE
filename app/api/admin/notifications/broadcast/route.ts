@@ -5,7 +5,7 @@ import { broadcastNotification } from '@/src/be/modules/notifications/notificati
 
 // POST /api/admin/notifications/broadcast — send a system notification to all users.
 export async function POST(req: NextRequest) {
-  const auth = await requireAdmin()
+  const auth = await requireAdmin('notification.broadcast')
   if (auth instanceof Response) return auth
 
   const body = await parseBody<{ title?: string; message?: string; link?: string }>(req)

@@ -7,7 +7,7 @@ import { prisma } from '@/src/be/shared/db/prisma'
 import { requireAdmin, logAdminAction, paginatedResponse } from '@/src/be/modules/admin/admin.utils'
 
 export async function GET(request: NextRequest) {
-  const auth = await requireAdmin('editor')
+  const auth = await requireAdmin('dashboard.view')
   if ('error' in auth) return auth.error
 
   const { searchParams } = request.nextUrl
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await requireAdmin('editor')
+  const auth = await requireAdmin('metadata.manage')
   if ('error' in auth) return auth.error
 
   const body = await request.json()

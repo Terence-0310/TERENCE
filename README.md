@@ -863,10 +863,10 @@ git clone <repo-url> && cd TERENCE-main
 npm install                       # postinstall tự chạy `prisma generate`
 cp .env.example .env              # điền DATABASE_URL (PostgreSQL) + các key
 
-# Tạo schema vào DB.
-# Lưu ý: migration init hiện có sự cố datetime → dùng db push cho đáng tin cậy:
-npx prisma db push --schema=src/dta/prisma/schema.prisma
-# (hoặc thử: npm run db:migrate)
+# Tạo schema vào DB bằng migration (baseline đầy đủ 42 bảng):
+npm run db:deploy
+# DB cũ tạo bằng `db push` (chưa có lịch sử migration) → đánh dấu baseline một lần:
+#   npx prisma migrate resolve --schema=src/dta/prisma/schema.prisma --applied 20261006000000_baseline
 
 npm run db:seed                   # seed admin, phim mẫu…
 ```
@@ -887,6 +887,11 @@ npm run build && npm start   # Production
 | `staff@terence.vn` | `Staff@12345` | Staff |
 | `user@terence.vn` | `User@12345` | User |
 
+> Mật khẩu trên chỉ dùng khi chạy **local/dev**. Ở production, đặt `SEED_ADMIN_PASSWORD`,
+> `SEED_STAFF_PASSWORD`, `SEED_USER_PASSWORD`; nếu bỏ trống, seed tự sinh mật khẩu ngẫu nhiên và in ra log
+> một lần. Seed chỉ **tạo mới** tài khoản, không bao giờ ghi đè mật khẩu/role của user đã có.
+> `SEED_ON_START` mặc định `false` — chỉ bật cho lần khởi động đầu tiên.
+
 ---
 
 ## 15. Biến môi trường
@@ -898,7 +903,7 @@ npm run build && npm start   # Production
 | Core | `DATABASE_URL`, `DIRECT_URL`, `NODE_ENV`, `PORT`, `HOSTNAME`, `LOG_LEVEL` |
 | Auth | `NEXTAUTH_SECRET`, `NEXTAUTH_URL`, `APP_URL`, `NEXT_PUBLIC_SITE_URL`, `GOOGLE_CLIENT_ID/SECRET`, `NEXT_PUBLIC_TURNSTILE_SITE_KEY` |
 | Email (SMTP) | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `EMAIL_FROM_NAME`, `EMAIL_FROM_ADDRESS` |
-| Payments | `SEPAY_BANK_CODE`, `SEPAY_BANK_ACCOUNT`, `SEPAY_PAYMENT_PREFIX`, `SEPAY_API_KEY`, `SEPAY_WEBHOOK_API_KEY`, `SEPAY_WEBHOOK_SECRET`, `VIETQR_BANK_ID`, `VIETQR_ACCOUNT_NO`, `VIETQR_ACCOUNT_NAME`, `VIETQR_TEMPLATE` |
+| Payments | `SEPAY_BANK_CODE`, `SEPAY_BANK_ACCOUNT`, `SEPAY_API_KEY`, `SEPAY_WEBHOOK_API_KEY`, `SEPAY_WEBHOOK_SECRET`, `VIETQR_BANK_ID`, `VIETQR_ACCOUNT_NO`, `VIETQR_ACCOUNT_NAME`, `VIETQR_TEMPLATE` |
 | TMDB | `TMDB_API_KEY`, `TMDB_READ_ACCESS_TOKEN`, `TMDB_BASE_URL`, `NEXT_PUBLIC_TMDB_IMAGE_BASE_URL` |
 | Nguồn phim | `OPHIM_BASE_URL`, `OPHIM_TIMEOUT`, `KKPHIM_BASE_URL`, `KKPHIM_TIMEOUT`, `DISABLE_OPHIM_CHECK`, `DEMO_HLS_URL` |
 | Search | `ELASTICSEARCH_HOST`, `ELASTICSEARCH_INDEX_MOVIES`, `ELASTICSEARCH_USERNAME/PASSWORD/API_KEY` |
@@ -919,8 +924,8 @@ cp .env.example .env && nano .env        # điền production values
 
 npm install
 npx prisma generate
-npx prisma db push --schema=src/dta/prisma/schema.prisma   # init schema (xem ghi chú migrate)
-npm run db:seed
+npm run db:deploy                                          # áp migration (xem ghi chú baseline ở trên)
+SEED_ADMIN_PASSWORD='<mật khẩu mạnh>' npm run db:seed      # seed chỉ tạo mới, không ghi đè user có sẵn
 npm run build
 
 mkdir -p logs
@@ -948,8 +953,7 @@ npm run docker:reindex   # reindex Elasticsearch trong container
 npm run dev · dev:socket · build · start · lint
 
 # Database
-npm run db:generate · db:seed · db:reset
-npx prisma db push --schema=src/dta/prisma/schema.prisma   # khuyến nghị cho init schema
+npm run db:generate · db:migrate · db:deploy · db:seed · db:reset
 
 # Sync dữ liệu phim
 npm run sync:ophim:catalog · sync:ophim18:catalog · sync:ophim:movie · enrich:tmdb · pipeline:movie

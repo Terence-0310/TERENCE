@@ -18,9 +18,10 @@ const log = logger.child({ module: 'sepay-webhook' })
 // gets context instead of a bare 405. Does NOT expose the API key, only whether
 // one is configured and when the last successful webhook fired.
 export async function GET() {
-  const apiKeySet = !!process.env.SEPAY_WEBHOOK_API_KEY
+  const apiKeySet = !!(process.env.SEPAY_WEBHOOK_API_KEY || process.env.SEPAY_WEBHOOK_SECRET)
   const bankAccount = process.env.SEPAY_BANK_ACCOUNT || null
-  const prefix = process.env.SEPAY_PAYMENT_PREFIX || 'TCOIN'
+  // Fixed prefix: the webhook only matches transfer contents starting with TCOIN.
+  const prefix = 'TCOIN'
 
   const lastPaid = await prisma.topupOrder.findFirst({
     where: { status: 'PAID' },

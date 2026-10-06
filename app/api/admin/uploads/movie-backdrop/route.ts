@@ -6,7 +6,7 @@ import { prisma } from '@/src/be/shared/db/prisma'
 
 // POST /api/admin/uploads/movie-backdrop — upload backdrop image for a movie
 export async function POST(req: NextRequest) {
-  const auth = await requireAdmin('uploads.manage')
+  const auth = await requireAdmin('upload.manage')
   if (auth instanceof Response) return auth
 
   try {

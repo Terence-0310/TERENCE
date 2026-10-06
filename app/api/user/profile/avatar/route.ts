@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/src/be/shared/db/prisma'
 import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/lib/auth"
-import { handleFileUpload } from '@/src/be/modules/uploads/legacy-upload'
+import { handleFileUpload, MAX_AVATAR_SIZE } from '@/src/be/modules/uploads/legacy-upload'
 
 export async function POST(req: NextRequest) {
   try {
@@ -17,9 +17,12 @@ export async function POST(req: NextRequest) {
 
     if (!file) return NextResponse.json({ error: 'Không tìm thấy file tải lên' }, { status: 400 })
 
-    // Use the upload helper but specify the 'avatars' subdirectory.
-    // It will save to /public/uploads/avatars/
-    const result = await handleFileUpload(file, 'avatars', session.user.email || userId)
+    // Images only (≤5MB), type verified from the file bytes.
+    // Saved to /public/uploads/avatars/
+    const result = await handleFileUpload(file, 'avatars', session.user.email || userId, {
+      imagesOnly: true,
+      maxSize: MAX_AVATAR_SIZE,
+    })
 
     const updatedUser = await prisma.user.update({
       where: { id: userId },
@@ -30,6 +33,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ url: updatedUser.avatar })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Tải lên thất bại'
-    return NextResponse.json({ error: message }, { status: 500 })
+    return NextResponse.json({ error: message }, { status: 400 })
   }
 }

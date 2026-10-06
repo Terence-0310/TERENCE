@@ -2,6 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createRoomSchema, joinRoomSchema, leaveRoomSchema } from './watch-party.schema'
 import * as service from './watch-party.service'
 import { WatchPartyError } from './watch-party.service'
+import { AuthService } from '@/src/be/modules/auth'
+
+/**
+ * The signed-in user's id, or null for guests. Identity always comes from the
+ * session — any `userId` in the request body is ignored.
+ */
+async function getCallerUserId(): Promise<string | null> {
+  const user = await AuthService.getCurrentUser()
+  return user?.id || null
+}
 
 export async function createRoom(request: NextRequest) {
   try {
@@ -15,7 +25,7 @@ export async function createRoom(request: NextRequest) {
       )
     }
 
-    const result = await service.createRoom(parsed.data)
+    const result = await service.createRoom({ ...parsed.data, userId: await getCallerUserId() })
 
     return NextResponse.json({
       room: {
@@ -58,7 +68,7 @@ export async function joinRoom(request: NextRequest) {
       )
     }
 
-    const result = await service.joinRoom(parsed.data)
+    const result = await service.joinRoom({ ...parsed.data, userId: await getCallerUserId() })
 
     return NextResponse.json({
       room: {
@@ -109,12 +119,12 @@ export async function leaveRoom(request: NextRequest) {
       )
     }
 
-    const result = await service.leaveRoom(parsed.data)
+    const result = await service.leaveRoom({ ...parsed.data, callerUserId: await getCallerUserId() })
 
     return NextResponse.json({ ok: true, ended: result.ended, newHost: result.newHost })
   } catch (err: unknown) {
     if (err instanceof WatchPartyError) {
-      const status = err.code === 'ROOM_NOT_FOUND' || err.code === 'PARTICIPANT_NOT_FOUND' ? 404 : 400
+      const status = err.code === 'ROOM_NOT_FOUND' || err.code === 'PARTICIPANT_NOT_FOUND' ? 404 : err.code === 'FORBIDDEN' ? 403 : 400
       return NextResponse.json({ error: err.message, code: err.code }, { status })
     }
     const message = err instanceof Error ? err.message : 'Failed to leave room'
@@ -214,7 +224,7 @@ export async function requestJoin(request: NextRequest, context: RouteContext) {
     const result = await service.requestJoin({
       roomCode: roomCode.toUpperCase(),
       displayName: parsed.data.displayName,
-      userId: parsed.data.userId
+      userId: await getCallerUserId()
     })
 
     return NextResponse.json({
@@ -249,6 +259,7 @@ export async function approveParticipant(request: NextRequest, context: RouteCon
 
     const result = await service.approveParticipant({
       roomCode: roomCode.toUpperCase(),
+      callerUserId: await getCallerUserId(),
       hostParticipantId: parsed.data.hostParticipantId,
       targetParticipantId: parsed.data.targetParticipantId,
       action: parsed.data.action
@@ -264,7 +275,7 @@ export async function approveParticipant(request: NextRequest, context: RouteCon
     })
   } catch (err: unknown) {
     if (err instanceof WatchPartyError) {
-      const statusMap: Record<string, number> = { ROOM_NOT_FOUND: 404, FORBIDDEN: 403, PARTICIPANT_NOT_FOUND: 404 }
+      const statusMap: Record<string, number> = { ROOM_NOT_FOUND: 404, FORBIDDEN: 403, PARTICIPANT_NOT_FOUND: 404, NOT_PENDING: 409, ROOM_FULL: 409 }
       return NextResponse.json({ error: err.message, code: err.code }, { status: statusMap[err.code] || 400 })
     }
     const message = err instanceof Error ? err.message : 'Failed to approve participant'
@@ -287,6 +298,7 @@ export async function updateRole(request: NextRequest, context: RouteContext) {
 
     const result = await service.updateParticipantRole({
       roomCode: roomCode.toUpperCase(),
+      callerUserId: await getCallerUserId(),
       hostParticipantId: parsed.data.hostParticipantId,
       targetParticipantId: parsed.data.targetParticipantId,
       role: parsed.data.role
@@ -333,7 +345,8 @@ export async function updateRoom(request: NextRequest, context: RouteContext) {
       title: parsed.data.title,
       isLocked: parsed.data.isLocked,
       theme: parsed.data.theme,
-      participantId: parsed.data.participantId
+      participantId: parsed.data.participantId,
+      callerUserId: await getCallerUserId()
     })
 
     return NextResponse.json({

@@ -4,6 +4,7 @@
 // All Prisma queries for watch party models.
 // Used by service layer, never called directly from routes.
 
+import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/db'
 
 // ── Room ──
@@ -96,18 +97,23 @@ export async function createParticipant(data: {
   })
 }
 
+/**
+ * Find a person's current (not-left) seat in a room. If several rows exist
+ * (e.g. an old rejected request next to an admitted one) the ACTIVE row wins,
+ * then the most recent one.
+ */
 export async function findParticipant(roomId: string, identity: { userId?: string; displayName?: string }) {
+  let where: Prisma.WatchPartyParticipantWhereInput
   if (identity.userId) {
-    return prisma.watchPartyParticipant.findFirst({
-      where: { roomId, userId: identity.userId, leftAt: null },
-    })
+    where = { roomId, userId: identity.userId, leftAt: null }
+  } else if (identity.displayName) {
+    // Only guest rows: a guest must never resume a signed-in user's seat.
+    where = { roomId, displayName: identity.displayName, userId: null, leftAt: null }
+  } else {
+    return null
   }
-  if (identity.displayName) {
-    return prisma.watchPartyParticipant.findFirst({
-      where: { roomId, displayName: identity.displayName, leftAt: null },
-    })
-  }
-  return null
+  const rows = await prisma.watchPartyParticipant.findMany({ where, orderBy: { joinedAt: 'desc' } })
+  return rows.find((r) => r.status === 'ACTIVE') ?? rows[0] ?? null
 }
 
 export async function markParticipantOffline(participantId: string) {

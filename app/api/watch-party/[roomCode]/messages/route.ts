@@ -112,9 +112,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
     // Anti-spoofing: if the participant is bound to a registered user, the request
     // must come from a session matching that user. Guest participants (userId == null)
     // are accepted without a session but cannot impersonate a registered user.
+    let sessionUserId: string | null = null
     if (participant.userId) {
       const session = await getServerSession(authOptions)
-      const sessionUserId = session?.user?.id
+      sessionUserId = session?.user?.id ?? null
       if (sessionUserId !== participant.userId) {
         return NextResponse.json(
           { error: 'Forbidden: session does not match participant' },
@@ -128,6 +129,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       participantId: participant.id,
       senderName: participant.displayName,
       content: content.trim(),
+      callerUserId: sessionUserId,
     })
 
     return NextResponse.json(

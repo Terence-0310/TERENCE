@@ -21,7 +21,7 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: terence_dev
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -73,7 +73,7 @@ services:
         NEXT_PUBLIC_TMDB_IMAGE_BASE_URL: https://image.tmdb.org/t/p
         NEXT_PUBLIC_REGION: VN
     ports:
-      - "3000:3000"
+      - "3001:3000"
     environment:
       - NODE_ENV=production
       - HOSTNAME=0.0.0.0
@@ -87,14 +87,19 @@ services:
       - TMDB_BASE_URL=https://api.themoviedb.org/3
       - TMDB_IMAGE_BASE_URL=https://image.tmdb.org/t/p/original
       # Site
-      - NEXT_PUBLIC_SITE_URL=http://localhost:3000
+      - NEXT_PUBLIC_SITE_URL=http://localhost:3001
       - NEXT_PUBLIC_TMDB_IMAGE_BASE_URL=https://image.tmdb.org/t/p
       - NEXT_PUBLIC_REGION=VN
+      - NEXT_PUBLIC_GOOGLE_AUTH_ENABLED=${NEXT_PUBLIC_GOOGLE_AUTH_ENABLED:-false}
       # OPhim
       - OPHIM_BASE_URL=https://ophim1.com
       - OPHIM_TIMEOUT=15000
       - OPHIM18_BASE_URL=https://ophim1.com
       - OPHIM18_TIMEOUT=20000
+      - DISABLE_OPHIM_CHECK=${DISABLE_OPHIM_CHECK:-true}
+      # Live catalog source. Use only where the provider's content license permits.
+      - KKPHIM_BASE_URL=${KKPHIM_BASE_URL:-https://phimapi.com}
+      - KKPHIM_TIMEOUT=${KKPHIM_TIMEOUT:-20000}
       # Player
       - DEMO_HLS_URL=https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8
       - PUBLIC_STREAM_ALLOWED_HOSTS=test-streams.mux.dev,devstreaming-cdn.apple.com
@@ -109,24 +114,30 @@ services:
       # Redis Cache
       - REDIS_URL=redis://redis:6379
       # NextAuth — override localhost values from .env
-      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3001}
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-terence_docker_secret_change_in_production}
       # Socket.IO CORS — comma-separated. server.ts reads this; without it
       # production builds reject cross-origin WS handshakes.
-      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3001,http://127.0.0.1:3001}
       # News auto-generation (Gemini). Free key at https://aistudio.google.com/apikey
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.0-flash}
       - GNEWS_API_KEY=${GNEWS_API_KEY:-}
-      # Auto-seed on first start. After the DB has data, set SEED_ON_START=false
-      # in .env to skip — re-seeding wastes time and can clobber edits.
-      - SEED_ON_START=${SEED_ON_START:-true}
+      # Seeding is opt-in: set SEED_ON_START=true for the first start only.
+      # Seed is create-only (never overwrites existing users); demo account
+      # passwords come from SEED_*_PASSWORD (random if unset in production).
+      - SEED_ON_START=${SEED_ON_START:-false}
+      - SEED_ADMIN_PASSWORD=${SEED_ADMIN_PASSWORD:-}
+      - SEED_USER_PASSWORD=${SEED_USER_PASSWORD:-}
+      - SEED_STAFF_PASSWORD=${SEED_STAFF_PASSWORD:-}
       # Auto-sync OPhim catalog on first start so the DB has real playable
       # movies (URL slugs like /watch/hoppers-cu-nhay-ky-dieu work out of
       # the box). Toggle off (false) after first successful run to avoid
       # re-fetching every container restart.
-      - SYNC_OPHIM_ON_START=${SYNC_OPHIM_ON_START:-true}
+      - SYNC_OPHIM_ON_START=${SYNC_OPHIM_ON_START:-false}
       - OPHIM_SYNC_PAGES=${OPHIM_SYNC_PAGES:-3}
+      - SYNC_KKPHIM_ON_START=${SYNC_KKPHIM_ON_START:-true}
+      - KKPHIM_SYNC_PAGES=${KKPHIM_SYNC_PAGES:-3}
     env_file:
       - .env
     depends_on:
@@ -138,7 +149,15 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://localhost:3000",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3

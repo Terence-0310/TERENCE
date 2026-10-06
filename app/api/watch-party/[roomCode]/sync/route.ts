@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import * as service from '@/src/be/modules/watch-party/watch-party.service'
 import { WatchPartyError } from '@/src/be/modules/watch-party/watch-party.service'
+import { AuthService } from '@/src/be/modules/auth'
 
 interface RouteContext {
   params: Promise<{ roomCode: string }>
@@ -80,6 +81,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       isPlaying,
       playbackRate,
       episodeId,
+      callerUserId: (await AuthService.getCurrentUser())?.id || null,
     })
 
     return NextResponse.json({

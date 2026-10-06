@@ -4,6 +4,8 @@
 // Centralised so both webhook endpoints (/api/payments/sepay/webhook and
 // /api/webhooks/sepay) share the same verification + parsing logic.
 
+import { timingSafeEqual } from 'crypto'
+
 export interface SePayWebhookPayload {
   id: number | string
   gateway?: string
@@ -30,18 +32,42 @@ function getWebhookSecret(): string {
 }
 
 /**
+ * No secret configured: allowed only outside production (local testing).
+ * In production the webhook fails CLOSED so a forged POST cannot credit TCoin.
+ */
+function allowWithoutSecret(): boolean {
+  return process.env.NODE_ENV !== 'production'
+}
+
+/** Constant-time string comparison (avoids leaking the secret via timing). */
+function safeEqual(a: string, b: string): boolean {
+  const ab = Buffer.from(a)
+  const bb = Buffer.from(b)
+  return ab.length === bb.length && timingSafeEqual(ab, bb)
+}
+
+/** True when the header value carries the secret as `Apikey x`, `Bearer x` or raw `x`. */
+function matchesSecret(value: string, secret: string): boolean {
+  if (!value) return false
+  return (
+    safeEqual(value, `Apikey ${secret}`) ||
+    safeEqual(value, `Bearer ${secret}`) ||
+    safeEqual(value, secret)
+  )
+}
+
+/**
  * Verify the request is from SePay by checking either:
  *   - `Authorization: Apikey <secret>`
  *   - `Authorization: Bearer <secret>`
  *   - `Authorization: <secret>` (raw)
  *   - `x-api-key: <secret>`
  *
- * Returns true when no secret is configured (development convenience —
- * NEVER deploy to production without setting SEPAY_WEBHOOK_API_KEY).
+ * Without a configured secret this returns true only outside production.
  */
 export function verifySePayAuth(headers: Headers | Record<string, string | null | undefined>): boolean {
   const secret = getWebhookSecret()
-  if (!secret) return true
+  if (!secret) return allowWithoutSecret()
 
   const getHeader = (name: string): string =>
     headers instanceof Headers
@@ -51,15 +77,7 @@ export function verifySePayAuth(headers: Headers | Record<string, string | null 
   const authHeader = getHeader('authorization') || getHeader('Authorization')
   const apiKeyHeader = getHeader('x-api-key') || getHeader('X-Api-Key')
 
-  // Authorization: Apikey <secret> | Bearer <secret> | <secret>
-  if (authHeader === `Apikey ${secret}`) return true
-  if (authHeader === `Bearer ${secret}`) return true
-  if (authHeader === secret) return true
-
-  // x-api-key: <secret>
-  if (apiKeyHeader === secret) return true
-
-  return false
+  return matchesSecret(authHeader, secret) || (!!apiKeyHeader && safeEqual(apiKeyHeader, secret))
 }
 
 /**
@@ -69,12 +87,9 @@ export function verifySePayAuth(headers: Headers | Record<string, string | null 
  */
 export function verifySePaySignature(_payload: unknown, signature: string | null): boolean {
   const secret = getWebhookSecret()
-  if (!secret) return true
+  if (!secret) return allowWithoutSecret()
   if (!signature) return false
-  if (signature === `Apikey ${secret}`) return true
-  if (signature === `Bearer ${secret}`) return true
-  if (signature === secret) return true
-  return false
+  return matchesSecret(signature, secret)
 }
 
 /**

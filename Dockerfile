@@ -4,9 +4,6 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
 
-# Required for Prisma + bcrypt Alpine builds
-RUN apk add --no-cache libc6-compat openssl
-
 COPY package.json package-lock.json ./
 COPY src/dta/prisma ./src/dta/prisma/
 
@@ -107,8 +104,17 @@ done\n\
 if [ $RETRY -ge $MAX_RETRIES ]; then\n\
   echo "DB not available, starting anyway..."\n\
 else\n\
-  echo "Syncing database schema (db push)..."\n\
-  ./node_modules/.bin/prisma db push --schema=src/dta/prisma/schema.prisma --accept-data-loss 2>&1 || echo "Schema sync warning"\n\
+  echo "Applying database migrations (prisma migrate deploy)..."\n\
+  SCHEMA=src/dta/prisma/schema.prisma\n\
+  OUT=$(./node_modules/.bin/prisma migrate deploy --schema=$SCHEMA 2>&1) && echo "$OUT" || {\n\
+    echo "$OUT"\n\
+    if echo "$OUT" | grep -q "P3005"; then\n\
+      echo "Existing database without migration history - baselining..."\n\
+      ./node_modules/.bin/prisma migrate resolve --schema=$SCHEMA --applied 20261006000000_baseline 2>&1 && ./node_modules/.bin/prisma migrate deploy --schema=$SCHEMA 2>&1 || echo "WARN: baselining failed"\n\
+    else\n\
+      echo "WARN: prisma migrate deploy failed"\n\
+    fi\n\
+  }\n\
   if [ "${SEED_ON_START:-false}" = "true" ]; then\n\
     echo "Seeding database..."\n\
     ./node_modules/.bin/prisma db seed 2>&1 || echo "Seed warning"\n\
@@ -118,7 +124,12 @@ else\n\
     echo "Syncing OPhim catalog (pages 1-${PAGES})..."\n\
     ./node_modules/.bin/tsx src/dta/scripts/sync-ophim-catalog.ts --pages=${PAGES} 2>&1 || echo "OPhim sync warning (continuing)"\n\
   fi\n\
-  if [ "${SEED_ON_START:-false}" = "true" ] || [ "${SYNC_OPHIM_ON_START:-false}" = "true" ]; then\n\
+  if [ "${SYNC_KKPHIM_ON_START:-false}" = "true" ]; then\n\
+    PAGES="${KKPHIM_SYNC_PAGES:-3}"\n\
+    echo "Syncing KKPhim catalog (pages 1-${PAGES})..."\n\
+    ./node_modules/.bin/tsx src/dta/scripts/sync-kkphim-catalog.ts --pages=${PAGES} --delay=750 2>&1 || echo "KKPhim sync warning (continuing)"\n\
+  fi\n\
+  if [ "${SEED_ON_START:-false}" = "true" ] || [ "${SYNC_OPHIM_ON_START:-false}" = "true" ] || [ "${SYNC_KKPHIM_ON_START:-false}" = "true" ]; then\n\
     echo "Reindexing Elasticsearch..."\n\
     ./node_modules/.bin/tsx src/dta/scripts/elastic-reindex.ts 2>&1 || echo "ES reindex warning"\n\
   fi\n\

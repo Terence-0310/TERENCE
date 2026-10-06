@@ -11,7 +11,7 @@ import { logger } from '@/src/be/shared/utils/logger'
 const log = logger.child({ module: 'admin-sync-summary' })
 
 export async function GET() {
-  const guard = await requireAdmin()
+  const guard = await requireAdmin('system.manage')
   if (!isUser(guard)) return guard
 
   try {

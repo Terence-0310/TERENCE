@@ -23,6 +23,7 @@ import {
   getMovieViewerCount,
 } from './notify'
 import { computeTopViewRanking } from '@/src/be/modules/analytics/top-view.service'
+import { getSocketUser } from './socket-auth'
 
 const log = logger.child({ module: 'realtime' })
 
@@ -193,36 +194,20 @@ export function registerRealtimeHandlers(io: Server, socket: Socket) {
   ensureDashboardLoop(io)
 
   const limited = makeRateLimiter()
-  // The userId set by user:identify — used by every authenticated handler.
-  // We keep it scoped to this closure so a hostile client can't spoof
-  // someone else's userId after the initial handshake without re-identifying.
-  let scopedUserId: string | null = null
-  let scopedIsAdmin = false
+  // Identity comes from the handshake (socket-auth.ts), never from payloads.
+  const authUser = getSocketUser(socket)
+  const scopedUserId: string | null = authUser?.id ?? null
+  const scopedIsAdmin = authUser?.role === 'ADMIN' || authUser?.role === 'SUPER_ADMIN'
+
+  if (scopedUserId) {
+    trackOnline(scopedUserId, socket.id)
+    notifyAdmins(RT_EVENTS.USERS_ONLINE, { count: getOnlineUserCount() })
+  }
 
   // ── user:identify ─────────────────────────────────────────────────
-  // Already handled in server.ts for room-join, but we also track
-  // online presence + (optionally) capture admin role here.
-  socket.on('user:identify', async (payload: unknown) => {
-    if (typeof payload !== 'object' || payload === null) return
-    const userId = (payload as any).userId
-    if (typeof userId !== 'string' || userId.length === 0 || userId.length > 64) return
-
-    scopedUserId = userId
-    trackOnline(userId, socket.id)
-    // Push online count to dashboard immediately.
-    notifyAdmins(RT_EVENTS.USERS_ONLINE, { count: getOnlineUserCount() })
-
-    // Side-channel: detect admin so client can join admin:dashboard.
-    try {
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { role: true },
-      })
-      scopedIsAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN'
-    } catch {
-      scopedIsAdmin = false
-    }
-  })
+  // Kept for client compatibility. The payload is ignored: a socket can only
+  // ever act as the user its session cookie belongs to.
+  socket.on('user:identify', () => { /* identity is fixed at handshake */ })
 
   // ── admin:join — opt-in admin dashboard subscription ──────────────
   socket.on('admin:join', async () => {

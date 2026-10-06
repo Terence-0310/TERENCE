@@ -96,13 +96,15 @@ export function buildVietQrImageUrl({ amount, transferContent }: VietQrConfig): 
  * copy/paste the bank, account number, account name and transfer note
  * instead of (or in addition to) scanning the QR code.
  */
-export function buildTransferInstructions(orderCode: string) {
+export function buildTransferInstructions(transferContent: string) {
   const { bankCode, bankAccount, accountName } = getBankConfig()
   return {
     bankCode,
     accountNo: bankAccount,
     accountName,
-    transferContent: `${process.env.SEPAY_PAYMENT_PREFIX || 'TCOIN'}_${orderCode}`,
+    // Must be the exact content stored on the order — the webhook matches
+    // incoming transfers against it (see sepay.ts extractOrderCode).
+    transferContent,
   }
 }
 

@@ -150,6 +150,9 @@ export function validateEnv() {
       if (isProd) fatal.push(msg)
       else warnings.push(msg)
     }
+  } else if (isProd) {
+    // verifySePayAuth fails closed in production, so top-ups cannot complete.
+    warnings.push('SEPAY_WEBHOOK_API_KEY (unset — SePay webhooks will be rejected, top-ups disabled)')
   }
 
   // 4) Recommended-but-optional integrations.

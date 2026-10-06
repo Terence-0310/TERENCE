@@ -11,7 +11,7 @@ import type { AdType, AdPlacement, AdInput } from '@/src/be/modules/ads/ads.serv
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
-  const guard = await requireAdmin()
+  const guard = await requireAdmin('ads.manage')
   if (guard instanceof NextResponse) return guard
 
   const sp = req.nextUrl.searchParams
@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const guard = await requireAdmin()
+  const guard = await requireAdmin('ads.manage')
   if (guard instanceof NextResponse) return guard
 
   const body = await parseBody<AdInput>(req)

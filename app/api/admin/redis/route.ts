@@ -9,7 +9,7 @@ import { getRedisInfo, listCacheKeys, invalidateCache, redis } from '@/src/lib/r
 import { requireAdmin } from '@/src/be/modules/admin/api-helpers'
 
 export async function GET(req: NextRequest) {
-  const auth = await requireAdmin()
+  const auth = await requireAdmin('system.manage')
   if (auth instanceof NextResponse) return auth
 
   const { searchParams } = req.nextUrl
@@ -69,7 +69,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await requireAdmin()
+  const auth = await requireAdmin('system.manage')
   if (auth instanceof NextResponse) return auth
 
   const body = await req.json()

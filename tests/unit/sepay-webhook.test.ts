@@ -31,6 +31,17 @@ describe('verifySePayAuth()', () => {
     expect(verifySePayAuth(h)).toBe(true)
   })
 
+  it('rejects when no secret is configured in production (fail closed)', () => {
+    const prevNodeEnv = process.env.NODE_ENV
+    ;(process.env as Record<string, string>).NODE_ENV = 'production'
+    try {
+      expect(verifySePayAuth(new Headers({ Authorization: 'Apikey anything' }))).toBe(false)
+      expect(verifySePaySignature({}, 'anything')).toBe(false)
+    } finally {
+      ;(process.env as Record<string, string | undefined>).NODE_ENV = prevNodeEnv
+    }
+  })
+
   it('reads SEPAY_WEBHOOK_API_KEY first', () => {
     process.env.SEPAY_WEBHOOK_API_KEY = 'k1'
     process.env.SEPAY_WEBHOOK_SECRET  = 'k2'
