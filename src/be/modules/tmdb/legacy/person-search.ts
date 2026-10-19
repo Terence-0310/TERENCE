@@ -12,12 +12,14 @@
 
 import { tmdbFetch } from './client'
 import { tmdbPosterUrl, tmdbBackdropUrl } from './config'
+import { normalizeVietnamese } from '@/lib/search/normalize'
 
 interface TmdbSearchPersonResponse {
   page: number
   results: Array<{
     id: number
     name: string
+    original_name?: string
     profile_path: string | null
     known_for_department: string
     popularity: number
@@ -90,9 +92,16 @@ export async function searchTmdbPersonWithCredits(query: string): Promise<Person
     return null
   }
 
-  // Pick the most popular match whose name appears to match the query.
-  // TMDB's relevance ranking is already pretty good; we just trust position 0.
-  const top = people.results[0]
+  // Pick the first match whose name equals / starts with the query (accent-
+  // and case-insensitive). TMDB's fuzzy search would otherwise turn a title
+  // like "Án Tử" into the person "Tô Ân Từ".
+  const nq = normalizeVietnamese(q)
+  const matches = (name?: string) => {
+    if (!name) return false
+    const n = normalizeVietnamese(name)
+    return n === nq || n.startsWith(nq + ' ')
+  }
+  const top = people.results.find((p) => matches(p.name) || matches(p.original_name))
   if (!top) return null
 
   let creditsRes: TmdbCombinedCreditsResponse

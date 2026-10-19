@@ -124,7 +124,7 @@ export async function middleware(request: NextRequest) {
         if (!isAllowed) {
           return NextResponse.json({ error: 'CSRF Validation Failed: Origin not allowed' }, { status: 403 })
         }
-      } catch (e) {
+      } catch {
         return NextResponse.json({ error: 'CSRF Validation Failed: Malformed Origin' }, { status: 403 })
       }
     } else if (!isDev) {

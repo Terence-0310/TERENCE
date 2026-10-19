@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { prisma } from '@/src/be/shared/db/prisma'
 import { requireAdmin, errorResponse, successResponse } from '@/src/be/modules/admin/api-helpers'
 import { logAdminAction, getClientIp } from '@/src/be/modules/admin/audit'
+import { invalidateAccountStatus } from '@/src/be/modules/auth/account-status'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -22,6 +23,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     where: { id },
     data: { deletedAt: null, isActive: true, status: 'active' },
   })
+  invalidateAccountStatus(id)
 
   await logAdminAction({
     actorId: auth.user.email, action: 'restore', targetType: 'user', targetId: id,

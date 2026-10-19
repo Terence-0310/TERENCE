@@ -22,7 +22,7 @@ import {
   removeViewerSocket,
   getMovieViewerCount,
 } from './notify'
-import { computeTopViewRanking } from '@/src/be/modules/analytics/top-view.service'
+import { computeTopViewRanking, toTopViewItems } from '@/src/be/modules/analytics/top-view.service'
 import { getSocketUser } from './socket-auth'
 
 const log = logger.child({ module: 'realtime' })
@@ -161,19 +161,7 @@ async function doBroadcastTopview(io: Server) {
   try {
     // Shared activity ranking: live viewers → views today → all-time.
     const ranked = await computeTopViewRanking(10)
-    const items = ranked.map((m, i) => ({
-      rank: i + 1,
-      movieId: m.id,
-      viewers: m.liveViewers,
-      viewsToday: m.viewsToday,
-      viewCount: m.viewCount,
-      title: m.title,
-      slug: m.slug,
-      posterUrl: m.posterUrl,
-      thumbUrl: m.thumbUrl,
-      contentType: m.contentType,
-      tmdbId: m.tmdbId,
-    }))
+    const items = toTopViewItems(ranked)
     io.to(TOPVIEW_ROOM).emit(RT_EVENTS.TOPVIEW_STATS, { items, ts: Date.now() })
   } catch (err) {
     log.error({ err: err instanceof Error ? err.message : err }, 'topview broadcast failed')

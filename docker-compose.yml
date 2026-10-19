@@ -73,7 +73,7 @@ services:
         NEXT_PUBLIC_TMDB_IMAGE_BASE_URL: https://image.tmdb.org/t/p
         NEXT_PUBLIC_REGION: VN
     ports:
-      - "3001:3000"
+      - "3000:3000"
     environment:
       - NODE_ENV=production
       - HOSTNAME=0.0.0.0
@@ -87,7 +87,7 @@ services:
       - TMDB_BASE_URL=https://api.themoviedb.org/3
       - TMDB_IMAGE_BASE_URL=https://image.tmdb.org/t/p/original
       # Site
-      - NEXT_PUBLIC_SITE_URL=http://localhost:3001
+      - NEXT_PUBLIC_SITE_URL=http://localhost:3000
       - NEXT_PUBLIC_TMDB_IMAGE_BASE_URL=https://image.tmdb.org/t/p
       - NEXT_PUBLIC_REGION=VN
       - NEXT_PUBLIC_GOOGLE_AUTH_ENABLED=${NEXT_PUBLIC_GOOGLE_AUTH_ENABLED:-false}
@@ -114,12 +114,16 @@ services:
       # Redis Cache
       - REDIS_URL=redis://redis:6379
       # NextAuth — override localhost values from .env
-      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3001}
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-terence_docker_secret_change_in_production}
       # Socket.IO CORS — comma-separated. server.ts reads this; without it
       # production builds reject cross-origin WS handshakes.
-      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3001,http://127.0.0.1:3001}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
       # News auto-generation (Gemini). Free key at https://aistudio.google.com/apikey
+      # Email: SMTP_HOST/PORT from .env (e.g. smtp.gmail.com:465). Unset →
+      # the Mailpit container (inbox UI: http://localhost:8025).
+      - SMTP_HOST=${SMTP_HOST:-mailpit}
+      - SMTP_PORT=${SMTP_PORT:-1025}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.0-flash}
       - GNEWS_API_KEY=${GNEWS_API_KEY:-}
@@ -163,8 +167,22 @@ services:
       retries: 3
       start_period: 60s
 
-  # ── Database UI (Prisma Studio) ──
+  # ── Mail catcher (dev / demo) ──
+  # Receives every email the app sends. Inbox UI: http://localhost:8025
+  mailpit:
+    image: axllent/mailpit:v1.21
+    container_name: terence-mailpit
+    restart: unless-stopped
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "1"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "1"
+    ports:
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"
+
+  # ── Database UI (Prisma Studio) — optional: docker compose --profile tools up -d ──
   db-studio:
+    profiles: ["tools"]
     image: node:20-alpine
     container_name: terence-db-studio
     restart: unless-stopped
@@ -184,6 +202,7 @@ services:
 
   # ── pgAdmin (PostgreSQL Database UI) ──
   pgadmin:
+    profiles: ["tools"]
     image: dpage/pgadmin4
     container_name: terence-pgadmin
     restart: unless-stopped

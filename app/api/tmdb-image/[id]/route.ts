@@ -34,7 +34,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   
   if (!id || isNaN(Number(id))) {
     // Return early transparently with 404 to let frontend fallback handle it or return placeholder
-    return fetchPlaceholder(request.url)
+    return fetchPlaceholder()
   }
 
   try {
@@ -93,15 +93,16 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   }
 
   // Fallback nếu 404 hoặc lỗi (trả về placeholder tĩnh)
-  return fetchPlaceholder(request.url)
+  return fetchPlaceholder()
 }
 
-function fetchPlaceholder(baseUrl: string) {
-  // Thay vì redirect về /placeholder.jpg làm tăng 1 vòng request
-  // Ta trả lời redirect nhưng với header Cache
-  return NextResponse.redirect(new URL('/placeholder.jpg', baseUrl), {
+function fetchPlaceholder() {
+  // Relative Location: request.url is the bind address behind Docker/proxies
+  // (e.g. http://0.0.0.0:3000), which browsers cannot load.
+  return new NextResponse(null, {
     status: 302,
     headers: {
+      Location: '/placeholder.jpg',
       'Cache-Control': 'public, max-age=3600, s-maxage=3600'
     }
   })

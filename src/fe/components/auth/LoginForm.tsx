@@ -23,9 +23,9 @@ export function LoginForm() {
     setError('')
     try {
       const loginId = accountKey.includes('@') ? accountKey : `${accountKey}@terence.vn`
-      const ok = await login(loginId, password)
-      if (ok) closeModal()
-      else setError('Thông tin đăng nhập không chính xác')
+      const res = await login(loginId, password)
+      if (res.ok) closeModal()
+      else setError(res.error ?? 'Thông tin đăng nhập không chính xác')
     } catch {
       setError('Lỗi kết nối')
     } finally {

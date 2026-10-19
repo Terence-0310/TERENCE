@@ -16,7 +16,6 @@ export function RegisterForm() {
   const [showPass, setShowPass] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [captchaToken, setCaptchaToken] = useState<string>('')
   const [successMsg, setSuccessMsg] = useState('')
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -28,18 +27,13 @@ export function RegisterForm() {
       setLoading(false)
       return
     }
-    if (!captchaToken && process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY) {
-      setError('Vui lòng xác minh bạn không phải robot!')
-      setLoading(false)
-      return
-    }
     try {
       // Auto-append system domain if not an email format
       const signupId = accountKey.includes('@') ? accountKey : `${accountKey}@terence.vn`
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email: signupId, password, captchaToken }),
+        body: JSON.stringify({ name, email: signupId, password }),
       })
 
       const data = await res.json()
@@ -152,7 +146,11 @@ export function RegisterForm() {
           </div>
         </div>
 
-
+        {error && (
+          <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm text-left">
+            {error}
+          </div>
+        )}
 
         <Button disabled={loading} type="submit" className="w-full h-12 bg-primary hover:bg-primary text-black font-semibold text-[15px] rounded-[8px] transition-colors mt-2 shadow-[0_0_20px_rgba(45,212,191,0.15)]">
           {loading ? 'Đang xử lý...' : 'Đăng ký ngay'}

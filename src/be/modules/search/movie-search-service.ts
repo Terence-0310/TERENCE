@@ -117,7 +117,9 @@ export interface SuggestItem {
 export function isLikelyPersonName(rawQuery: string): boolean {
   const tokens = rawQuery.trim().split(/\s+/).filter((t) => t.length > 1)
   if (tokens.length < 2) return false
-  const capCount = tokens.filter((t) => /^[A-ZÀ-Ỹ]/.test(t)).length
+  // \p{Lu} = real uppercase. A range like [À-Ỹ] also spans lowercase accented
+  // letters (á, ử…), which made plain titles such as "án tử" look like names.
+  const capCount = tokens.filter((t) => /^\p{Lu}/u.test(t)).length
   return capCount >= Math.ceil(tokens.length / 2)
 }
 

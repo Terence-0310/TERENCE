@@ -69,7 +69,7 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
-      router.push('/login')
+      router.push("/login?from=/profile")
       return
     }
 

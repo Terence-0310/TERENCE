@@ -9,7 +9,7 @@ import {
   parseFilters,
   getErrorMessage,
 } from '@/src/be/shared/api-handler'
-import { ZodError, z } from 'zod'
+import { z } from 'zod'
 
 describe('lib/api/handler', () => {
   describe('parsePagination()', () => {

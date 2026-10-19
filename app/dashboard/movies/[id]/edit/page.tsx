@@ -1,15 +1,12 @@
 'use client'
 
 import { useState, useEffect, useRef, use } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, Save, Upload, X, Loader2 } from 'lucide-react'
 import { Button } from '@/src/fe/components/ui/button'
 import { Input } from '@/src/fe/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/src/fe/components/ui/card'
 
-const generateSlug = (t: string) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-  .replace(/đ/g, 'd').replace(/Đ/g, 'd').replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 200)
 
 interface PageProps { params: Promise<{ id: string }> }
 
@@ -73,7 +70,6 @@ function MediaField(props: {
 
 export default function EditMoviePage({ params }: PageProps) {
   const { id } = use(params)
-  const router = useRouter()
   const [form, setForm] = useState<Record<string, unknown> | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')

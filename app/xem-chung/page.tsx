@@ -52,6 +52,7 @@ function ErrorState({ onRetry }: { onRetry?: () => void }) {
 
 export default function WatchPartyPage() {
   const { rooms, isLoading, isError } = useWatchRooms()
+  const popularRooms = [...rooms].sort((a, b) => (b.memberCount ?? 0) - (a.memberCount ?? 0))
 
   return (
     <main className="min-h-screen bg-background">
@@ -151,7 +152,7 @@ export default function WatchPartyPage() {
                 />
               ) : (
                 <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-                  {rooms.map((room) => (
+                  {popularRooms.map((room) => (
                     <WatchRoomCard key={room.code} room={room} />
                   ))}
                 </div>

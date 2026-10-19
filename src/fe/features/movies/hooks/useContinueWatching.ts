@@ -8,6 +8,7 @@
 // SSR-safe: returns empty array during server render.
 
 import { useState, useEffect, useCallback } from 'react'
+import { useSession } from 'next-auth/react'
 import type { ContinueWatchingItem } from '@/types/watch-history'
 import {
   getContinueWatching,
@@ -43,6 +44,7 @@ export function useContinueWatching(
   const { limit = 20 } = options
   const [items, setItems] = useState<ContinueWatchingItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const { status } = useSession()
 
   // Load items from service
   const refresh = useCallback(() => {
@@ -51,11 +53,9 @@ export function useContinueWatching(
     setIsLoading(false)
   }, [limit])
 
-  // Initial load + listen for changes
+  // Merge server-side data (cross-device sync) — signed-in users only.
   useEffect(() => {
-    refresh()
-
-    // Also attempt to merge server-side data (for cross-device sync)
+    if (status !== 'authenticated') return
     fetch('/api/v1/watch-history/continue?limit=' + limit)
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
@@ -88,6 +88,11 @@ export function useContinueWatching(
         })
       })
       .catch(() => {}) // Non-critical
+  }, [status, limit])
+
+  // Initial load + listen for changes
+  useEffect(() => {
+    refresh()
 
     // Listen for custom event dispatched by storage layer on writes
     const handleChange = () => refresh()

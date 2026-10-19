@@ -232,11 +232,12 @@ export async function getTransactions(
 export async function getAggregates(walletId: string) {
   const [earned, spent] = await Promise.all([
     prisma.walletTransaction.aggregate({
-      where: { walletId, direction: 'credit' },
+      // Older top-up rows were written as 'CREDIT' — count both casings.
+      where: { walletId, direction: { in: ['credit', 'CREDIT'] } },
       _sum: { amount: true },
     }),
     prisma.walletTransaction.aggregate({
-      where: { walletId, direction: 'debit' },
+      where: { walletId, direction: { in: ['debit', 'DEBIT'] } },
       _sum: { amount: true },
     }),
   ])

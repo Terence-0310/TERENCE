@@ -1,5 +1,5 @@
-import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, TabStopPosition, TabStopType, Table, TableRow, TableCell, WidthType, BorderStyle, PageBreak } from "docx";
-import { writeFileSync, readFileSync } from "fs";
+import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, Table, TableRow, TableCell, WidthType, BorderStyle, PageBreak } from "docx";
+import { writeFileSync } from "fs";
 
 // ── Helpers ──
 const br = () => new Paragraph({});

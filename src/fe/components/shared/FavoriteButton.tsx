@@ -6,6 +6,8 @@
 import { useEffect, useState } from 'react'
 import { Heart } from 'lucide-react'
 import { toast } from 'sonner'
+import { useSession } from 'next-auth/react'
+import { usePathname, useRouter } from 'next/navigation'
 
 interface Props {
   movieId: string | number
@@ -17,18 +19,26 @@ export function FavoriteButton({ movieId, className }: Props) {
   const [favorited, setFavorited] = useState(false)
   const [busy, setBusy] = useState(false)
   const id = String(movieId)
+  const { status } = useSession()
+  const router = useRouter()
+  const pathname = usePathname()
 
   useEffect(() => {
+    if (status !== 'authenticated') return
     let cancelled = false
     fetch(`/api/v1/favorites?movieId=${encodeURIComponent(id)}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => { if (!cancelled && d?.success) setFavorited(!!d.favorited) })
       .catch(() => {})
     return () => { cancelled = true }
-  }, [id])
+  }, [id, status])
 
   const toggle = async () => {
     if (busy) return
+    if (status === 'unauthenticated') {
+      router.push(`/login?from=${encodeURIComponent(pathname || '/')}`)
+      return
+    }
     setBusy(true)
     const next = !favorited
     setFavorited(next) // optimistic

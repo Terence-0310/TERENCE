@@ -1,0 +1,23 @@
+# ============================================
+# Local stand-ins for external services (dev / demo only)
+# ============================================
+#   docker compose -f docker-compose.dev-services.yml up -d
+#
+# Mailpit now lives in docker-compose.yml. This file only keeps an offline
+# LiveKit fallback (the project normally uses LiveKit Cloud).
+# livekit — video/voice calls in watch party rooms (dev mode).
+#           .env: LIVEKIT_API_KEY=devkey LIVEKIT_API_SECRET=secret
+#                 NEXT_PUBLIC_LIVEKIT_URL=ws://localhost:7880
+# ============================================
+
+services:
+  livekit:
+    image: livekit/livekit-server:v1.13.8
+    container_name: terence-livekit
+    restart: unless-stopped
+    # --dev: built-in key pair devkey / secret, no config file needed.
+    command: --dev --bind 0.0.0.0 --node-ip 127.0.0.1
+    ports:
+      - "7880:7880"
+      - "7881:7881"
+      - "7882:7882/udp"

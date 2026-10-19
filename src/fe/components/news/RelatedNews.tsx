@@ -28,7 +28,7 @@ export function RelatedNews({ movieTitle, originalTitle, year, limit = 6 }: Rela
     ? originalTitle
     : movieTitle
 
-  const { items, loading, error } = useMovieNews({
+  const { items, loading } = useMovieNews({
     type: 'related',
     query: searchQuery,
     originalTitle: originalTitle !== movieTitle ? originalTitle : undefined,

@@ -194,7 +194,7 @@ export function MovieCard({ movie, priority = false, showRank, landscape = false
           {movie.genres && movie.genres.length > 0 && (
             <div className="flex items-center flex-wrap gap-1.5 text-[11px] text-white/60 font-medium">
                {movie.genres.slice(0, 3).map((g, idx) => (
-                 <span key={g.id} className="flex items-center gap-1.5">
+                 <span key={`${g.id}-${g.name}`} className="flex items-center gap-1.5">
                    {g.name}
                    {idx < Math.min(movie.genres.length, 3) - 1 && (
                      <span className="w-1 h-1 rounded-full bg-white/30"></span>

@@ -57,14 +57,7 @@ function getGuestUser(): { id: string; name: string } {
 
 export function WatchPartyOverlay({
   children,
-  movieId,
   movieSlug,
-  movieTitle,
-  episodeId,
-  episodeSlug,
-  episodeName,
-  serverIndex = 0,
-  posterUrl,
   videoRef,
 }: WatchPartyOverlayProps) {
   const searchParams = useSearchParams()
@@ -137,10 +130,11 @@ export function WatchPartyOverlay({
   // ── Call Hook ──
   const call = usePartyCall({
     roomCode,
-    memberId: user.id,
+    // LiveKit tokens are issued per room participant, not per account.
+    memberId: party.memberId,
     memberName: user.name,
     roomType: party.room?.roomType ?? 'small_group',
-    enabled: !!roomCode,
+    enabled: !!roomCode && !!party.memberId,
   })
 
   // Bind SFU transport for text chat and sync

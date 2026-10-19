@@ -9,17 +9,6 @@ import { Input } from '@/src/fe/components/ui/input'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
-// Fetch a trending movie backdrop for the hero background
-const backdropFetcher = async (url: string) => {
-  const res = await fetch(url)
-  if (!res.ok) return null
-  const data = await res.json()
-  const movies = data.results || data.items || []
-  const withBackdrop = movies.find((m: any) => m.backdrop_path || m.backdrop)
-  if (!withBackdrop) return null
-  const path = withBackdrop.backdrop_path || withBackdrop.backdrop
-  return path ? `https://image.tmdb.org/t/p/w1280${path}` : null
-}
 
 import { CreateWatchRoomGuideModal } from './CreateWatchRoomGuideModal'
 

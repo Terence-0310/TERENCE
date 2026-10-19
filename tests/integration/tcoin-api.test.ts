@@ -4,7 +4,6 @@
 // Tests: GET /api/admin/tcoin/wallets, GET /api/admin/tcoin/payments, POST /api/admin/tcoin/adjust
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { createMockRequest, parseResponse } from '@/tests/helpers/mock-request'
 import { createMockPrisma, type MockPrisma } from '@/tests/helpers/mock-prisma'
 
 // ── Mock dependencies ──

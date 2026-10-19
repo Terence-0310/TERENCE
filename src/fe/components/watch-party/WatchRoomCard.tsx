@@ -81,7 +81,7 @@ export function WatchRoomCard({ room, memberCount }: Props) {
               <div className="inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-1 border border-white/20">
                 <Users className="w-3 h-3" />
                 <span>
-                  {memberCount ?? 1}/{room.maxMembers}
+                  {memberCount ?? room.memberCount ?? 1}/{room.maxMembers}
                 </span>
               </div>
               {isPrivate && (

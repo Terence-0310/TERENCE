@@ -52,7 +52,8 @@ export default function RootLayout({
             </LayoutWrapper>
             <EmailVerificationBanner />
           </AuthProvider>
-          <Analytics />
+          {/* Vercel-hosted only — elsewhere /_vercel/insights 404s on every page. */}
+          {process.env.VERCEL && <Analytics />}
           <Toaster theme="dark" position="bottom-right" />
         </ThemeProvider>
       </body>

@@ -18,7 +18,6 @@ import { PlayerSyncService } from '@/lib/watch-party/sync-service'
 import { toast } from 'sonner'
 import { logger } from '@/src/fe/lib/logger'
 
-import { Socket } from 'socket.io-client'
 
 type PendingRequest = { userId: string; displayName: string; socketId: string }
 type ApiParticipant = WatchRoomMember & { status?: string; displayName?: string }
@@ -92,6 +91,8 @@ export interface UseWatchPartyReturn {
   approveJoin: (userId: string, targetSocketId: string) => void
   rejectJoin: (userId: string, targetSocketId: string) => void
   kickMember: (targetId: string) => void
+  /** This client's participant id in the room ('' until joined). */
+  memberId: string
   updateRole: (targetId: string, role: 'COHOST' | 'MEMBER') => void
   setLiveKitRoom: (room: any) => void
 }
@@ -108,7 +109,6 @@ export function useWatchParty(options: UseWatchPartyOptions): UseWatchPartyRetur
     onRemoteEpisodeChange,
     onRemoteServerChange,
     onTimeRequest,
-    livekitRoom,
   } = options
 
   // Keep the latest onTimeRequest in a ref so the socket listener (registered
@@ -127,7 +127,6 @@ export function useWatchParty(options: UseWatchPartyOptions): UseWatchPartyRetur
 
   const channelRef = useRef<RealtimeChannel | null>(null)
   const syncRef = useRef<PlayerSyncService | null>(null)
-  const lobbySocketRef = useRef<Socket | null>(null)
 
   // ── Join room + setup channel ──
   useEffect(() => {
@@ -423,7 +422,7 @@ export function useWatchParty(options: UseWatchPartyOptions): UseWatchPartyRetur
       } else {
         toast.error('Không thể gửi yêu cầu tham gia.')
       }
-    } catch (e) {
+    } catch {
       toast.error('Lỗi khi gửi yêu cầu tham gia.')
     }
   }, [roomCode, user.id, user.name, isLockedOut])
@@ -466,7 +465,7 @@ export function useWatchParty(options: UseWatchPartyOptions): UseWatchPartyRetur
       })
       // The local room state will update via LiveKit or fallback polling, but we can optimistically set it
       setRoom(prev => prev ? { ...prev, isLocked: locked } : prev)
-    } catch (e) {
+    } catch {
       toast.error('Lỗi khi thay đổi trạng thái khoá phòng')
     }
   }, [roomCode, memberId])
@@ -503,7 +502,7 @@ export function useWatchParty(options: UseWatchPartyOptions): UseWatchPartyRetur
         setPendingRequests((prev) => prev.filter(p => p.userId !== targetUserId))
       }
       if (!res.ok) toast.error(data?.error || 'Không thể duyệt người dùng')
-    } catch (e) {
+    } catch {
       toast.error('Lỗi khi duyệt người dùng')
     }
   }, [roomCode, memberId])
@@ -521,15 +520,19 @@ export function useWatchParty(options: UseWatchPartyOptions): UseWatchPartyRetur
         setPendingRequests((prev) => prev.filter(p => p.userId !== targetUserId))
       }
       if (!res.ok) toast.error(data?.error || 'Không thể từ chối người dùng')
-    } catch (e) {
+    } catch {
       toast.error('Lỗi khi từ chối người dùng')
     }
   }, [roomCode, memberId])
 
-  const kickMember = useCallback(async (targetId: string) => {
-    // If you have a kick endpoint, call it. For now, we simulate or you can implement it later.
-    if (!roomCode || !memberId) return
-    toast.info('Tính năng kick chưa được kết nối API đầy đủ')
+  // The socket server verifies the caller is host, emits `wp:kicked` to the
+  // target only, and runs the normal leave flow (member-left broadcast).
+  const kickMember = useCallback((targetId: string) => {
+    const channel = channelRef.current
+    if (!roomCode || !memberId || !channel) return
+    if (!window.confirm('Mời thành viên này ra khỏi phòng?')) return
+    channel.emitRaw('wp:kick', { roomCode, targetId })
+    toast.success('Đã mời thành viên ra khỏi phòng')
   }, [roomCode, memberId])
 
   const updateRole = useCallback(async (targetUserId: string, role: 'COHOST' | 'MEMBER') => {
@@ -546,7 +549,7 @@ export function useWatchParty(options: UseWatchPartyOptions): UseWatchPartyRetur
       } else {
         toast.error('Không thể thay đổi quyền')
       }
-    } catch (e) {
+    } catch {
       toast.error('Lỗi khi thay đổi quyền')
     }
   }, [roomCode, memberId])
@@ -575,6 +578,7 @@ export function useWatchParty(options: UseWatchPartyOptions): UseWatchPartyRetur
     kickMember,
     updateRole,
     setLiveKitRoom: setLiveKitRoomAction,
+    memberId,
   }
 }
 

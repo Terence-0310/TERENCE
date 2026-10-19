@@ -122,13 +122,16 @@ export async function saveProgress(
     return { ok: false, progress: 0, isCompleted: false }
   }
 
+  const target = await repo.resolveWatchTarget(movieId, episodeId)
+  if (!target) return { ok: false, progress: 0, isCompleted: false }
+
   const progress = Math.min(100, Math.round((currentTime / duration) * 100))
   const isCompleted = progress >= COMPLETED_THRESHOLD
 
   await repo.upsertWatchProgress({
     userId,
-    movieId,
-    episodeId: episodeId ?? null,
+    movieId: target.movieId,
+    episodeId: target.episodeId,
     currentTime: Math.round(currentTime),
     duration: Math.round(duration),
     progress,
@@ -148,7 +151,9 @@ export async function markComplete(
   movieId: string,
   episodeId?: string | null,
 ) {
-  return repo.markWatchCompleted(userId, movieId, episodeId)
+  const target = await repo.resolveWatchTarget(movieId, episodeId)
+  if (!target) return null
+  return repo.markWatchCompleted(userId, target.movieId, target.episodeId)
 }
 
 // ═══════════════════════════════════════════════

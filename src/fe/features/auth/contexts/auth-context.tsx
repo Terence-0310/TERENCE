@@ -16,12 +16,22 @@ export interface User {
 interface AuthContextType {
   user: User | null
   isLoading: boolean
-  login: (identifier: string, password: string) => Promise<boolean>
+  login: (identifier: string, password: string) => Promise<LoginResult>
   signup: (name: string, email: string, password: string) => Promise<boolean>
   logout: () => void
   isAdmin: boolean
   isAuthenticated: boolean
 }
+
+export interface LoginResult {
+  ok: boolean
+  /** User-facing reason when ok is false. */
+  error?: string
+}
+
+// authorize() in lib/auth.ts throws these; only surface the ones that are safe
+// to show (never reveal whether an email exists).
+const SAFE_LOGIN_ERRORS = ['Tài khoản đã bị khóa', 'Vui lòng đăng nhập bằng Google']
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
@@ -56,9 +66,11 @@ function AuthContextInner({ children }: { children: ReactNode }) {
   const isLoading = status === 'loading'
 
 
-  const login = async (identifier: string, password: string): Promise<boolean> => {
+  const login = async (identifier: string, password: string): Promise<LoginResult> => {
     const res = await signIn('credentials', { email: identifier.trim(), password, redirect: false })
-    return !!res?.ok
+    if (res?.ok) return { ok: true }
+    const error = SAFE_LOGIN_ERRORS.find((m) => res?.error === m) ?? 'Thông tin đăng nhập không chính xác'
+    return { ok: false, error }
   }
 
   const signup = async (name: string, email: string, password: string): Promise<boolean> => {

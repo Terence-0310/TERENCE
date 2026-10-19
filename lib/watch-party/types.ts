@@ -44,6 +44,8 @@ export interface WatchRoom {
   posterUrl?: string
   /** TCoin room-theme perk: host-selected theme id applied to the whole room. */
   theme?: string | null
+  /** Online participant count (lobby list only). */
+  memberCount?: number
   createdAt: string
   updatedAt: string
 }

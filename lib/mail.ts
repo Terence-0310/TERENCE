@@ -4,15 +4,32 @@ import { logger } from "@/src/be/shared/utils/logger";
 
 const log = logger.child({ module: 'mail' });
 
+const smtpPort = Number(process.env.SMTP_PORT) || 465;
+
 export const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || "smtp.gmail.com",
-  port: Number(process.env.SMTP_PORT) || 465,
-  secure: true,
+  port: smtpPort,
+  // 465 = implicit TLS; 587/25 = STARTTLS (secure must be false there).
+  secure: smtpPort === 465,
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
 });
+
+const smtpConfigured = () => Boolean(process.env.SMTP_USER && process.env.SMTP_PASS);
+
+/**
+ * Send through SMTP, or — when SMTP is not configured (local dev) — just log
+ * the message so flows like password reset keep working without a mailbox.
+ */
+async function deliver(mail: { to: string; subject: string; html: string }, devInfo: Record<string, unknown>) {
+  if (!smtpConfigured()) {
+    log.info({ to: mail.to, subject: mail.subject, ...devInfo }, "SMTP chưa cấu hình — bỏ qua gửi email (dev)");
+    return;
+  }
+  await transporter.sendMail({ from: fromAddress(), ...mail });
+}
 
 const fromAddress = () =>
   `"${process.env.EMAIL_FROM_NAME || "TERENCE"}" <${process.env.EMAIL_FROM_ADDRESS || process.env.SMTP_USER}>`;
@@ -115,8 +132,7 @@ const buildHtmlEmail = ({
 export const sendPasswordResetEmail = async (email: string, token: string) => {
   const resetLink = `${appUrl()}/reset-password?token=${token}`;
 
-  await transporter.sendMail({
-    from: fromAddress(),
+  await deliver({
     to: email,
     subject: "Đặt lại mật khẩu của bạn — TERENCE",
     html: buildHtmlEmail({
@@ -125,22 +141,16 @@ export const sendPasswordResetEmail = async (email: string, token: string) => {
       message: "Bạn (hoặc ai đó) vừa yêu cầu đặt lại mật khẩu cho tài khoản TERENCE của bạn. Nhấn vào nút bên dưới để thiết lập mật khẩu mới ngay lập tức.",
       buttonText: "Đặt Lại Mật Khẩu",
       buttonUrl: resetLink,
-      note: "Link khôi phục mật khẩu này sẽ <strong>hết hạn sau 15 phút</strong> vì lý do bảo mật. Nếu bạn không thực hiện yêu cầu này, hãy bỏ qua email.",
+      note: "Link khôi phục mật khẩu này sẽ <strong>hết hạn sau 1 giờ</strong> vì lý do bảo mật. Nếu bạn không thực hiện yêu cầu này, hãy bỏ qua email.",
     }),
-  });
+  }, { resetLink });
 };
 
 /** Send email verification link after registration */
 export const sendVerificationEmail = async (email: string, token: string, name?: string) => {
   const verifyLink = `${appUrl()}/verify-email?token=${token}`;
 
-  // Log link to console for local testing
-  if (process.env.NODE_ENV !== "production" || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
-    log.info({ to: email, verifyLink }, 'Lệnh Gửi Email Mô Phỏng (Local Test)');
-  }
-
-  await transporter.sendMail({
-    from: fromAddress(),
+  await deliver({
     to: email,
     subject: "Xác thực tài khoản của bạn — TERENCE",
     html: buildHtmlEmail({
@@ -151,7 +161,7 @@ export const sendVerificationEmail = async (email: string, token: string, name?:
       buttonUrl: verifyLink,
       note: "Link xác thực này sẽ <strong>hết hạn sau 24 giờ</strong>. Nếu bạn không đăng ký tài khoản, vui lòng bỏ qua email này.",
     }),
-  });
+  }, { verifyLink });
 };
 
 /**
@@ -316,15 +326,9 @@ export const sendTopupReceiptEmail = async (params: {
 </body>
 </html>`;
 
-  if (process.env.NODE_ENV !== "production" || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
-    log.info({ to: email, orderCode, total }, "Lệnh Gửi Email Hoá Đơn TCoin (Local Test)");
-  }
-
-  await transporter.sendMail({
-    from: fromAddress(),
-    to: email,
-    subject: `Biên lai nạp ${coin(total)} — Đơn ${orderCode} — TERENCE`,
-    html,
-  });
+  await deliver(
+    { to: email, subject: `Biên lai nạp ${coin(total)} — Đơn ${orderCode} — TERENCE`, html },
+    { orderCode, total },
+  );
 };
 

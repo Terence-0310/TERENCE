@@ -83,6 +83,30 @@ export async function findLatestMovieProgress(userId: string, movieId: string) {
   })
 }
 
+/**
+ * The player identifies titles/episodes by whatever it has (DB id or slug).
+ * WatchHistory has FKs on both, so map them to real ids first — an unknown
+ * episode falls back to movie-level progress instead of a P2003 error.
+ * Returns null when the movie itself does not exist.
+ */
+export async function resolveWatchTarget(movieIdOrSlug: string, episodeIdOrSlug?: string | null) {
+  const movie = await prisma.movie.findFirst({
+    where: { OR: [{ id: movieIdOrSlug }, { slug: movieIdOrSlug }] },
+    select: { id: true },
+  })
+  if (!movie) return null
+  if (!episodeIdOrSlug) return { movieId: movie.id, episodeId: null }
+
+  const episode = await prisma.episode.findFirst({
+    where: {
+      movieId: movie.id,
+      OR: [{ id: episodeIdOrSlug }, { episodeSlug: episodeIdOrSlug }, { slug: episodeIdOrSlug }],
+    },
+    select: { id: true },
+  })
+  return { movieId: movie.id, episodeId: episode?.id ?? null }
+}
+
 export async function upsertWatchProgress(data: {
   userId: string
   movieId: string

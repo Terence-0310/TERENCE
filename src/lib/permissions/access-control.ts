@@ -112,7 +112,7 @@ export async function hasPermission(
 export async function hasAnyPermission(
   user: { id: string; role: string } | null,
   permissionKeys: string[],
-  context?: AccessContext
+  _context?: AccessContext
 ): Promise<boolean> {
   if (!user) return false
   if (user.role === ROLES.SUPER_ADMIN) return true
@@ -127,7 +127,7 @@ export async function hasAnyPermission(
 export async function hasAllPermissions(
   user: { id: string; role: string } | null,
   permissionKeys: string[],
-  context?: AccessContext
+  _context?: AccessContext
 ): Promise<boolean> {
   if (!user) return false
   if (user.role === ROLES.SUPER_ADMIN) return true

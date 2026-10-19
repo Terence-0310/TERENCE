@@ -126,7 +126,7 @@ export function MovieComments({ movieId }: { movieId: string | number }) {
     
     try {
       await fetch(`/api/v1/reviews/${id}/like`, { method: 'POST' })
-    } catch (e) {
+    } catch {
       // ignore
     }
   }

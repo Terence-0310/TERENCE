@@ -47,7 +47,7 @@ export function PreJoinCallScreen({
           setLocalStream(stream)
           setIsLoading(false)
         }
-      } catch (err) {
+      } catch {
         if (cancelled) return
         // Try audio only
         try {

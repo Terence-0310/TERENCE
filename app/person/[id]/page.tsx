@@ -37,7 +37,7 @@ interface TmdbCombinedCredits {
 async function getPersonDetail(id: string) {
   try {
     return await tmdbFetch<TmdbPersonDetail>(`/person/${id}`, { revalidate: 86400 })
-  } catch (err) {
+  } catch {
     return null
   }
 }
@@ -45,7 +45,7 @@ async function getPersonDetail(id: string) {
 async function getPersonCredits(id: string) {
   try {
     return await tmdbFetch<TmdbCombinedCredits>(`/person/${id}/combined_credits`, { revalidate: 86400 })
-  } catch (err) {
+  } catch {
     return null
   }
 }

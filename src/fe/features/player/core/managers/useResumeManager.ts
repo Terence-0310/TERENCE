@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useCallback } from 'react'
+import { useSession } from 'next-auth/react'
 import {
   saveWatchProgress as saveHistoryProgress,
   getResumeTime,
@@ -25,6 +26,7 @@ export function useResumeManager({
   currentServerIndex
 }: UseResumeManagerProps) {
   const serverSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const isAuthed = useSession().status === 'authenticated'
 
   const saveProgress = useCallback((currentTime: number, duration: number) => {
     if (duration <= 0 || currentTime < 0) return
@@ -50,6 +52,7 @@ export function useResumeManager({
     })
 
     // 2. Debounced save to server API (authenticated users)
+    if (!isAuthed) return
     if (serverSaveTimerRef.current) clearTimeout(serverSaveTimerRef.current)
     serverSaveTimerRef.current = setTimeout(() => {
       fetch('/api/v1/watch-history/progress', {
@@ -64,7 +67,7 @@ export function useResumeManager({
         }),
       }).catch(() => {}) // Non-critical — localStorage is primary
     }, 5000)
-  }, [movieId, movieMeta, currentEpisode, currentEpisodeIndex, currentServerName, currentServerIndex])
+  }, [movieId, movieMeta, currentEpisode, currentEpisodeIndex, currentServerName, currentServerIndex, isAuthed])
 
   const getSavedProgress = useCallback((): number | null => {
     const episode = currentEpisode

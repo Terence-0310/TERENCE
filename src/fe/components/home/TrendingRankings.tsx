@@ -216,23 +216,4 @@ function RecentReviewItem({ review }: { review: RecentReview }) {
   )
 }
 
-// ── Skeleton ──
-function RankingSkeleton() {
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-      {[1, 2, 3].map((col) => (
-        <div key={col} className="space-y-3">
-          <div className="h-4 w-32 skeleton rounded" />
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="flex items-center gap-3 py-1">
-              <div className="h-3 w-5 skeleton rounded" />
-              <div className="h-8 w-8 skeleton rounded" />
-              <div className="h-3 flex-1 skeleton rounded" />
-            </div>
-          ))}
-        </div>
-      ))}
-    </div>
-  )
-}
 

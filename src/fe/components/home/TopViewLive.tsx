@@ -72,6 +72,7 @@ export function TopViewLive({ initial = [] }: { initial?: TopViewItem[] }) {
                 src={it.posterUrl || it.thumbUrl || '/placeholder.jpg'}
                 alt={it.title}
                 className="h-12 w-9 shrink-0 rounded-md object-cover bg-white/5"
+                onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/placeholder.jpg' }}
               />
               <span className="min-w-0 flex-1 truncate text-sm font-semibold text-white/90">
                 {it.title}

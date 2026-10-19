@@ -57,7 +57,8 @@ export async function findActiveRooms(limit = 20) {
     orderBy: { createdAt: 'desc' },
     take: limit,
     include: {
-      host: { select: { id: true, name: true } },
+      host: { select: { id: true, name: true, avatar: true } },
+      movie: { select: { title: true, slug: true, posterUrl: true, backdropUrl: true, thumbUrl: true } },
       _count: { select: { participants: { where: { leftAt: null, isOnline: true } } } },
     },
   })

@@ -128,7 +128,7 @@ export default function MovieEpisodesPage() {
       setShowEpForm(false)
       setEpForm({ episodeNumber: 1, episodeName: '', episodeSlug: '', title: '', streamType: 'hls', streamUrl: '', status: 'active', isActive: true, isPublished: true })
       fetchEpisodes()
-    } catch (e) {
+    } catch {
       setFormError('Network error')
     }
   }

@@ -80,21 +80,8 @@ export function saveWatchProgress(input: SaveWatchProgressInput): WatchHistoryIt
     sourceUrl: input.sourceUrl,
   }
 
-  // Fire-and-forget sync to API
-  if (typeof window !== 'undefined') {
-    fetch('/api/v1/watch-history/progress', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        movieId: item.movieId,
-        episodeId: item.episodeId,
-        currentTime: item.currentTime,
-        duration: item.duration,
-        progressPercent: item.progressPercent,
-      }),
-    }).catch(() => {})
-  }
-
+  // Server sync is done (debounced, signed-in users only) by the player's
+  // useResumeManager — this function only persists to localStorage.
   return upsertWatchHistoryItem(item)
 }
 
@@ -313,7 +300,6 @@ export async function loadFromRemote(): Promise<WatchHistoryItem[]> {
     if (response.ok) {
       const data = await response.json();
       if (data && data.items) {
-        const localBefore = getWatchHistoryFromStorage();
         for (const item of data.items) {
            upsertWatchHistoryItem(item);
         }

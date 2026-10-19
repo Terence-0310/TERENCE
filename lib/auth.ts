@@ -6,6 +6,7 @@ import { prisma } from "@/src/be/shared/db/prisma";
 import { AuthService } from "@/src/be/modules/auth";
 import { Adapter } from "next-auth/adapters";
 import * as AuthRepository from "@/src/be/modules/auth/auth.repository";
+import { getAccountStatus } from "@/src/be/modules/auth/account-status";
 
 const googleAuthConfigured = Boolean(
   process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET,
@@ -148,6 +149,31 @@ export const authOptions: NextAuthOptions = {
           // but surface the failure so it can be diagnosed.
           console.error('[Auth] Failed to load effective permissions for user', user.id, err);
           token.permissions = [];
+        }
+      } else if (token.id) {
+        // Re-validate on every session read so admin block / role changes
+        // apply without waiting for re-login. Throwing makes NextAuth clear
+        // the session cookie and return an empty session.
+        let status: Awaited<ReturnType<typeof getAccountStatus>> | undefined;
+        try {
+          status = await getAccountStatus(token.id);
+        } catch {
+          /* DB hiccup — keep the current token rather than logging everyone out */
+        }
+        if (status === null || status?.active === false) {
+          throw new Error("ACCOUNT_DISABLED");
+        }
+        if (status) {
+          token.isEmailVerified = status.isEmailVerified;
+          if (status.role !== token.role) {
+            token.role = status.role as typeof token.role;
+            try {
+              const { getUserEffectivePermissions } = await import('@/src/lib/permissions/access-control');
+              token.permissions = (await getUserEffectivePermissions(token.id, token.role)).map(p => p.key);
+            } catch {
+              token.permissions = [];
+            }
+          }
         }
       }
       // useSession().update({ name, picture }) from the profile page lands here

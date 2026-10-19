@@ -20,13 +20,8 @@ interface CreateWatchPartyButtonProps {
 
 export function CreateWatchPartyButton({
   movieId,
-  movieSlug,
   movieTitle,
   episodeId,
-  episodeSlug,
-  episodeName,
-  serverIndex = 0,
-  posterUrl,
   onRoomCreated,
 }: CreateWatchPartyButtonProps) {
   const [isCreating, setIsCreating] = useState(false)

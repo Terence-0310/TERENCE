@@ -162,8 +162,14 @@ export const AuthService = {
           secret: process.env.NEXTAUTH_SECRET,
         })
         if (token) {
+          // Token is read straight from the cookie (no jwt callback), so
+          // re-check the account here too — blocked users lose access at once.
+          const userId = (token.id as string) || (token.sub as string) || ''
+          const { getAccountStatus } = await import('./account-status')
+          const status = userId ? await getAccountStatus(userId).catch(() => undefined) : null
+          if (status === null || status?.active === false) return null
           return {
-            id: (token.id as string) || (token.sub as string) || '',
+            id: userId,
             email: (token.email as string) || '',
             name: (token.name as string) || '',
             role: (token.role as string) || 'USER',

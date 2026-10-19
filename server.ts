@@ -7,6 +7,7 @@
 //
 // Wraps Next.js with Socket.IO for real-time watch party sync.
 
+import './lib/load-env'
 import { createServer } from 'http'
 import next from 'next'
 import { Server as SocketIOServer } from 'socket.io'
@@ -23,7 +24,9 @@ validateEnv()
 const bgLog = logger.child({ module: 'background-job' })
 
 const dev = process.env.NODE_ENV !== 'production'
-const hostname = process.env.HOSTNAME || '0.0.0.0'
+// In dev, ignore HOSTNAME: on Windows it is the machine name, which would bind
+// the server to the LAN interface and make http://localhost unreachable.
+const hostname = dev ? 'localhost' : process.env.HOSTNAME || '0.0.0.0'
 const port = parseInt(process.env.PORT || '3000', 10)
 
 // Production allowed origins. Configurable via ALLOWED_ORIGINS env
@@ -47,7 +50,7 @@ function parseAllowedOrigins(): string[] | '*' {
 
 const ALLOWED_ORIGINS = parseAllowedOrigins()
 
-const app = next({ dev, hostname: dev ? 'localhost' : hostname, port })
+const app = next({ dev, hostname, port })
 const handle = app.getRequestHandler()
 
 app.prepare().then(() => {
@@ -146,7 +149,7 @@ app.prepare().then(() => {
   }, 60 * 1000) // Kiểm tra mỗi phút
 
   // ── Start server ──
-  httpServer.listen(port, hostname === '0.0.0.0' ? undefined : hostname, () => {
+  httpServer.listen(port, hostname === '0.0.0.0' || dev ? undefined : hostname, () => {
     console.log(`\n✅ TERENCE Server ready:`)
     console.log(`   🌐 Web:      http://${hostname}:${port}`)
     console.log(`   🔌 Socket:   ws://${hostname}:${port}/api/socketio`)

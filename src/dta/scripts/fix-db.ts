@@ -9,7 +9,7 @@ async function main() {
     // Thử xóa Constraint nếu đang dùng Postgres 
     await prisma.$executeRawUnsafe(`ALTER TABLE "Episode" DROP CONSTRAINT IF EXISTS "Episode_movieId_episodeNumber_key" CASCADE;`)
     console.log('✅ Đã xóa Constraint Episode_movieId_episodeNumber_key (Postgres)')
-  } catch (e) {
+  } catch {
     // Bỏ qua lỗi vì có thể là MySQL hoặc Constraint không phải dạng này
   }
 
@@ -17,7 +17,7 @@ async function main() {
     // Thử xóa Index thông thường (Postgres/MySQL)
     await prisma.$executeRawUnsafe(`DROP INDEX IF EXISTS "Episode_movieId_episodeNumber_key";`)
     console.log('✅ Đã xóa Index Episode_movieId_episodeNumber_key')
-  } catch (e) {
+  } catch {
     // Bỏ qua lỗi
   }
 

@@ -5,6 +5,7 @@ import { userCreateSchema, userUpdateSchema } from '@/src/be/modules/admin/valid
 import { AuthService } from '@/src/be/modules/auth'
 import { logAdminAction, getClientIp } from '@/src/be/modules/admin/audit'
 import { canChangeRole } from '@/src/be/modules/auth/permissions'
+import { invalidateAccountStatus } from '@/src/be/modules/auth/account-status'
 import { UsersService } from '@/src/be/modules/users/users.service'
 import { ok, badRequest, forbidden, notFound, conflict, parseAndValidate } from '@/src/be/shared/api-handler'
 import { Container } from '@/src/be/shared/di'
@@ -148,6 +149,7 @@ export class UsersController {
     }
 
     const updated = await usersService.updateUser(id, { ...body, ...updateData, role: body.role?.toUpperCase() as Role | undefined })
+    invalidateAccountStatus(id) // role/status changes apply to live sessions now
 
     // Determine action type for logging
     const action = body.status === 'banned' ? 'block' :
@@ -188,6 +190,7 @@ export class UsersController {
 
     // Soft delete with deletedAt and invalidate sessions
     await usersService.softDeleteUser(id)
+    invalidateAccountStatus(id)
 
     await logAdminAction({
       actorId: auth.user.email, action: 'delete', targetType: 'user', targetId: id,

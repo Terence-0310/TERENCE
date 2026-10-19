@@ -4,7 +4,6 @@ import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useState, useRef, useEffect, Suspense } from 'react'
 import { Search, Menu, X, LogOut, LayoutDashboard, ChevronDown, User, PlayCircle, Loader2, Coins } from 'lucide-react'
-import { useTheme } from 'next-themes'
 import useSWR from 'swr'
 import { useAuth } from '@/src/fe/features/auth/contexts/auth-context'
 import { useAuthModal } from '@/src/fe/components/auth/auth-modal-store'
@@ -42,7 +41,6 @@ function HeaderInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user, isAdmin, logout } = useAuth()
-  const { theme, setTheme } = useTheme()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [scrolled, setScrolled] = useState(false)
@@ -162,18 +160,6 @@ function HeaderInner() {
 
   const isGenreActive = activeGenreId !== null
   const isCountryActive = activeCountryCode !== null
-
-  // Nav link style
-  const navLinkClass = (active: boolean) =>
-    `whitespace-nowrap px-2.5 py-1.5 text-[13px] font-medium transition lg:px-3 ${
-      active ? 'text-white' : 'text-white/60 hover:text-white'
-    }`
-
-  // Dropdown button style
-  const dropdownBtnClass = (active: boolean) =>
-    `flex items-center gap-0.5 whitespace-nowrap px-2.5 py-1.5 text-[13px] font-medium transition lg:px-3 ${
-      active ? 'text-white' : 'text-white/60 hover:text-white'
-    }`
 
   // Header background class
   const headerBg = (isTransparent && !mobileOpen)

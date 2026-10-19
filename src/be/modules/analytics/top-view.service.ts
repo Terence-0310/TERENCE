@@ -105,3 +105,27 @@ export async function computeTopViewRanking(limit = 12): Promise<TopViewRankItem
     )
     .slice(0, limit)
 }
+
+/**
+ * Wire shape for the public /top-view board — used for both the SSR seed and
+ * the socket broadcast so the two can never drift (e.g. poster fallback).
+ */
+export function toTopViewItems(ranked: TopViewRankItem[]) {
+  return ranked.map((m, i) => ({
+    rank: i + 1,
+    movieId: m.id,
+    viewers: m.liveViewers,
+    viewsToday: m.viewsToday,
+    viewCount: m.viewCount,
+    title: m.title,
+    slug: m.slug,
+    // No stored poster → resolve from TMDB through our image proxy.
+    posterUrl:
+      m.posterUrl ||
+      m.thumbUrl ||
+      (m.tmdbId ? `/api/tmdb-image/${m.tmdbId}?type=poster&isTv=${m.contentType === 'series' || m.contentType === 'tv'}` : null),
+    thumbUrl: m.thumbUrl,
+    contentType: m.contentType,
+    tmdbId: m.tmdbId,
+  }))
+}

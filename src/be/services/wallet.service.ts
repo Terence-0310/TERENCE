@@ -90,7 +90,8 @@ export async function creditTopup({ userId, orderId, amountCoin, provider, metad
         walletId: updatedWallet.id,
         userId,
         type: 'TOPUP',
-        direction: 'CREDIT',
+        direction: 'credit', // lowercase, same as tcoin.repository
+
         amount: amountCoin,
         balanceBefore,
         balanceAfter,

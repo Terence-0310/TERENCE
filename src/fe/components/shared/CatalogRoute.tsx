@@ -54,6 +54,10 @@ export async function CatalogRoute({ type, searchParams }: CatalogRouteProps) {
       result = type === 'movies' ? await getPopular(page) : await getTvPopular(page)
     }
     if (category && CATEGORY_LABELS[category]) title = CATEGORY_LABELS[category]
+    // TMDB lists include obscure entries with no artwork (e.g. TV channels) —
+    // they render as blank cards, so drop them from browse grids.
+    // tmdbImage() maps a missing poster_path to '/placeholder.jpg'.
+    result = { ...result, items: result.items.filter((m) => m.posterUrl && m.posterUrl !== '/placeholder.jpg') }
   } catch {
     result = { items: [], page: 1, totalPages: 0, totalResults: 0 }
   }

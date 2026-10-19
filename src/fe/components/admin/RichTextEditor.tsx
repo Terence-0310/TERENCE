@@ -42,7 +42,7 @@ export function RichTextEditor({ value, onChange, placeholder }: RichTextEditorP
   const formats = [
     'header',
     'bold', 'italic', 'underline', 'strike',
-    'list', 'bullet',
+    'list',
     'color', 'background',
     'link', 'image', 'video'
   ]

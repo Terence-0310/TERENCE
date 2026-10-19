@@ -113,7 +113,7 @@ async function main() {
         }));
       }
     }
-  } catch (err) {
+  } catch {
     console.warn("     ⚠️ Failed to fetch genres from OPhim, using fallback.");
   }
 
@@ -198,7 +198,7 @@ async function main() {
         }));
       }
     }
-  } catch (err) {
+  } catch {
     console.warn(
       "     ⚠️ Failed to fetch countries from OPhim, using fallback.",
     );
@@ -612,6 +612,18 @@ async function main() {
       .catch(() => {});
   }
 
+  // ── TCoin top-up packages (shown on /tcoin) ──
+  console.log("   🪙 Seeding TCoin packages...");
+  const tcoinPackages = [
+    { slug: "pkg-basic", name: "Gói Cơ Bản", coinAmount: 200, bonusAmount: 0, priceVnd: 20000, sortOrder: 1 },
+    { slug: "pkg-standard", name: "Gói Chuẩn", coinAmount: 500, bonusAmount: 50, priceVnd: 50000, sortOrder: 2, isPopular: true },
+    { slug: "pkg-premium", name: "Gói Cao Cấp", coinAmount: 1000, bonusAmount: 150, priceVnd: 100000, sortOrder: 3 },
+    { slug: "pkg-vip", name: "Gói VIP", coinAmount: 5000, bonusAmount: 1000, priceVnd: 500000, sortOrder: 4 },
+  ];
+  for (const pkg of tcoinPackages) {
+    await prisma.tCoinPackage.upsert({ where: { slug: pkg.slug }, update: {}, create: pkg });
+  }
+
   // ── Wallets for demo users ──
   console.log("   💰 Seeding wallets...");
   await prisma.wallet.upsert({
@@ -715,7 +727,7 @@ async function main() {
       create: {
         userId: regular.id,
         movieId: reviewMovies[0].id,
-        rating: 9.5,
+        rating: 5,
         title: "Tuyệt đỉnh",
         content:
           "Phim cực hay, góc máy và màu sắc khỏi bàn cãi. Xem xong vẫn còn ám ảnh với plot twist!",
@@ -731,7 +743,7 @@ async function main() {
       create: {
         userId: admin.id,
         movieId: reviewMovies[1].id,
-        rating: 8.0,
+        rating: 4,
         content:
           "Cốt truyện ổn, diễn viên nhập vai tốt. Đáng để các dẫn đi xem vào cuối tuần.",
         status: "approved",
@@ -746,7 +758,7 @@ async function main() {
       create: {
         userId: regular.id,
         movieId: reviewMovies[2].id,
-        rating: 10,
+        rating: 5,
         content:
           "Tuyệt tác của thập kỷ, không thể chờ thêm phần 2 😱. Admin up thêm phim của đạo diễn này nhé!",
         status: "approved",

@@ -6,7 +6,7 @@ import type { Movie } from '@/types/movie'
 import { prisma } from '@/src/be/shared/db/prisma'
 import { MovieCard } from '@/src/fe/components/shared/MovieCard'
 import { TopViewLive } from '@/src/fe/components/home/TopViewLive'
-import { computeTopViewRanking } from '@/src/be/modules/analytics/top-view.service'
+import { computeTopViewRanking, toTopViewItems } from '@/src/be/modules/analytics/top-view.service'
 import type { TopViewItem } from '@/src/fe/lib/realtime/hooks'
 
 export const metadata: Metadata = {
@@ -194,22 +194,7 @@ export default async function TopViewPage({ searchParams }: { searchParams: Prom
 
   // Activity ranking (live viewers → views today → all-time) — same logic as
   // the admin dashboard. SSR-seeded into TopViewLive; updates live via socket.
-  const liveInitial: TopViewItem[] = (await computeTopViewRanking(10)).map((m, i) => ({
-    rank: i + 1,
-    movieId: m.id,
-    viewers: m.liveViewers,
-    viewsToday: m.viewsToday,
-    viewCount: m.viewCount,
-    title: m.title,
-    slug: m.slug,
-    posterUrl:
-      m.posterUrl ||
-      m.thumbUrl ||
-      (m.tmdbId ? `/api/tmdb-image/${m.tmdbId}?type=poster&isTv=${m.contentType === 'series' || m.contentType === 'tv'}` : null),
-    thumbUrl: m.thumbUrl,
-    contentType: m.contentType,
-    tmdbId: m.tmdbId,
-  }))
+  const liveInitial: TopViewItem[] = toTopViewItems(await computeTopViewRanking(10))
 
   const isFirstPage = page === 1
   const top3 = isFirstPage ? movies.slice(0, 3) : []

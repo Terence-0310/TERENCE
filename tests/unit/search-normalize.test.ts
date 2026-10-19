@@ -6,7 +6,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { normalizeVietnamese, stripDiacritics, vietnameseTokens, joinAscii } from '@/lib/search/normalize'
-import { buildSearchQuery, buildSuggestQuery } from '@/src/be/modules/search/movie-search-service'
+import { buildSearchQuery, buildSuggestQuery, isLikelyPersonName } from '@/src/be/modules/search/movie-search-service'
 
 describe('normalizeVietnamese()', () => {
   it('strips diacritics from common Vietnamese letters', () => {
@@ -177,5 +177,22 @@ describe('buildSuggestQuery() — title-first autocomplete', () => {
   it('filters by isActive', () => {
     const q = buildSuggestQuery('x') as { bool: { filter: Array<Record<string, unknown>> } }
     expect(JSON.stringify(q.bool.filter)).toContain('"isActive":true')
+  })
+})
+
+describe('isLikelyPersonName()', () => {
+  it('treats capitalised multi-word queries as names', () => {
+    expect(isLikelyPersonName('Trấn Thành')).toBe(true)
+    expect(isLikelyPersonName('Jack Reynor')).toBe(true)
+  })
+
+  it('does not treat lowercase accented titles as names', () => {
+    // [À-Ỹ] used to match lowercase á/ử, routing "án tử" to a person search.
+    expect(isLikelyPersonName('án tử')).toBe(false)
+    expect(isLikelyPersonName('người nhện')).toBe(false)
+  })
+
+  it('needs at least two tokens', () => {
+    expect(isLikelyPersonName('Doraemon')).toBe(false)
   })
 })

@@ -1,5 +1,6 @@
 'use client'
 
+import { useSession } from 'next-auth/react'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Heart } from 'lucide-react'
@@ -24,7 +25,11 @@ export default function FavoritesPage() {
   const [loading, setLoading] = useState(true)
   const [unauthed, setUnauthed] = useState(false)
 
+  const { status } = useSession()
+
   useEffect(() => {
+    if (status === 'loading') return
+    if (status === 'unauthenticated') { setUnauthed(true); setLoading(false); return }
     fetch('/api/v1/favorites')
       .then(async (r) => {
         if (r.status === 401) { setUnauthed(true); return null }
@@ -33,7 +38,7 @@ export default function FavoritesPage() {
       .then((d) => { if (d?.success) setItems(d.data || []) })
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [])
+  }, [status])
 
   const toCard = (m: FavMovie): Movie => ({
     id: (m.tmdbId || m.slug) as unknown as number,
@@ -70,7 +75,7 @@ export default function FavoritesPage() {
         ) : unauthed ? (
           <div className="flex min-h-[40vh] flex-col items-center justify-center text-center">
             <p className="text-white/70">Vui lòng đăng nhập để xem phim yêu thích.</p>
-            <Link href="/login" className="mt-4 rounded-lg bg-primary/10 px-5 py-2 text-sm font-medium text-primary transition hover:bg-primary/20">Đăng nhập</Link>
+            <Link href="/login?from=/favorites" className="mt-4 rounded-lg bg-primary/10 px-5 py-2 text-sm font-medium text-primary transition hover:bg-primary/20">Đăng nhập</Link>
           </div>
         ) : items.length === 0 ? (
           <div className="flex min-h-[40vh] flex-col items-center justify-center text-center">

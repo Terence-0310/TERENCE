@@ -13,6 +13,44 @@ async function getCallerUserId(): Promise<string | null> {
   return user?.id || null
 }
 
+/** Public lobby list for /xem-chung — shaped as the client `WatchRoom` type. */
+export async function listRooms() {
+  try {
+    const rooms = await service.listActiveRooms(30)
+    return NextResponse.json({
+      rooms: rooms.map((r) => ({
+        id: r.id,
+        code: r.roomCode,
+        host: { id: r.host?.id ?? '', name: r.host?.name ?? 'Khách', avatarUrl: r.host?.avatar ?? undefined },
+        movieId: r.movieId ?? '',
+        movieSlug: r.movie?.slug,
+        movieTitle: r.movie?.title,
+        episodeId: r.episodeId ?? undefined,
+        serverIndex: 0,
+        roomName: r.title,
+        roomType: r.maxMembers <= 2 ? 'duo' : r.maxMembers <= 4 ? 'small_group' : 'group_chat',
+        visibility: r.isLocked ? 'private' : 'public',
+        maxMembers: r.maxMembers,
+        isLocked: r.isLocked,
+        allowMemberControl: false,
+        chatEnabled: true,
+        reactionsEnabled: true,
+        status: r._count.participants > 0 ? 'live' : 'waiting',
+        currentPlaybackTime: 0,
+        playbackState: 'paused',
+        posterUrl: r.movie?.backdropUrl || r.movie?.posterUrl || r.movie?.thumbUrl || undefined,
+        theme: r.theme,
+        memberCount: r._count.participants,
+        createdAt: r.createdAt,
+        updatedAt: r.updatedAt,
+      })),
+    })
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to list rooms'
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
+}
+
 export async function createRoom(request: NextRequest) {
   try {
     const body = await request.json()

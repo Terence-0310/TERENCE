@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Eye, EyeOff, Lock } from 'lucide-react'
@@ -16,6 +16,13 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
+
+  // NextAuth redirects here with ?error=… (e.g. blocked Google account).
+  useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get('error')
+    if (code === 'BlockAccount') setError('Tài khoản đã bị khóa')
+    else if (code) setError('Đăng nhập thất bại. Vui lòng thử lại.')
+  }, [])
   const [formData, setFormData] = useState({
     accountKey: '',
     password: '',
@@ -28,12 +35,15 @@ export default function LoginPage() {
     
     try {
       const loginId = formData.accountKey.includes('@') ? formData.accountKey : `${formData.accountKey}@terence.vn`
-      const success = await login(loginId, formData.password)
-      
-      if (success) {
-        router.push('/')
+      const res = await login(loginId, formData.password)
+
+      if (res.ok) {
+        // Return to the page that sent us here (?from=…); same-origin paths only.
+        const from = new URLSearchParams(window.location.search).get('from')
+        router.push(from && from.startsWith('/') && !from.startsWith('//') ? from : '/')
+        router.refresh()
       } else {
-        setError('Thông tin đăng nhập không chính xác')
+        setError(res.error ?? 'Thông tin đăng nhập không chính xác')
       }
     } catch {
       setError('Có lỗi xảy ra. Vui lòng thử lại.')

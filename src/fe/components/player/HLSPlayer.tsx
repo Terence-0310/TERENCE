@@ -14,6 +14,7 @@
 // settings menu, subtitle handling, auto-next episode, error escalation.
 
 import { useRef, useState, useEffect, useCallback } from 'react'
+import { useSession } from 'next-auth/react'
 import {
   SkipForward, Settings, Subtitles,
   Gauge, Server, MonitorPlay,
@@ -127,6 +128,7 @@ export function HLSPlayer({
   const [showFallbackBanner, setShowFallbackBanner] = useState(true)
 
   // ── usePlayer hook ──
+  const isAuthed = useSession().status === 'authenticated'
   const player = usePlayer({
     servers,
     movieId,
@@ -367,11 +369,13 @@ export function HLSPlayer({
     if (video && video.duration > 0) {
       player.saveProgress(video.duration, video.duration)
     }
-    fetch('/api/v1/watch-history/complete', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ movieId, episodeId: episodeSlug || null }),
-    }).catch(() => {})
+    if (isAuthed) {
+      fetch('/api/v1/watch-history/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ movieId, episodeId: episodeSlug || null }),
+      }).catch(() => {})
+    }
 
     if (hasNextEpisode && onNextEpisode) {
       setAutoNextCountdown(5)
@@ -840,7 +844,9 @@ export function HLSPlayer({
         onCanPlay={handleCanPlay}
         onError={handleVideoError}
         onEnded={handleEnded}
-        crossOrigin="anonymous"
+        // Only needed for cross-origin <track> files. Setting it always makes the
+        // TMDB poster load in CORS mode, which fails on a cached non-CORS copy.
+        crossOrigin={subtitles.length > 0 ? 'anonymous' : undefined}
       >
         {subtitles.map((sub) => (
           <track

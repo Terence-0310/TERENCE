@@ -91,8 +91,13 @@ export function useHLS(options: UseHLSOptions = {}): UseHLSReturn {
     // Always destroy previous instance first
     destroy()
 
-    // 1. Try native HLS first (Safari / iOS)
-    if (isNativeHLS(videoElement)) {
+    // 1. Prefer hls.js wherever MSE exists. Recent Chrome also reports native
+    //    HLS support via canPlayType, but its native path fails on these CDN
+    //    streams and loses quality selection — so native is only the fallback
+    //    for browsers without MSE (iOS Safari).
+    const HlsLib = (await import('hls.js')).default
+
+    if (!HlsLib.isSupported() && isNativeHLS(videoElement)) {
       isNativeRef.current = true
       videoElement.src = src
 
@@ -110,9 +115,7 @@ export function useHLS(options: UseHLSOptions = {}): UseHLSReturn {
       return
     }
 
-    // 2. Dynamic import hls.js
-    const HlsLib = (await import('hls.js')).default
-
+    // 2. hls.js
     if (!HlsLib.isSupported()) {
       optionsRef.current.onError?.('HLS_NOT_SUPPORTED', 'Browser does not support HLS.js', true)
       return
