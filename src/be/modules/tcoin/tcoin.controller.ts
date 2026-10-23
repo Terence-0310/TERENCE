@@ -177,6 +177,9 @@ export class TcoinController {
       const orderData = await createBankQrOrder(userId, validation.data.packageId)
       return ok(orderData)
     } catch (e: any) {
+      if (e?.message === 'Package not found or inactive') {
+        return badRequest('Gói nạp không tồn tại hoặc đã ngừng bán')
+      }
       const { logger } = await import('@/src/be/shared/utils/logger')
       logger.error({ err: e }, 'Error creating bank order')
       return serverError(e.message || 'Internal Server Error')

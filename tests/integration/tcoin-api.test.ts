@@ -138,7 +138,7 @@ describe('TCoin Admin API — Integration', () => {
         return ops({})
       })
 
-      const result = await mockPrisma.$transaction([
+      await mockPrisma.$transaction([
         mockPrisma.wallet.update({ where: { id: 'w1' }, data: { balance: { increment: 5000 } } }),
         mockPrisma.walletTransaction.create({ data: { walletId: 'w1', amount: 5000, type: 'admin' } }),
       ])

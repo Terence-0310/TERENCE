@@ -78,66 +78,10 @@ COPY --from=builder --chown=nextjs:nodejs /app/tsconfig.json ./tsconfig.json
 COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
 COPY --from=builder --chown=nextjs:nodejs /app/server.ts ./server.ts
 
-# Entrypoint script — runs migrations before starting app
-# Created inline to avoid Windows CRLF line-ending issues
-RUN printf '#!/bin/sh\n\
-set -e\n\
-echo "================================================"\n\
-echo "  TERENCE — Docker Entrypoint"\n\
-echo "================================================"\n\
-echo "Waiting for database..."\n\
-MAX_RETRIES=30\n\
-RETRY=0\n\
-while [ $RETRY -lt $MAX_RETRIES ]; do\n\
-  if node -e "\n\
-    const{PrismaClient}=require('"'"'@prisma/client'"'"');\n\
-    const p=new PrismaClient();\n\
-    p.\\$connect().then(()=>{p.\\$disconnect();process.exit(0)}).catch(()=>process.exit(1));\n\
-  " > /dev/null 2>&1; then\n\
-    echo "DB connected!"\n\
-    break\n\
-  fi\n\
-  RETRY=$((RETRY+1))\n\
-  echo "  Attempt $RETRY/$MAX_RETRIES..."\n\
-  sleep 2\n\
-done\n\
-if [ $RETRY -ge $MAX_RETRIES ]; then\n\
-  echo "DB not available, starting anyway..."\n\
-else\n\
-  echo "Applying database migrations (prisma migrate deploy)..."\n\
-  SCHEMA=src/dta/prisma/schema.prisma\n\
-  OUT=$(./node_modules/.bin/prisma migrate deploy --schema=$SCHEMA 2>&1) && echo "$OUT" || {\n\
-    echo "$OUT"\n\
-    if echo "$OUT" | grep -q "P3005"; then\n\
-      echo "Existing database without migration history - baselining..."\n\
-      ./node_modules/.bin/prisma migrate resolve --schema=$SCHEMA --applied 20261006000000_baseline 2>&1 && ./node_modules/.bin/prisma migrate deploy --schema=$SCHEMA 2>&1 || echo "WARN: baselining failed"\n\
-    else\n\
-      echo "WARN: prisma migrate deploy failed"\n\
-    fi\n\
-  }\n\
-  if [ "${SEED_ON_START:-false}" = "true" ]; then\n\
-    echo "Seeding database..."\n\
-    ./node_modules/.bin/prisma db seed 2>&1 || echo "Seed warning"\n\
-  fi\n\
-  if [ "${SYNC_OPHIM_ON_START:-false}" = "true" ]; then\n\
-    PAGES="${OPHIM_SYNC_PAGES:-3}"\n\
-    echo "Syncing OPhim catalog (pages 1-${PAGES})..."\n\
-    ./node_modules/.bin/tsx src/dta/scripts/sync-ophim-catalog.ts --pages=${PAGES} 2>&1 || echo "OPhim sync warning (continuing)"\n\
-  fi\n\
-  if [ "${SYNC_KKPHIM_ON_START:-false}" = "true" ]; then\n\
-    PAGES="${KKPHIM_SYNC_PAGES:-3}"\n\
-    echo "Syncing KKPhim catalog (pages 1-${PAGES})..."\n\
-    ./node_modules/.bin/tsx src/dta/scripts/sync-kkphim-catalog.ts --pages=${PAGES} --delay=750 2>&1 || echo "KKPhim sync warning (continuing)"\n\
-  fi\n\
-  if [ "${SEED_ON_START:-false}" = "true" ] || [ "${SYNC_OPHIM_ON_START:-false}" = "true" ] || [ "${SYNC_KKPHIM_ON_START:-false}" = "true" ]; then\n\
-    echo "Reindexing Elasticsearch..."\n\
-    ./node_modules/.bin/tsx src/dta/scripts/elastic-reindex.ts 2>&1 || echo "ES reindex warning"\n\
-  fi\n\
-fi\n\
-echo "Starting TERENCE on port ${PORT:-3000}..."\n\
-exec "$@"\n' > ./docker-entrypoint.sh && \
-    chmod +x ./docker-entrypoint.sh && \
-    chown nextjs:nodejs ./docker-entrypoint.sh
+# Entrypoint script — runs migrations (+ optional seed / sync) before starting the app.
+# CRs are stripped so a Windows (CRLF) checkout still runs under /bin/sh.
+COPY --chown=nextjs:nodejs docker-entrypoint.sh ./docker-entrypoint.sh
+RUN sed -i 's/\r$//' ./docker-entrypoint.sh && chmod +x ./docker-entrypoint.sh
 
 USER nextjs
 

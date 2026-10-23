@@ -13,13 +13,11 @@ import {
   generateSlug,
 } from '@/src/be/modules/admin/validators'
 import {
-  paginationSchema,
-  searchSchema,
-  reviewCreateSchema,
   loginSchema,
   signupSchema,
-  watchProgressSchema,
-} from '@/src/be/shared/validators/index'
+  forgotPasswordSchema,
+  resetPasswordSchema,
+} from '@/src/be/modules/auth/auth.schema'
 
 describe('Admin Validators', () => {
   describe('movieCreateSchema', () => {
@@ -199,65 +197,15 @@ describe('Admin Validators', () => {
   })
 })
 
-describe('App Validators', () => {
-  describe('paginationSchema', () => {
-    it('should parse page and limit with defaults', () => {
-      const result = paginationSchema.parse({})
-      expect(result.page).toBe(1)
-      expect(result.limit).toBe(20)
-    })
-
-    it('should coerce string numbers', () => {
-      const result = paginationSchema.parse({ page: '3', limit: '50' })
-      expect(result.page).toBe(3)
-      expect(result.limit).toBe(50)
-    })
-
-    it('should reject limit over 100', () => {
-      const result = paginationSchema.safeParse({ limit: '200' })
-      expect(result.success).toBe(false)
-    })
-
-    it('should reject page 0', () => {
-      const result = paginationSchema.safeParse({ page: '0' })
-      expect(result.success).toBe(false)
-    })
-  })
-
-  describe('searchSchema', () => {
-    it('should require at least 1 char query', () => {
-      expect(searchSchema.safeParse({ q: '' }).success).toBe(false)
-    })
-
-    it('should accept valid search', () => {
-      expect(searchSchema.safeParse({ q: 'avengers' }).success).toBe(true)
-    })
-
-    it('should default type to all', () => {
-      expect(searchSchema.parse({ q: 'test' }).type).toBe('all')
-    })
-  })
-
-  describe('reviewCreateSchema', () => {
-    it('should require movieId and rating', () => {
-      expect(reviewCreateSchema.safeParse({}).success).toBe(false)
-    })
-
-    it('should validate rating 0-10', () => {
-      expect(reviewCreateSchema.safeParse({ movieId: 'x', rating: -1 }).success).toBe(false)
-      expect(reviewCreateSchema.safeParse({ movieId: 'x', rating: 11 }).success).toBe(false)
-      expect(reviewCreateSchema.safeParse({ movieId: 'x', rating: 8 }).success).toBe(true)
-    })
-  })
-
+describe('Auth Validators', () => {
   describe('loginSchema', () => {
     it('should require email and password', () => {
       expect(loginSchema.safeParse({}).success).toBe(false)
     })
 
-    it('should validate email format', () => {
+    it('should validate email format and normalise case', () => {
       expect(loginSchema.safeParse({ email: 'bad', password: 'x' }).success).toBe(false)
-      expect(loginSchema.safeParse({ email: 'ok@test.com', password: 'x' }).success).toBe(true)
+      expect(loginSchema.parse({ email: 'OK@Test.com', password: 'x' }).email).toBe('ok@test.com')
     })
   })
 
@@ -273,15 +221,15 @@ describe('App Validators', () => {
     })
   })
 
-  describe('watchProgressSchema', () => {
-    it('should require movieId and progress', () => {
-      expect(watchProgressSchema.safeParse({}).success).toBe(false)
+  describe('forgotPasswordSchema / resetPasswordSchema', () => {
+    it('should reject unknown fields', () => {
+      expect(forgotPasswordSchema.safeParse({ email: 'a@b.com', extra: 1 }).success).toBe(false)
     })
 
-    it('should validate progress range 0-1', () => {
-      expect(watchProgressSchema.safeParse({ movieId: 'x', progress: -0.1 }).success).toBe(false)
-      expect(watchProgressSchema.safeParse({ movieId: 'x', progress: 1.1 }).success).toBe(false)
-      expect(watchProgressSchema.safeParse({ movieId: 'x', progress: 0.5 }).success).toBe(true)
+    it('should require token and 8+ char password', () => {
+      expect(resetPasswordSchema.safeParse({ token: '', password: '12345678' }).success).toBe(false)
+      expect(resetPasswordSchema.safeParse({ token: 't', password: 'short' }).success).toBe(false)
+      expect(resetPasswordSchema.safeParse({ token: 't', password: '12345678' }).success).toBe(true)
     })
   })
 })

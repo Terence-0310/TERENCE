@@ -13,10 +13,10 @@ const log = logger.child({ module: 'admin-utils' })
 
 /**
  * Verify admin session using 5-level RBAC. Returns session format or NextResponse error.
- * @param minRole optional, not used anymore because baseRequireAdmin handles dashboard.access correctly.
+ * @param permission optional permission key the user must hold (on top of dashboard access).
  */
-export async function requireAdmin(_minRole: string = 'editor') {
-  const result = await baseRequireAdmin()
+export async function requireAdmin(permission?: string) {
+  const result = await baseRequireAdmin(permission)
   if (result instanceof Response) {
     return { error: result as NextResponse }
   }

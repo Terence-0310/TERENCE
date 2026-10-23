@@ -88,13 +88,6 @@ export const SPEND_OPTIONS: SpendOption[] = [
   { id: 'avatar-frame', name: 'Khung viền avatar Neon', cost: 150, description: 'Hiệu ứng viền sáng quanh ảnh đại diện', icon: '', durationDays: 30 },
 ]
 
-export const TCOIN_PACKAGES = [
-  { id: 'starter', name: 'Gói Khởi Đầu', tcoins: 100, priceVnd: 19000, bonus: 0 },
-  { id: 'popular', name: 'Gói Phổ Biến', tcoins: 500, priceVnd: 79000, bonus: 50 },
-  { id: 'premium', name: 'Gói Premium', tcoins: 1200, priceVnd: 169000, bonus: 200 },
-  { id: 'vip', name: 'Gói VIP', tcoins: 3000, priceVnd: 399000, bonus: 600 },
-]
-
 // ═══════════════════════════════════════════════
 // WALLET
 // ═══════════════════════════════════════════════

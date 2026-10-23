@@ -11,6 +11,8 @@ export interface User {
   role: 'super_admin' | 'admin' | 'staff' | 'editor' | 'user'
   avatar?: string | null
   isEmailVerified: boolean
+  /** Effective permission keys (see src/constants/permissions.ts) */
+  permissions: string[]
 }
 
 interface AuthContextType {
@@ -31,7 +33,11 @@ export interface LoginResult {
 
 // authorize() in lib/auth.ts throws these; only surface the ones that are safe
 // to show (never reveal whether an email exists).
-const SAFE_LOGIN_ERRORS = ['Tài khoản đã bị khóa', 'Vui lòng đăng nhập bằng Google']
+const SAFE_LOGIN_ERRORS = [
+  'Tài khoản đã bị khóa',
+  'Vui lòng đăng nhập bằng Google',
+  'Quá nhiều lần đăng nhập, vui lòng thử lại sau 1 phút',
+]
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
@@ -53,6 +59,7 @@ function AuthContextInner({ children }: { children: ReactNode }) {
     role: (session.user.role as User['role']) || 'user',
     avatar: session.user.image,
     isEmailVerified: session.user.isEmailVerified ?? false,
+    permissions: session.user.permissions ?? [],
   } : null
 
   useEffect(() => {

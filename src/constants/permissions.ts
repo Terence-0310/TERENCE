@@ -22,6 +22,7 @@ export const PERMISSIONS = {
 
   // Users
   USER_READ: 'user.read',
+  USER_CREATE: 'user.create',
   USER_UPDATE: 'user.update',
   USER_BLOCK: 'user.block',
   USER_ROLE_UPDATE: 'user.role.update',
@@ -33,12 +34,14 @@ export const PERMISSIONS = {
   PAYMENT_READ: 'payment.read',
   PAYMENT_UPDATE: 'payment.update',
   ADMINLOG_READ: 'adminlog.read',
+  REPORT_READ: 'report.read', // content-health reports (analytics page)
   SETTINGS_READ: 'settings.read',
   SETTINGS_UPDATE: 'settings.update',
 
   // Content & operations
   NEWS_MANAGE: 'news.manage',
   NEWS_DELETE: 'news.delete',
+  SHORT_MANAGE: 'short.manage', // shorts feed: add / import / hide / delete
   METADATA_MANAGE: 'metadata.manage', // genres, countries
   METADATA_DELETE: 'metadata.delete',
   UPLOAD_MANAGE: 'upload.manage',

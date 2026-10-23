@@ -4,10 +4,17 @@ import crypto from 'crypto'
 import { sendPasswordResetEmail } from '@/lib/mail'
 import { logger } from '@/src/be/shared/utils/logger'
 import { forgotPasswordSchema } from '@/src/be/modules/auth/auth.schema'
+import { rateLimit, getClientIdentifier } from '@/src/be/shared/rate-limit'
 
 const log = logger.child({ module: 'auth-forgot-password' })
+const limiter = rateLimit({ windowMs: 60_000, maxRequests: 5 })
 
 export async function POST(req: NextRequest) {
+  const { allowed } = await limiter.check(`auth-forgot:${getClientIdentifier(req)}`)
+  if (!allowed) {
+    return NextResponse.json({ error: 'Quá nhiều yêu cầu. Vui lòng thử lại sau 1 phút.' }, { status: 429 })
+  }
+
   try {
     let raw: unknown
     try {

@@ -9,7 +9,7 @@ import { ScrollToTop } from '@/src/fe/components/shared/ScrollToTop'
 import { AuthModal } from '@/src/fe/components/auth/AuthModal'
 
 const HIDE_LAYOUT_PREFIXES = ['/dashboard', '/login', '/signup', '/forgot-password']
-const HIDE_FOOTER_PREFIXES = ['/watch/', '/login', '/signup', '/forgot-password']
+const HIDE_FOOTER_PREFIXES = ['/watch/', '/shorts', '/login', '/signup', '/forgot-password']
 
 // Hide all layout for room pages (but NOT for /xem-chung listing page)
 function isRoomPage(pathname: string): boolean {

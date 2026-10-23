@@ -44,10 +44,27 @@ async function RelatedArticles({ excludeSlug }: { excludeSlug: string }) {
   return <NewsArticleGrid articles={filtered} compact />
 }
 
+// Posts written in the dashboard's rich-text editor are stored as HTML; turn
+// block tags into blank-line paragraph breaks and drop the rest so readers
+// never see raw markup (React still escapes the resulting text).
+function htmlToText(content: string): string {
+  if (!/<[a-z][\s\S]*>/i.test(content)) return content
+  return content
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|h[1-6]|li|blockquote)>/gi, '\n\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, '&')
+}
+
 // Render the article body. Paragraphs are split on blank lines so the AI
 // writer's 3-4 paragraph layout reads as a proper editorial piece.
 function ArticleBody({ content }: { content: string }) {
-  const paragraphs = content
+  const paragraphs = htmlToText(content)
     .split(/\n\s*\n/)
     .map((p) => p.trim())
     .filter(Boolean)

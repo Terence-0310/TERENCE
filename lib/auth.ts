@@ -7,6 +7,12 @@ import { AuthService } from "@/src/be/modules/auth";
 import { Adapter } from "next-auth/adapters";
 import * as AuthRepository from "@/src/be/modules/auth/auth.repository";
 import { getAccountStatus } from "@/src/be/modules/auth/account-status";
+import { rateLimit } from "@/src/be/shared/rate-limit";
+
+// Brute-force guard for credential sign-in: 10 attempts / minute per IP+email.
+const loginLimiter = rateLimit({ windowMs: 60_000, maxRequests: 10 });
+// Must stay in sync with SAFE_LOGIN_ERRORS in auth-context.tsx so the UI shows it.
+const LOGIN_RATE_LIMIT_ERROR ="Quá nhiều lần đăng nhập, vui lòng thử lại sau 1 phút";
 
 const googleAuthConfigured = Boolean(
   process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET,
@@ -49,9 +55,18 @@ export const authOptions: NextAuthOptions = {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" }
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         if (!credentials?.email || !credentials?.password) {
           throw new Error("Missing credentials");
+        }
+
+        const forwarded = req?.headers?.["x-forwarded-for"];
+        const ip = (Array.isArray(forwarded) ? forwarded[0] : forwarded)?.split(",")[0]?.trim()
+          || (req?.headers?.["x-real-ip"] as string | undefined)
+          || "unknown";
+        const attempt = await loginLimiter.check(`auth-login:${ip}:${credentials.email.toLowerCase()}`);
+        if (!attempt.allowed) {
+          throw new Error(LOGIN_RATE_LIMIT_ERROR);
         }
 
         const user = await AuthRepository.findUserByEmail(credentials.email);

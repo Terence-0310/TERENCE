@@ -104,7 +104,9 @@ export async function tmdbFetch<T>(
         throw lastError
       }
 
-      return response.json() as Promise<T>
+      // Await inside the try so the abort timer also covers reading the body
+      // (returning the bare promise let `finally` clear it first → hung reads).
+      return (await response.json()) as T
     } catch (error) {
       if (error instanceof TmdbApiError) throw error
 

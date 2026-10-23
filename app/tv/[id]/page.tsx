@@ -89,9 +89,10 @@ export default async function SeriesDetailPage({ params, searchParams }: PagePro
   const { id } = await params
   const { season: seasonParam } = await searchParams
 
+  // Catalog titles (slug / DB id) share the /movie detail page.
   if (isNaN(Number(id))) {
     const { redirect } = await import('next/navigation')
-    redirect(`/watch/${id}`)
+    redirect(`/movie/${id}`)
   }
 
   const seriesId = Number(id)

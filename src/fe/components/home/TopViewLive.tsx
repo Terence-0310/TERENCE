@@ -51,7 +51,7 @@ export function TopViewLive({ initial = [] }: { initial?: TopViewItem[] }) {
         {items.map((it) => (
           <li key={it.movieId}>
             <Link
-              href={`/watch/${it.slug || it.movieId}`}
+              href={`/movie/${it.slug || it.movieId}`}
               className="flex items-center gap-3 rounded-xl border border-white/[0.04] bg-white/[0.02] p-2.5 transition hover:border-primary/20 hover:bg-white/[0.04]"
             >
               <span

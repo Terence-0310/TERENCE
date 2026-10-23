@@ -41,20 +41,24 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/src/fe/components/ui/dropdown-menu'
+import { PERMISSIONS } from '@/src/constants/permissions'
+import { can } from '@/src/lib/permissions/ui-guard'
 
+// `permission` = what the page's main API requires; items the user can't use are hidden.
 const SIDEBAR_ITEMS = [
-  { icon: LayoutDashboard, label: 'Tổng quan', href: '/dashboard' },
-  { icon: Film, label: 'Quản lý phim', href: '/dashboard/movies' },
-  { icon: Newspaper, label: 'Bài viết', href: '/dashboard/news' },
-  { icon: Tag, label: 'Nội dung', href: '/dashboard/content' },
-  { icon: Users, label: 'Người dùng', href: '/dashboard/users' },
-  { icon: MessageSquare, label: 'Kiểm duyệt', href: '/dashboard/reviews' },
-  { icon: Coins, label: 'Thanh toán & TCoin', href: '/dashboard/tcoin' },
-  { icon: Megaphone, label: 'Quảng cáo', href: '/dashboard/ads' },
-  { icon: Bell, label: 'Gửi thông báo', href: '/dashboard/notifications' },
-  { icon: BarChart3, label: 'Thống kê', href: '/dashboard/analytics' },
-  { icon: FileText, label: 'Nhật ký', href: '/dashboard/logs' },
-  { icon: Settings, label: 'Cài đặt', href: '/dashboard/settings' },
+  { icon: LayoutDashboard, label: 'Tổng quan', href: '/dashboard', permission: PERMISSIONS.DASHBOARD_VIEW },
+  { icon: Film, label: 'Quản lý phim', href: '/dashboard/movies', permission: PERMISSIONS.MOVIE_READ },
+  { icon: Newspaper, label: 'Bài viết', href: '/dashboard/news', permission: PERMISSIONS.NEWS_MANAGE },
+  { icon: Clapperboard, label: 'Shorts', href: '/dashboard/shorts', permission: PERMISSIONS.SHORT_MANAGE },
+  { icon: Tag, label: 'Nội dung', href: '/dashboard/content', permission: PERMISSIONS.METADATA_MANAGE },
+  { icon: Users, label: 'Người dùng', href: '/dashboard/users', permission: PERMISSIONS.USER_READ },
+  { icon: MessageSquare, label: 'Kiểm duyệt', href: '/dashboard/reviews', permission: PERMISSIONS.REVIEW_MODERATE },
+  { icon: Coins, label: 'Thanh toán & TCoin', href: '/dashboard/tcoin', permission: PERMISSIONS.PAYMENT_READ },
+  { icon: Megaphone, label: 'Quảng cáo', href: '/dashboard/ads', permission: PERMISSIONS.ADS_MANAGE },
+  { icon: Bell, label: 'Gửi thông báo', href: '/dashboard/notifications', permission: PERMISSIONS.NOTIFICATION_BROADCAST },
+  { icon: BarChart3, label: 'Thống kê', href: '/dashboard/analytics', permission: PERMISSIONS.REPORT_READ },
+  { icon: FileText, label: 'Nhật ký', href: '/dashboard/logs', permission: PERMISSIONS.ADMINLOG_READ },
+  { icon: Settings, label: 'Cài đặt', href: '/dashboard/settings', permission: PERMISSIONS.SETTINGS_READ },
 ]
 
 // ── Notification types ──
@@ -455,7 +459,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                <span className="text-xs font-bold text-[#25396f]/50 dark:text-gray-500 uppercase tracking-wider">Menu Chính</span>
             </div>
 
-            {SIDEBAR_ITEMS.map((item, idx) => {
+            {SIDEBAR_ITEMS.filter((item) => can({ role: user.role.toUpperCase(), permissions: user.permissions }, item.permission)).map((item, idx) => {
               const isActive = pathname === item.href
               return (
                 <div 

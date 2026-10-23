@@ -22,15 +22,18 @@ export const ROLE_PERMISSION_MATRIX: Record<string, RolePermissionConfig[]> = {
     { permission: PERMISSIONS.REVIEW_READ, scope: 'all' },
     { permission: PERMISSIONS.REVIEW_MODERATE, scope: 'all' },
     { permission: PERMISSIONS.USER_READ, scope: 'all' },
+    { permission: PERMISSIONS.USER_CREATE, scope: 'all' },
     { permission: PERMISSIONS.USER_UPDATE, scope: 'all' },
     { permission: PERMISSIONS.USER_BLOCK, scope: 'all' },
     { permission: PERMISSIONS.USER_ROLE_UPDATE, scope: 'all' },
     { permission: PERMISSIONS.PAYMENT_READ, scope: 'all' },
     { permission: PERMISSIONS.PAYMENT_UPDATE, scope: 'all' },
     { permission: PERMISSIONS.ADMINLOG_READ, scope: 'all' },
+    { permission: PERMISSIONS.REPORT_READ, scope: 'all' },
     { permission: PERMISSIONS.SETTINGS_READ, scope: 'all' },
     { permission: PERMISSIONS.NEWS_MANAGE, scope: 'all' },
     { permission: PERMISSIONS.NEWS_DELETE, scope: 'all' },
+    { permission: PERMISSIONS.SHORT_MANAGE, scope: 'all' },
     { permission: PERMISSIONS.METADATA_MANAGE, scope: 'all' },
     { permission: PERMISSIONS.METADATA_DELETE, scope: 'all' },
     { permission: PERMISSIONS.UPLOAD_MANAGE, scope: 'all' },
@@ -52,6 +55,7 @@ export const ROLE_PERMISSION_MATRIX: Record<string, RolePermissionConfig[]> = {
     { permission: PERMISSIONS.REVIEW_READ, scope: 'all' },
     { permission: PERMISSIONS.METADATA_MANAGE, scope: 'all' },
     { permission: PERMISSIONS.UPLOAD_MANAGE, scope: 'all' },
+    { permission: PERMISSIONS.SHORT_MANAGE, scope: 'all' },
     // KHÔNG có movie.delete
     // KHÔNG quản lý user
   ],
@@ -65,6 +69,7 @@ export const ROLE_PERMISSION_MATRIX: Record<string, RolePermissionConfig[]> = {
     { permission: PERMISSIONS.REVIEW_READ, scope: 'all' },
     { permission: PERMISSIONS.NEWS_MANAGE, scope: 'all' },
     { permission: PERMISSIONS.UPLOAD_MANAGE, scope: 'all' },
+    { permission: PERMISSIONS.SHORT_MANAGE, scope: 'all' },
     // KHÔNG create / delete / publish / users
   ],
 
