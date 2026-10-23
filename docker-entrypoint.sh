@@ -2,14 +2,10 @@
 # ============================================
 # Docker Entrypoint — TERENCE
 # ============================================
-# Runs Prisma migrations (migrate deploy) + optional seed/OPhim sync + Elasticsearch reindex
-# before starting the app. This ensures the DB schema and the search index
-# are always in sync with the running container.
-#
-# Note: Dockerfile generates a near-identical inline entrypoint at build
-# time (see Dockerfile lines 86-127). This standalone file mirrors that
-# logic and is the single source of truth for `docker compose run` users
-# or manual debugging on the host.
+# Runs Prisma migrations (migrate deploy) + optional seed / OPhim / KKPhim /
+# Shorts sync + Elasticsearch reindex before starting the app, so the DB schema
+# and search index are always in sync with the running container.
+# Copied into the image by the Dockerfile (single source of truth).
 
 set -e
 
@@ -38,6 +34,10 @@ done
 if [ $RETRY -ge $MAX_RETRIES ]; then
   echo "WARN: Database not available after $MAX_RETRIES attempts."
   echo "      Starting app anyway (some features will not work)."
+elif [ "${RUN_MIGRATIONS:-true}" != "true" ]; then
+  # Production (docker-compose.prod.yml): migrations run as an explicit,
+  # backed-up step in deploy/oracle/deploy.sh, never implicitly on boot.
+  echo "RUN_MIGRATIONS=false — skipping migrations and boot-time seed/sync."
 else
   echo ""
   echo "Applying database migrations (prisma migrate deploy)..."
@@ -46,7 +46,9 @@ else
     echo "$OUT"
     # P3005 = database already has tables but no migration history (it was
     # created with `db push`). Mark the baseline as applied once, then retry.
-    if echo "$OUT" | grep -q "P3005"; then
+    # Dev convenience only: set ALLOW_AUTO_BASELINE=false where the schema
+    # must be verified by hand before baselining (production).
+    if echo "$OUT" | grep -q "P3005" && [ "${ALLOW_AUTO_BASELINE:-true}" = "true" ]; then
       echo "Existing database without migration history — baselining..."
       ./node_modules/.bin/prisma migrate resolve --schema=$SCHEMA --applied 20261006000000_baseline 2>&1 \
         && ./node_modules/.bin/prisma migrate deploy --schema=$SCHEMA 2>&1 \
@@ -74,6 +76,12 @@ else
     echo ""
     echo "Syncing KKPhim catalog (pages 1-${PAGES})..."
     ./node_modules/.bin/tsx src/dta/scripts/sync-kkphim-catalog.ts --pages=${PAGES} --delay=750 2>&1 || echo "WARN: KKPhim sync issue (continuing)"
+  fi
+
+  if [ "${SYNC_SHORTS_ON_START:-false}" = "true" ]; then
+    echo ""
+    echo "Importing Shorts (TMDB videos + catalog trailers, + YouTube when YOUTUBE_API_KEY is set)..."
+    ./node_modules/.bin/tsx src/dta/scripts/sync-shorts.ts --limit=${SHORTS_SYNC_MOVIES:-100} 2>&1 || echo "WARN: Shorts sync issue (continuing)"
   fi
 
   # If we just seeded/sync'd, push the data into Elasticsearch so the new

@@ -1,0 +1,91 @@
+# ============================================
+# TERENCE — Production image (Oracle Cloud A1 / linux/arm64, also amd64)
+# ============================================
+# Separate from ./Dockerfile (local dev compose). Differences:
+#   • Build context filtered by Dockerfile.prod.dockerignore — .env files never
+#     enter the image (Next standalone would otherwise copy .env into it).
+#   • NEXT_PUBLIC_* come only from build args (they are inlined at build time).
+#   • Node 24 LTS (Node 20 is EOL), tzdata, uploads dir owned by the app user.
+# Build: docker compose -f docker-compose.prod.yml --env-file .env.production build app
+
+ARG NODE_VERSION=24-alpine
+
+# ── Stage 1: dependencies ──
+FROM node:${NODE_VERSION} AS deps
+WORKDIR /app
+RUN apk add --no-cache libc6-compat openssl
+COPY package.json package-lock.json ./
+COPY src/dta/prisma ./src/dta/prisma/
+# postinstall runs `prisma generate` for the build platform (linux-musl-arm64 on A1).
+RUN npm ci --legacy-peer-deps --no-audit --no-fund
+
+# ── Stage 2: build ──
+FROM node:${NODE_VERSION} AS builder
+WORKDIR /app
+RUN apk add --no-cache libc6-compat openssl
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+
+# Build-time (public) values — baked into the client bundle. Changing any of
+# them requires a rebuild. Never pass secrets here.
+ARG NEXT_PUBLIC_SITE_URL
+ARG NEXT_PUBLIC_LIVEKIT_URL=
+ARG NEXT_PUBLIC_GOOGLE_AUTH_ENABLED=false
+ARG NEXT_PUBLIC_TMDB_IMAGE_BASE_URL=https://image.tmdb.org/t/p
+ARG NEXT_PUBLIC_REGION=VN
+ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL \
+    NEXT_PUBLIC_LIVEKIT_URL=$NEXT_PUBLIC_LIVEKIT_URL \
+    NEXT_PUBLIC_GOOGLE_AUTH_ENABLED=$NEXT_PUBLIC_GOOGLE_AUTH_ENABLED \
+    NEXT_PUBLIC_TMDB_IMAGE_BASE_URL=$NEXT_PUBLIC_TMDB_IMAGE_BASE_URL \
+    NEXT_PUBLIC_REGION=$NEXT_PUBLIC_REGION \
+    NEXT_TELEMETRY_DISABLED=1 \
+    NODE_OPTIONS=--max-old-space-size=3072
+
+# Placeholder URL so Prisma/Next can load at build time; never used to connect.
+ENV DATABASE_URL="postgresql://build:build@127.0.0.1:5432/build?schema=public"
+
+RUN test -n "$NEXT_PUBLIC_SITE_URL" || (echo "NEXT_PUBLIC_SITE_URL build arg is required" && exit 1)
+RUN npx prisma generate && npm run build
+
+# ── Stage 3: runtime ──
+FROM node:${NODE_VERSION} AS runner
+WORKDIR /app
+RUN apk add --no-cache libc6-compat openssl tzdata
+
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    PORT=3000 \
+    HOSTNAME=0.0.0.0
+
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs
+
+COPY --from=builder /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+# Full node_modules: server.ts runs through tsx and the entrypoint uses the Prisma CLI.
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=nextjs:nodejs /app/src ./src
+COPY --from=builder --chown=nextjs:nodejs /app/lib ./lib
+COPY --from=builder --chown=nextjs:nodejs /app/types ./types
+# Operator scripts (set-user-role, seed-mock-*), run via `docker compose exec app tsx ...`.
+COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
+COPY --from=builder --chown=nextjs:nodejs /app/tsconfig.json /app/package.json /app/server.ts /app/next.config.mjs ./
+
+# Runtime uploads (avatars, posters, thumbnails) — mounted as a named volume
+# and served directly by Caddy (Next only serves public/ files present at boot).
+RUN mkdir -p public/uploads && chown -R nextjs:nodejs public/uploads
+
+COPY --chown=nextjs:nodejs docker-entrypoint.sh ./docker-entrypoint.sh
+RUN sed -i 's/\r$//' ./docker-entrypoint.sh && chmod +x ./docker-entrypoint.sh
+
+USER nextjs
+EXPOSE 3000
+
+# Liveness: any answer from /api/health (200 ok, 503 degraded) means the
+# process is serving; dependency status is reported in the JSON body.
+HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.status===200||r.status===503?0:1)).catch(()=>process.exit(1))"
+
+ENTRYPOINT ["./docker-entrypoint.sh"]
+CMD ["./node_modules/.bin/tsx", "server.ts"]

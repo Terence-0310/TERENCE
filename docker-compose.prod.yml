@@ -1,0 +1,236 @@
+# ============================================
+# TERENCE — Production stack (Oracle Cloud Always Free A1: 2 OCPU / 12 GB, arm64)
+# ============================================
+# Independent of docker-compose.yml (local dev). Always run with the env file:
+#   docker compose -f docker-compose.prod.yml --env-file .env.production <cmd>
+# or use deploy/oracle/deploy.sh. See README_DEPLOY_ORACLE.md.
+#
+# Public ports: 80/443 (Caddy), 7881/tcp + 7882/udp (LiveKit WebRTC),
+# optional 3478/udp (LiveKit TURN). PostgreSQL, Redis, Elasticsearch and the
+# app itself are reachable only on the private "backend" network.
+#
+# Memory budget (limits): app 2G, db 1.5G, es 2G (heap 1G), livekit 1G,
+# redis 384M, caddy 256M ≈ 7.1G — leaves ~4.5G for the OS and image builds.
+# ============================================
+
+name: terence
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  # ── Reverse proxy + automatic HTTPS (Let's Encrypt) ──
+  caddy:
+    image: caddy:2.11-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # HTTP/3
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?APP_DOMAIN is required}
+      LIVEKIT_DOMAIN: ${LIVEKIT_DOMAIN:?LIVEKIT_DOMAIN is required}
+      ACME_EMAIL: ${ACME_EMAIL:?ACME_EMAIL is required}
+    volumes:
+      - ./deploy/oracle/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+      - uploads:/srv/uploads:ro
+    networks: [edge]
+    depends_on:
+      app:
+        condition: service_started
+    deploy:
+      resources:
+        limits: { cpus: "0.5", memory: 256M }
+    logging: *logging
+
+  # ── Next.js + Socket.IO custom server ──
+  app:
+    image: terence-app:${APP_IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+      args:
+        NEXT_PUBLIC_SITE_URL: https://${APP_DOMAIN:?APP_DOMAIN is required}
+        NEXT_PUBLIC_LIVEKIT_URL: wss://${LIVEKIT_DOMAIN:?LIVEKIT_DOMAIN is required}
+        NEXT_PUBLIC_GOOGLE_AUTH_ENABLED: ${NEXT_PUBLIC_GOOGLE_AUTH_ENABLED:-false}
+        NEXT_PUBLIC_TMDB_IMAGE_BASE_URL: ${NEXT_PUBLIC_TMDB_IMAGE_BASE_URL:-https://image.tmdb.org/t/p}
+        NEXT_PUBLIC_REGION: ${NEXT_PUBLIC_REGION:-VN}
+    restart: unless-stopped
+    init: true
+    # No published ports: only Caddy may reach the app (keeps X-Forwarded-For trustworthy).
+    expose: ["3000"]
+    env_file: .env.production
+    environment:
+      NODE_ENV: production
+      TZ: ${TZ:-Asia/Ho_Chi_Minh}
+      HOSTNAME: 0.0.0.0
+      PORT: "3000"
+      # Derived from APP_DOMAIN / LIVEKIT_DOMAIN so URLs never fall back to localhost.
+      NEXTAUTH_URL: https://${APP_DOMAIN}
+      APP_URL: https://${APP_DOMAIN}
+      NEXT_PUBLIC_SITE_URL: https://${APP_DOMAIN}
+      ALLOWED_ORIGINS: https://${APP_DOMAIN}
+      NEXT_PUBLIC_LIVEKIT_URL: wss://${LIVEKIT_DOMAIN}
+      LIVEKIT_URL: wss://${LIVEKIT_DOMAIN}
+      # Private-network services. Hex passwords (openssl rand -hex) need no URL-encoding.
+      DATABASE_URL: postgresql://${POSTGRES_USER:-terence}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@db:5432/${POSTGRES_DB:-terence}?schema=public&connection_limit=10
+      DIRECT_URL: postgresql://${POSTGRES_USER:-terence}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-terence}?schema=public
+      REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD is required}@redis:6379
+      ELASTICSEARCH_HOST: http://elasticsearch:9200
+      ELASTICSEARCH_USERNAME: elastic
+      ELASTICSEARCH_PASSWORD: ${ELASTIC_PASSWORD:?ELASTIC_PASSWORD is required}
+      ELASTICSEARCH_API_KEY: ""
+      # Boot behaviour: migrations are an explicit step in deploy.sh (after a backup).
+      RUN_MIGRATIONS: "false"
+      ALLOW_AUTO_BASELINE: "false"
+      SEED_ON_START: "false"
+      SYNC_OPHIM_ON_START: "false"
+      SYNC_KKPHIM_ON_START: "false"
+      SYNC_SHORTS_ON_START: "false"
+      NODE_OPTIONS: --max-old-space-size=1536
+    volumes:
+      - uploads:/app/public/uploads
+    networks: [edge, backend]
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      elasticsearch:
+        # Search falls back to PostgreSQL when ES is down, so don't block boot on it.
+        condition: service_started
+    deploy:
+      resources:
+        limits: { cpus: "1.5", memory: 2G }
+    logging: *logging
+
+  # ── PostgreSQL ──
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-terence}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-terence}
+      TZ: ${TZ:-Asia/Ho_Chi_Minh}
+    command:
+      - postgres
+      - -c
+      - shared_buffers=384MB
+      - -c
+      - effective_cache_size=1GB
+      - -c
+      - work_mem=8MB
+      - -c
+      - maintenance_work_mem=128MB
+      - -c
+      - max_connections=60
+      - -c
+      - log_min_duration_statement=1000
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks: [backend]
+    shm_size: 256mb
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    deploy:
+      resources:
+        limits: { cpus: "1.0", memory: 1536M }
+    logging: *logging
+
+  # ── Redis (cache, rate limits, room-code pool — all regenerable) ──
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+      REDISCLI_AUTH: ${REDIS_PASSWORD}
+    command:
+      - sh
+      - -c
+      - exec redis-server --requirepass "$$REDIS_PASSWORD" --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks: [backend]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits: { cpus: "0.5", memory: 384M }
+    logging: *logging
+
+  # ── Elasticsearch (single node, security on, private network only) ──
+  elasticsearch:
+    image: elasticsearch:${ES_VERSION:-8.19.23}
+    restart: unless-stopped
+    environment:
+      discovery.type: single-node
+      ES_JAVA_OPTS: ${ES_JAVA_OPTS:--Xms1g -Xmx1g}
+      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD:?ELASTIC_PASSWORD is required}
+      xpack.security.enabled: "true"
+      xpack.security.http.ssl.enabled: "false"
+      xpack.security.transport.ssl.enabled: "false"
+      xpack.ml.enabled: "false"
+      ingest.geoip.downloader.enabled: "false"
+      bootstrap.memory_lock: "false"
+    ulimits:
+      nofile: { soft: 65536, hard: 65536 }
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS -u \"elastic:$$ELASTIC_PASSWORD\" 'http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s' >/dev/null"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 60s
+    deploy:
+      resources:
+        limits: { cpus: "1.0", memory: 2G }
+    logging: *logging
+
+  # ── LiveKit SFU (watch-party voice/video) ──
+  livekit:
+    image: livekit/livekit-server:${LIVEKIT_VERSION:-v1.13.10}
+    restart: unless-stopped
+    command: --config /etc/livekit.yaml
+    environment:
+      # "key: secret" — secret must be at least 32 characters.
+      LIVEKIT_KEYS: "${LIVEKIT_API_KEY:?LIVEKIT_API_KEY is required}: ${LIVEKIT_API_SECRET:?LIVEKIT_API_SECRET is required}"
+    volumes:
+      - ./deploy/oracle/livekit.yaml:/etc/livekit.yaml:ro
+    ports:
+      - "7881:7881/tcp" # ICE over TCP (fallback when UDP is blocked)
+      - "7882:7882/udp" # ICE over UDP (single-port mux)
+      # - "3478:3478/udp" # TURN/UDP — uncomment together with turn: in livekit.yaml
+    expose: ["7880"] # signalling (HTTP/WS) — reached only through Caddy
+    networks: [edge]
+    deploy:
+      resources:
+        limits: { cpus: "1.0", memory: 1G }
+    logging: *logging
+
+networks:
+  edge: {}
+  backend:
+    internal: true # no outbound internet for db/redis/es; app joins both networks
+
+volumes:
+  postgres_data:
+  redis_data:
+  es_data:
+  uploads:
+  caddy_data:
+  caddy_config:

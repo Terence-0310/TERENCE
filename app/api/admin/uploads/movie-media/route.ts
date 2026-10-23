@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { requireAdmin, errorResponse, successResponse } from '@/src/be/modules/admin/api-helpers'
-import { handleMovieMediaUpload, deleteUploadedFile, type MovieMediaField } from '@/src/be/modules/uploads/legacy-upload'
+import { handleMovieMediaUpload, deleteUploadedFile, isManagedUploadUrl, type MovieMediaField } from '@/src/be/modules/uploads/legacy-upload'
 import { logAdminAction, getClientIp } from '@/src/be/modules/admin/audit'
 import { prisma } from '@/src/be/shared/db/prisma'
 
@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
     })
 
     // Clean up old file if local
-    if (oldUrl && oldUrl.startsWith('/uploads/')) {
+    if (isManagedUploadUrl(oldUrl)) {
       await deleteUploadedFile(oldUrl)
     }
 

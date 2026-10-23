@@ -52,9 +52,11 @@ const FEATURE_GROUPS = [
     require: ['KKPHIM_BASE_URL'],
   },
   {
-    name: 'Turnstile CAPTCHA',
-    detect: ['NEXT_PUBLIC_TURNSTILE_SITE_KEY', 'TURNSTILE_SECRET_KEY'],
-    require: ['NEXT_PUBLIC_TURNSTILE_SITE_KEY', 'TURNSTILE_SECRET_KEY'],
+    // Uploads to Neon Object Storage (src/be/modules/uploads/object-storage.ts).
+    // Unset → uploads stay on the local disk.
+    name: 'Object storage uploads',
+    detect: ['UPLOADS_BUCKET'],
+    require: ['UPLOADS_BUCKET', 'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_ENDPOINT_URL_S3'],
   },
 ] as const
 

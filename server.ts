@@ -121,8 +121,9 @@ app.prepare().then(() => {
   }, 5 * 60 * 1000)
 
   // 2. CronJob: Tự động Reindex Elasticsearch vào 2:00 sáng mỗi ngày
+  // (chỉ khi có ELASTICSEARCH_HOST — vd Render Free không chạy ES, search dùng Prisma fallback)
   let lastReindexDate = ''
-  setInterval(() => {
+  if (process.env.ELASTICSEARCH_HOST) setInterval(() => {
     const now = new Date()
     const currentDate = now.toDateString()
 
@@ -154,8 +155,8 @@ app.prepare().then(() => {
     console.log(`   🌐 Web:      http://${hostname}:${port}`)
     console.log(`   🔌 Socket:   ws://${hostname}:${port}/api/socketio`)
     console.log(`   📡 Mode:     ${dev ? 'Development' : 'Production'}`)
-    if (!dev) {
-      console.log(`   🎬 RTC:      https://rtc.terence.com.vn`)
+    if (!dev && process.env.NEXT_PUBLIC_LIVEKIT_URL) {
+      console.log(`   🎬 RTC:      ${process.env.NEXT_PUBLIC_LIVEKIT_URL}`)
     }
     console.log('')
   })

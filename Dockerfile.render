@@ -1,0 +1,113 @@
+# ============================================
+# TERENCE — Render Web Service (Free: 512 MB RAM, 0.1 CPU)
+# ============================================
+# Separate from ./Dockerfile (local dev). Differences:
+#   • server.ts is precompiled with esbuild → dist/server.js, so the runtime
+#     needs neither tsx nor the TypeScript sources.
+#   • Runtime ships production dependencies only (npm ci --omit=dev).
+#   • NEXT_PUBLIC_* come from build args. Render passes service env vars to
+#     `docker build` as build args, but only the ARGs declared below are used,
+#     so server secrets never reach the image or the client bundle.
+#   • .env files are excluded (Dockerfile.render.dockerignore + .gitignore).
+# Same-server Next.js + Socket.IO (/api/socketio) is preserved.
+
+ARG NODE_VERSION=24-alpine
+
+# ── Stage 1: all dependencies (build) ──
+FROM node:${NODE_VERSION} AS deps
+WORKDIR /app
+RUN apk add --no-cache libc6-compat openssl
+COPY package.json package-lock.json ./
+COPY src/dta/prisma ./src/dta/prisma/
+RUN npm ci --legacy-peer-deps --no-audit --no-fund
+
+# ── Stage 2: production dependencies only (runtime) ──
+FROM node:${NODE_VERSION} AS prod-deps
+WORKDIR /app
+RUN apk add --no-cache libc6-compat openssl
+COPY package.json package-lock.json ./
+COPY src/dta/prisma ./src/dta/prisma/
+# --ignore-scripts skips husky's `prepare`; Prisma Client is generated explicitly.
+# @next/swc-* (~220 MB) is the compiler: needed by `next build`, not at runtime.
+RUN npm ci --omit=dev --legacy-peer-deps --no-audit --no-fund --ignore-scripts \
+ && npx prisma generate \
+ && rm -rf node_modules/@next/swc-* \
+ && npm cache clean --force
+
+# ── Stage 3: build ──
+FROM node:${NODE_VERSION} AS builder
+WORKDIR /app
+RUN apk add --no-cache libc6-compat openssl
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+
+ARG NEXT_PUBLIC_SITE_URL
+ARG NEXT_PUBLIC_LIVEKIT_URL=
+ARG NEXT_PUBLIC_GOOGLE_AUTH_ENABLED=false
+ARG NEXT_PUBLIC_TMDB_IMAGE_BASE_URL=https://image.tmdb.org/t/p
+ARG NEXT_PUBLIC_REGION=VN
+ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL \
+    NEXT_PUBLIC_LIVEKIT_URL=$NEXT_PUBLIC_LIVEKIT_URL \
+    NEXT_PUBLIC_GOOGLE_AUTH_ENABLED=$NEXT_PUBLIC_GOOGLE_AUTH_ENABLED \
+    NEXT_PUBLIC_TMDB_IMAGE_BASE_URL=$NEXT_PUBLIC_TMDB_IMAGE_BASE_URL \
+    NEXT_PUBLIC_REGION=$NEXT_PUBLIC_REGION \
+    NEXT_TELEMETRY_DISABLED=1 \
+    NEXT_OUTPUT_STANDALONE=0 \
+    NODE_OPTIONS=--max-old-space-size=3072
+
+# Placeholder so Prisma/Next can load at build time; never used to connect.
+ENV DATABASE_URL="postgresql://build:build@127.0.0.1:5432/build?schema=public"
+
+RUN test -n "$NEXT_PUBLIC_SITE_URL" || (echo "NEXT_PUBLIC_SITE_URL build arg is required" && exit 1)
+RUN npx prisma generate \
+ && npm run build \
+ && npx esbuild server.ts --bundle --platform=node --target=node22 --format=cjs \
+      --packages=external --outfile=dist/server.js --log-level=warning \
+ && rm -rf .next/cache
+
+# ── Stage 4: runtime ──
+FROM node:${NODE_VERSION} AS runner
+WORKDIR /app
+RUN apk add --no-cache libc6-compat openssl tzdata
+
+# Migrations / seed / catalog sync never run on web boot (see docs/DEPLOY_RENDER_FREE.md).
+# Heap cap stays well below the 512 MB instance: room for the Prisma engine and buffers.
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    NEXT_OUTPUT_STANDALONE=0 \
+    HOSTNAME=0.0.0.0 \
+    PORT=10000 \
+    TZ=Asia/Ho_Chi_Minh \
+    RUN_MIGRATIONS=false \
+    ALLOW_AUTO_BASELINE=false \
+    SEED_ON_START=false \
+    SYNC_OPHIM_ON_START=false \
+    SYNC_KKPHIM_ON_START=false \
+    SYNC_SHORTS_ON_START=false \
+    NODE_OPTIONS=--max-old-space-size=320
+
+RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
+
+COPY --from=prod-deps --chown=nextjs:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=nextjs:nodejs /app/.next ./.next
+COPY --from=builder /app/public ./public
+# Local upload fallback, writable by the app user. Render Free disks are
+# ephemeral, so production sets UPLOADS_BUCKET (Neon Object Storage) instead.
+RUN mkdir -p public/uploads && chown nextjs:nodejs public/uploads
+COPY --from=builder --chown=nextjs:nodejs /app/dist ./dist
+# Prisma schema + migrations: needed by `prisma migrate deploy` run from this image.
+COPY --from=builder --chown=nextjs:nodejs /app/src/dta/prisma ./src/dta/prisma
+COPY --from=builder --chown=nextjs:nodejs /app/package.json /app/next.config.mjs ./
+
+COPY --chown=nextjs:nodejs docker-entrypoint.sh ./docker-entrypoint.sh
+RUN sed -i 's/\r$//' ./docker-entrypoint.sh && chmod +x ./docker-entrypoint.sh
+
+USER nextjs
+EXPOSE 10000
+
+# Liveness only — touches no DB/Redis (see app/api/health/live).
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||10000)+'/api/health/live').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+
+ENTRYPOINT ["./docker-entrypoint.sh"]
+CMD ["node", "dist/server.js"]

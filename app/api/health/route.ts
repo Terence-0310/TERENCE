@@ -20,14 +20,24 @@ export async function GET() {
     checks.database = 'error'
   }
 
-  // ── Elasticsearch ──
-  try {
-    const { getClient } = await import('@/src/be/modules/search/elastic-client')
-    const client = getClient()
-    const health = await client.cluster.health({ timeout: '3s' })
-    checks.elasticsearch = health.status === 'red' ? 'degraded' : 'ok'
-  } catch {
-    checks.elasticsearch = 'unavailable'
+  // ── Elasticsearch ── (optional: search falls back to PostgreSQL when unset)
+  if (!process.env.ELASTICSEARCH_HOST) {
+    checks.elasticsearch = 'not_configured'
+  } else {
+    try {
+      const { getClient, isServerless } = await import('@/src/be/modules/search/elastic-client')
+      const client = getClient()
+      if (await isServerless()) {
+        // No _cluster/health on Elastic Serverless; a ping proves reachability + auth.
+        await client.ping({}, { requestTimeout: 3000 })
+        checks.elasticsearch = 'ok'
+      } else {
+        const health = await client.cluster.health({ timeout: '3s' })
+        checks.elasticsearch = health.status === 'red' ? 'degraded' : 'ok'
+      }
+    } catch {
+      checks.elasticsearch = 'unavailable'
+    }
   }
 
   // ── Redis ──
@@ -43,7 +53,8 @@ export async function GET() {
     checks.redis = 'unavailable'
   }
 
-  const allOk = Object.values(checks).every((s) => s === 'ok')
+  // An optional service that is deliberately not configured is not a failure.
+  const allOk = Object.values(checks).every((s) => s === 'ok' || s === 'not_configured')
 
   return NextResponse.json(
     {

@@ -50,3 +50,12 @@ tmp/
 # Script output files
 scripts/*.txt
 scripts/*.json
+
+# Production deploy (deploy/oracle): DB backups + deployed image tags
+/backups/
+/.deploy-state/
+.neon
+
+# Render (real values for scripts/predeploy-check.mjs) + compiled custom server
+.env.render
+/dist/

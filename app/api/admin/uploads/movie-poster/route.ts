@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { requireAdmin, errorResponse, successResponse } from '@/src/be/modules/admin/api-helpers'
-import { handleMovieMediaUpload, deleteUploadedFile } from '@/src/be/modules/uploads/legacy-upload'
+import { handleMovieMediaUpload, deleteUploadedFile, isManagedUploadUrl } from '@/src/be/modules/uploads/legacy-upload'
 import { logAdminAction, getClientIp } from '@/src/be/modules/admin/audit'
 import { prisma } from '@/src/be/shared/db/prisma'
 
@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
     const result = await handleMovieMediaUpload(file, movieId, 'poster', auth.user.email)
 
     // Delete old poster if local
-    if (movie.posterUrl && movie.posterUrl.startsWith('/uploads/')) {
+    if (isManagedUploadUrl(movie.posterUrl)) {
       await deleteUploadedFile(movie.posterUrl)
     }
 

@@ -1,6 +1,13 @@
 import path from 'path'
 import fs from 'fs/promises'
 import { prisma } from '@/src/be/shared/db/prisma'
+import {
+  deleteObject,
+  isObjectStorageEnabled,
+  objectKeyFromUrl,
+  objectStoragePath,
+  putPublicObject,
+} from './object-storage'
 
 const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads')
 
@@ -40,6 +47,33 @@ export interface UploadResult {
 // ─── Helpers ────────────────────────────────────────────────────
 async function ensureDir(dir: string) {
   await fs.mkdir(dir, { recursive: true })
+}
+
+/**
+ * Persist an upload: to object storage when configured (durable, served by
+ * the bucket), otherwise to public/uploads on the local disk.
+ */
+async function storeFile(
+  subDir: string,
+  fileName: string,
+  buffer: Buffer,
+  mimeType: string,
+): Promise<{ path: string; url: string }> {
+  if (isObjectStorageEnabled()) {
+    const key = `${subDir}/${fileName}`
+    const url = await putPublicObject(key, buffer, mimeType)
+    return { path: objectStoragePath(key), url }
+  }
+  const targetDir = path.join(UPLOAD_DIR, subDir)
+  await ensureDir(targetDir)
+  const filePath = path.join(targetDir, fileName)
+  await fs.writeFile(filePath, buffer)
+  return { path: filePath, url: `/uploads/${subDir}/${fileName}` }
+}
+
+/** True for URLs this module issued (local /uploads/... or our bucket), i.e. safe to delete. */
+export function isManagedUploadUrl(url: string | null | undefined): url is string {
+  return !!url && (url.startsWith('/uploads/') || objectKeyFromUrl(url) !== null)
 }
 
 function sanitizeFileName(name: string): string {
@@ -142,10 +176,8 @@ export async function handleMovieMediaUpload(
     throw new Error(validation.error)
   }
 
-  // Storage path: /public/uploads/movies/{poster|backdrop|thumbnail}/
+  // Storage path: movies/{poster|backdrop|thumbnail}/ (bucket key or public/uploads/)
   const subDir = `movies/${field}`
-  const targetDir = path.join(UPLOAD_DIR, subDir)
-  await ensureDir(targetDir)
 
   // Generate secure filename
   const buffer = Buffer.from(await file.arrayBuffer())
@@ -154,12 +186,8 @@ export async function handleMovieMediaUpload(
     throw new Error('Nội dung file không phải ảnh JPEG/PNG/WebP hợp lệ')
   }
   const fileName = generateMovieMediaFileName(movieId, `x${EXTENSION_BY_MIME[sniffed]}`)
-  const filePath = path.join(targetDir, fileName)
 
-  // Write file
-  await fs.writeFile(filePath, buffer)
-
-  const url = `/uploads/${subDir}/${fileName}`
+  const { path: filePath, url } = await storeFile(subDir, fileName, buffer, sniffed)
 
   // Track in DB
   await prisma.upload.create({
@@ -212,15 +240,9 @@ export async function handleFileUpload(
   }
 
   const subDir = sanitizeSubDir(rawSubDir)
-  const targetDir = path.join(UPLOAD_DIR, subDir)
-  await ensureDir(targetDir)
-
   const fileName = generateUniqueFileName(file.name, EXTENSION_BY_MIME[mimeType])
-  const filePath = path.join(targetDir, fileName)
 
-  await fs.writeFile(filePath, buffer)
-
-  const url = `/uploads/${subDir}/${fileName}`
+  const { path: filePath, url } = await storeFile(subDir, fileName, buffer, mimeType)
 
   await prisma.upload.create({
     data: {
@@ -240,10 +262,15 @@ export async function handleFileUpload(
 // ─── Delete ─────────────────────────────────────────────────────
 
 export async function deleteUploadedFile(url: string) {
-  if (!url || !url.startsWith('/uploads/')) return
+  if (!isManagedUploadUrl(url)) return
   try {
-    const filePath = path.join(process.cwd(), 'public', url)
-    await fs.unlink(filePath)
+    const key = objectKeyFromUrl(url)
+    if (key) {
+      await deleteObject(key)
+    } else {
+      const filePath = path.join(process.cwd(), 'public', url)
+      await fs.unlink(filePath)
+    }
     await prisma.upload.deleteMany({ where: { url } })
   } catch {
     // File might already be deleted
