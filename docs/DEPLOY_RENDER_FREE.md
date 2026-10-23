@@ -60,8 +60,10 @@ Project đang dùng: `terence-dlkoc95s.livekit.cloud`; credentials trong `.env` 
 - `DIRECT_URL` = chuỗi **direct** (không `-pooler`) — Prisma dùng cho migrate.
 - Lấy từ Neon Console → Connect, hoặc `neon connection-string production --pooled` / `neon connection-string production`.
 
-### 4.4 Dữ liệu và migration (cần phê duyệt của bạn)
-Hiện trạng Neon `production` (đã kiểm tra chỉ-đọc): 2 migration đã áp dụng (`20261006000000_baseline`, `20261020171403_shorts`), **bảng rỗng** (`User=0`, `Movie=0`). Dữ liệu thật của bạn đang ở DB cũ (Postgres local `terence_dev` hoặc server cũ).
+### 4.4 Dữ liệu và migration
+**Đã chuyển (2026-10-24):** dữ liệu từ Postgres local `terence_dev` (Docker `terence-db`, PG 16) → Neon `production`: 45 bảng, **7.890 dòng khớp tuyệt đối** (104 phim, 5.658 tập, 6 user, 64 shorts…). Snapshot trước khi nhập: branch `pre-import-20261024` (hết hạn 2026-11-22) — rollback: `neon branches restore production pre-import-20261024 --preserve-under-name production-after-import`.
+
+Nếu server production cũ (terence.com.vn) có dữ liệu nhiều hơn DB local, lặp lại quy trình dưới đây với nguồn là server đó — **nhưng phải restore vào DB trống** (khôi phục snapshot trước) vì dữ liệu local đã nằm trong production và sẽ trùng khóa.
 
 Chuyển dữ liệu (không đụng schema Neon đã có):
 

@@ -21,6 +21,7 @@ DB cho test ghi: branch Neon tạm `render-e2e` (copy-on-write từ `production`
 | Health `/api/health` | ✅ PASS | 200 `{"database":"ok","elasticsearch":"not_configured","redis":"not_configured"}` |
 | PostgreSQL (Neon pooled, TLS) | ✅ PASS | health + register/login/watch-party trên branch Neon |
 | Neon production — migrate status | ✅ PASS (chỉ đọc) | "up to date" (2 migration) |
+| Chuyển dữ liệu local → Neon production | ✅ PASS | snapshot `pre-import-20261024`; thử trên branch `import-test` trước; `pg_restore --data-only --single-transaction`; 45/45 bảng, 7.890/7.890 dòng khớp; 49 FK hợp lệ; app chạy trên production: trang phim 200, search fallback 11 kết quả, shorts OK |
 | Socket.IO polling + WebSocket | ✅ PASS | handshake `upgrades:["websocket"]`, transport `websocket` |
 | Socket.IO CORS origin lạ | ✅ PASS | không trả ACAO cho `https://evil.example.net` |
 | Auth: register / login / session | ✅ PASS | session chứa user id từ DB |
@@ -64,7 +65,7 @@ Ghi chú: `--cpus=0.1` trên CPU máy local chỉ là xấp xỉ vCPU của Rend
 3. Cảnh báo `"next start" does not work with "output: standalone"` khi dùng custom server. **Đã sửa** (`NEXT_OUTPUT_STANDALONE=0`).
 4. Upload trả 404 cho tới khi restart và mất trên Render. **Đã sửa** bằng Neon Object Storage (chế độ đĩa local vẫn còn lỗi 404 cũ, chỉ dùng cho dev).
 5. `CRON_SECRET` trong `.env` local ngắn hơn 32 ký tự. Trên Render dùng `generateValue`.
-6. Dữ liệu thật chưa có trên Neon production (`User=0`, `Movie=0`).
+6. Dữ liệu đã chuyển lên Neon production (7.890 dòng). Ghi chú: search fallback (`contains`) trả 0 khi query có dấu ngoặc của tiêu đề đầy đủ — Elastic xử lý tốt hơn.
 
 ## Cách chạy lại
 ```bash
