@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/src/be/shared/db/prisma'
-import crypto from 'crypto'
+import { generateResetToken } from '@/src/be/modules/auth/reset-token'
 import { sendPasswordResetEmail } from '@/lib/mail'
 import { logger } from '@/src/be/shared/utils/logger'
 import { forgotPasswordSchema } from '@/src/be/modules/auth/auth.schema'
@@ -43,14 +43,14 @@ export async function POST(req: NextRequest) {
       where: { userId: user.id }
     })
 
-    // Generate token mới (độ dài 32 bytes)
-    const token = crypto.randomBytes(32).toString('hex')
+    // Generate token mới (32 bytes) — DB chỉ lưu SHA-256 của token
+    const { token, tokenHash } = generateResetToken()
     const expiresAt = new Date(Date.now() + 3600000) // Het han sau 1 tieng
 
     await prisma.passwordResetToken.create({
       data: {
         userId: user.id,
-        token,
+        token: tokenHash,
         expiresAt,
       },
     })

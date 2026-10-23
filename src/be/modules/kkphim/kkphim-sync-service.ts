@@ -18,7 +18,7 @@ import {
   upsertCountries,
   upsertEpisodes,
   disconnect,
-} from './sync-helpers'
+} from '@/src/be/shared/catalog-sync/sync-helpers'
 import { fetchCatalogPage, fetchMovieDetail, fetchVietnameseCatalog } from './kkphim-client'
 import { mapMovie, mapEpisodes, mapCategories, mapCountries } from './kkphim-mapper'
 import type { SyncResult } from './types'

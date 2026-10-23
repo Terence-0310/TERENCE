@@ -18,7 +18,7 @@ import {
   upsertCountries,
   upsertEpisodes,
   disconnect,
-} from './sync-helpers'
+} from '@/src/be/shared/catalog-sync/sync-helpers'
 import { fetchCatalogPage, fetchMovieDetail } from './ophim-client'
 import { mapMovie, mapEpisodes, mapCategories, mapCountries } from './ophim-mapper'
 import type { SyncResult } from './types'

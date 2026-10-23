@@ -13,4 +13,7 @@ const globalForPrisma = globalThis as unknown as { prisma: PrismaClient }
 
 export const prisma = globalForPrisma.prisma ?? new PrismaClient()
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
+// Cache in every environment, not only dev: in production the custom server
+// (dist/server.js) and the Next.js bundles each carry their own copy of this
+// module in one process — without the global they'd open two engines + pools.
+globalForPrisma.prisma = prisma

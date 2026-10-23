@@ -45,6 +45,8 @@
     "docker:logs": "docker compose logs -f app",
     "docker:reindex": "docker compose exec app npm run search:reindex",
     "docs:check": "node src/dta/scripts/docs-check.mjs",
+    "deploy:check": "node scripts/predeploy-check.mjs --live",
+    "deploy:smoke": "node scripts/smoke-test.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
@@ -59,9 +61,7 @@
     "@auth/prisma-adapter": "^2.11.1",
     "@aws-sdk/client-s3": "^3.1156.0",
     "@elastic/elasticsearch": "^8.14.0",
-    "@neon/config": "^1.9.3",
-    "@neon/env": "^1.6.4",
-    "@prisma/client": "^6.19.2",
+    "@prisma/client": "^6.19.3",
     "@radix-ui/react-alert-dialog": "1.1.15",
     "@radix-ui/react-avatar": "1.1.11",
     "@radix-ui/react-dialog": "1.1.15",
@@ -80,7 +80,7 @@
     "livekit-client": "^2.18.0",
     "livekit-server-sdk": "^2.15.0",
     "lucide-react": "^0.564.0",
-    "next": "16.1.6",
+    "next": "16.4.3",
     "next-auth": "^4.24.13",
     "next-themes": "^0.4.6",
     "nodemailer": "^7.0.13",
@@ -99,6 +99,7 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@neon/config": "^1.9.3",
     "@next/eslint-plugin-next": "^16.2.6",
     "@tailwindcss/postcss": "^4.2.0",
     "@types/node": "^22",
@@ -122,11 +123,12 @@
     "vitest": "^4.1.3"
   },
   "allowScripts": {
-    "@prisma/client@6.19.2": true,
-    "@prisma/engines@6.19.2": true,
+    "@prisma/client@6.19.3": true,
+    "@prisma/engines@6.19.3": true,
     "bcrypt@6.0.0": true,
+    "esbuild@0.27.2": true,
     "esbuild@0.27.4": true,
-    "prisma@6.19.2": true,
-    "sharp@0.34.5": true
+    "prisma@6.19.3": true,
+    "sharp@0.35.5": true
   }
 }

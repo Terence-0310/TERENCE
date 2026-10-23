@@ -1,5 +1,5 @@
 // ============================================
-// Shared Sync Types — OPhim/OPhim18
+// Shared Sync Types — OPhim/OPhim18/KKPhim
 // ============================================
 // Sprint 4B: Extracted from types.ts and ophim18-types.ts
 // to eliminate 100%-identical type duplication.

@@ -74,6 +74,8 @@ services:
         NEXT_PUBLIC_SITE_URL: http://localhost:3000
         NEXT_PUBLIC_TMDB_IMAGE_BASE_URL: https://image.tmdb.org/t/p
         NEXT_PUBLIC_REGION: VN
+        NEXT_PUBLIC_GOOGLE_AUTH_ENABLED: ${NEXT_PUBLIC_GOOGLE_AUTH_ENABLED:-false}
+        NEXT_PUBLIC_LIVEKIT_URL: ${NEXT_PUBLIC_LIVEKIT_URL:-}
     ports:
       - "3000:3000"
     environment:
@@ -117,7 +119,8 @@ services:
       - REDIS_URL=redis://redis:6379
       # NextAuth — override localhost values from .env
       - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
-      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-terence_docker_secret_change_in_production}
+      # No default: a well-known fallback secret would let anyone forge sessions.
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:?set NEXTAUTH_SECRET in .env (openssl rand -hex 32)}
       # Socket.IO CORS — comma-separated. server.ts reads this; without it
       # production builds reject cross-origin WS handshakes.
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}

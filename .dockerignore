@@ -14,7 +14,21 @@ node_modules
 *.swo
 
 # ── Local env (secrets stay on host) ──
+# All env files: Next's standalone output would otherwise copy .env into the
+# image. Runtime config comes from docker-compose env_file / environment.
+.env
+.env.*
+!.env.example
 .env*.local
+
+# ── Keys / certificates / dumps ──
+*.pem
+*.key
+*.p12
+*.pfx
+*.dump
+backups/
+.deploy-state/
 
 # ── Documentation ──
 *.md

@@ -6,7 +6,37 @@ on:
   pull_request:
     branches: [main]
 
+# Least privilege for the GITHUB_TOKEN in every job below.
+permissions:
+  contents: read
+
 jobs:
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Pinned gitleaks image (no third-party action). Scans the current tree
+      # plus the commits this push / PR introduces. Older history contains
+      # already-reported leaks (docs/security-audit/GITHUB_HISTORY_AUDIT.md),
+      # so it is not rescanned on every run.
+      - name: Gitleaks
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          IMG=zricethezav/gitleaks:v8.28.0
+          docker run --rm -v "$PWD:/repo" -w /repo "$IMG" dir . --config .gitleaks.toml --redact --no-banner
+          if [ -n "$BASE" ] && [ "$BASE" != "0000000000000000000000000000000000000000" ] && git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            RANGE="$BASE..$GITHUB_SHA"
+          else
+            RANGE="-1"
+          fi
+          docker run --rm -v "$PWD:/repo" -w /repo --entrypoint sh "$IMG" -c \
+            "git config --global --add safe.directory /repo && gitleaks git . --log-opts='$RANGE' --config .gitleaks.toml --redact --no-banner"
+
   build:
     runs-on: ubuntu-latest
 
@@ -17,7 +47,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: 'npm'
 
       - name: Install dependencies

@@ -1,11 +1,11 @@
 // ============================================
-// Shared OPhim Sync Helpers
+// Shared catalog sync helpers — OPhim, OPhim18, KKPhim
 // ============================================
-// Sprint 3: Extracted from ophim-sync-service.ts and ophim18-sync-service.ts
-// to eliminate ~150 lines of 100%-identical duplicated code.
+// One copy for every catalog provider (KKPhim used to carry a byte-identical
+// duplicate of this file).
 //
 // This module provides:
-// - Shared PrismaClient instance for sync scripts
+// - The app-wide Prisma singleton, re-exported as syncPrisma
 // - SyncJob lifecycle helpers (create, complete, fail)
 // - SyncLog creation helper
 // - Relation upsert helpers (categories, countries, episodes)
@@ -14,12 +14,14 @@
 // Source-specific behavior (fetch, map, movie source upsert) remains
 // in the individual sync service files.
 
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '@/src/be/shared/db/prisma'
 
 // ─── Shared Prisma Instance ─────────────────────────────────────
-// Use a dedicated Prisma instance for sync scripts (not the singleton from lib/db)
+// The app singleton: admin sync routes run inside the web process, where a
+// second PrismaClient would mean a second engine + connection pool.
+// disconnect() below is only called by CLI scripts when they finish.
 
-export const syncPrisma = new PrismaClient()
+export const syncPrisma = prisma
 
 // ─── Types ──────────────────────────────────────────────────────
 

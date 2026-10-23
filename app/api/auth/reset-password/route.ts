@@ -3,6 +3,7 @@ import { prisma } from '@/src/be/shared/db/prisma'
 import { AuthService } from '@/src/be/modules/auth'
 import { logger } from '@/src/be/shared/utils/logger'
 import { resetPasswordSchema } from '@/src/be/modules/auth/auth.schema'
+import { hashResetToken } from '@/src/be/modules/auth/reset-token'
 import { rateLimit, getClientIdentifier } from '@/src/be/shared/rate-limit'
 
 const log = logger.child({ module: 'auth-reset-password' })
@@ -29,7 +30,7 @@ export async function POST(req: NextRequest) {
     const { token, password } = parsed.data
 
     const resetToken = await prisma.passwordResetToken.findUnique({
-      where: { token },
+      where: { token: hashResetToken(token) },
       include: { user: true }
     })
 

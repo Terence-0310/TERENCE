@@ -1,0 +1,67 @@
+# Gitleaks config for TERENCE — default rules + the credential formats this
+# stack actually uses (Neon, Upstash, Elastic, LiveKit, connection URLs).
+# Used by .husky/pre-commit and the CI "secret-scan" job.
+
+title = "TERENCE gitleaks config"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "postgres-url-with-password"
+description = "PostgreSQL connection string with an inline password"
+regex = '''postgres(?:ql)?://[^:\s/'"]+:([^@\s'"$<{]{6,})@[^\s/'"]+'''
+secretGroup = 1
+keywords = ["postgres"]
+
+[[rules]]
+id = "redis-url-with-password"
+description = "Redis connection string with an inline password"
+regex = '''rediss?://[^:\s/'"]*:([^@\s'"$<{]{8,})@[^\s/'"]+'''
+secretGroup = 1
+keywords = ["redis"]
+
+[[rules]]
+id = "neon-password"
+description = "Neon role password"
+regex = '''\bnpg_[A-Za-z0-9]{10,}\b'''
+keywords = ["npg_"]
+
+[[rules]]
+id = "upstash-redis-token"
+description = "Upstash Redis token"
+regex = '''\bgQAAA[A-Za-z0-9_-]{20,}\b'''
+keywords = ["gqaaa"]
+
+[[rules]]
+id = "elastic-api-key"
+description = "Elastic Cloud (serverless) API key"
+regex = '''\bessu_[A-Za-z0-9+/=]{20,}'''
+keywords = ["essu_"]
+
+[[rules]]
+id = "env-assigned-secret"
+description = "Known secret variable assigned a literal value"
+regex = '''(?i)\b(?:NEXTAUTH_SECRET|CRON_SECRET|LIVEKIT_API_SECRET|SMTP_PASS|SEPAY_(?:API_KEY|WEBHOOK_API_KEY|WEBHOOK_SECRET)|GOOGLE_CLIENT_SECRET|AWS_SECRET_ACCESS_KEY|ELASTICSEARCH_(?:API_KEY|PASSWORD)|TMDB_(?:API_KEY|READ_ACCESS_TOKEN)|GEMINI_API_KEY|GNEWS_API_KEY|YOUTUBE_API_KEY)[ \t]*[=:][ \t]*["']?([A-Za-z0-9_\-+/.=]{16,})'''
+secretGroup = 1
+keywords = ["secret", "pass", "api_key", "token"]
+
+[allowlist]
+description = "Templates, placeholders, test fixtures"
+# Empty `KEY=` lines followed by another variable name (default generic-api-key
+# rule otherwise reads the next line's name as the secret).
+regexes = [
+  '''^[A-Z][A-Z0-9_]*(?:_API_KEY|_KEY|_SECRET|_TOKEN)$''',
+  '''^(?:change-?me|your[-_]|placeholder|example|<)''',
+  '''^ci-placeholder''',
+  # Code reading the variable, not a value.
+  '''^process\.env\.''',
+  # Local-dev / CI database passwords (docker-compose, Dockerfile build placeholder).
+  '''(?i)^(?:postgres|password|build|ci)$''',
+  # Unit-test fixtures use a `test-` prefix by convention.
+  '''^test[-_]''',
+]
+paths = [
+  '''(^|/)node_modules/''',
+  '''(^|/)package-lock\.json$''',
+]
