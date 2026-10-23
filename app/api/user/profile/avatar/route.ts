@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/src/be/shared/db/prisma'
 import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/lib/auth"
-import { handleFileUpload, MAX_AVATAR_SIZE } from '@/src/be/modules/uploads/legacy-upload'
+import { handleFileUpload, MAX_AVATAR_SIZE, rejectOversizedUpload } from '@/src/be/modules/uploads/legacy-upload'
 
 export async function POST(req: NextRequest) {
   try {
@@ -12,6 +12,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Vui lòng đăng nhập' }, { status: 401 })
     }
 
+    // Size check before formData() buffers the body.
+    const tooLarge = rejectOversizedUpload(req, MAX_AVATAR_SIZE)
+    if (tooLarge) return tooLarge
     const formData = await req.formData()
     const file = formData.get('file') as File | null
 

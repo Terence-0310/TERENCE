@@ -9,6 +9,8 @@
 
 import './lib/load-env'
 import { createServer } from 'http'
+import { readFileSync } from 'fs'
+import { join } from 'path'
 import next from 'next'
 import { Server as SocketIOServer } from 'socket.io'
 import { registerWatchPartyHandlers } from './src/be/modules/watch-party/watch-party.socket'
@@ -49,6 +51,15 @@ function parseAllowedOrigins(): string[] | '*' {
 }
 
 const ALLOWED_ORIGINS = parseAllowedOrigins()
+
+// Standalone runtime (Dockerfile.render): hand Next the config serialized at
+// build time — exactly what Next's own standalone server.js does — instead of
+// re-evaluating next.config.mjs, which needs webpack that standalone output
+// does not ship.
+if (!dev && process.env.NEXT_STANDALONE_RUNTIME === '1' && !process.env.__NEXT_PRIVATE_STANDALONE_CONFIG) {
+  const requiredFiles = JSON.parse(readFileSync(join(process.cwd(), '.next', 'required-server-files.json'), 'utf8'))
+  process.env.__NEXT_PRIVATE_STANDALONE_CONFIG = JSON.stringify(requiredFiles.config)
+}
 
 const app = next({ dev, hostname, port })
 const handle = app.getRequestHandler()

@@ -14,6 +14,7 @@
 | `ALLOWED_ORIGINS` | | như trên (phân tách bằng dấu phẩy nếu thêm custom domain) | Socket.IO CORS + CSRF `proxy.ts` |
 | `NEXTAUTH_SECRET` | | Render `generateValue` | ≥32 ký tự |
 | `CRON_SECRET` | | Render `generateValue` | ≥32 ký tự; bảo vệ `/api/cron/*` (thiếu → app không khởi động) |
+| `MAX_VIDEO_UPLOAD_MB` | | `40` (có trong `render.yaml`) | upload được đọc vào RAM; body lớn hơn bị từ chối 413 trước khi đọc |
 | `DATABASE_URL` | | Neon **pooled** + `&connection_limit=5&pool_timeout=20` | host có `-pooler`, `sslmode=require` |
 | `DIRECT_URL` | | Neon **direct** | Prisma `directUrl` (migrate) |
 | `UPLOADS_BUCKET` | | `uploads` (có trong `render.yaml`) | Thiếu → upload ghi đĩa tạm và mất |
@@ -46,6 +47,7 @@
 | `DEMO_HLS_URL`, `PUBLIC_STREAM_ALLOWED_HOSTS` | | Player |
 | `LOG_LEVEL`, `TZ` | | `info`, `Asia/Ho_Chi_Minh` |
 | `ELASTICSEARCH_HOST`, `ELASTICSEARCH_API_KEY`, `ELASTICSEARCH_INDEX_MOVIES` | | Elastic Cloud (Serverless: Endpoints → Elasticsearch URL; key `essu_…`). Để trống host → search fallback PostgreSQL, cron reindex tự tắt. Không bao giờ chạy ES trên instance 512 MB |
+| `DATA_ENCRYPTION_KEY` | | ≥32 ký tự, tùy chọn | khóa mã hóa metadata ví (mặc định = `NEXTAUTH_SECRET`). Trước khi rotate `NEXTAUTH_SECRET`, đặt biến này = giá trị `NEXTAUTH_SECRET` hiện tại |
 | `UPLOADS_PUBLIC_BASE_URL` | | CDN trước bucket (mặc định `${AWS_ENDPOINT_URL_S3}/${UPLOADS_BUCKET}`) |
 
 ## Không đặt trên Render Free
@@ -55,4 +57,5 @@
 | `SEED_ON_START`, `SYNC_*_ON_START` | Image đặt `false`; tác vụ nặng chạy từ máy bạn, không chạy khi web khởi động |
 | `RUN_MIGRATIONS`, `ALLOW_AUTO_BASELINE` | Image đặt `false`; migration chạy có kiểm soát (DEPLOY_RENDER_FREE.md §4.4) |
 | `NODE_OPTIONS` | Image đặt `--max-old-space-size=320`; không tăng vượt RAM thật |
+| `NEXT_STANDALONE_RUNTIME` | Image đặt `1` (đọc config build-time từ `.next/required-server-files.json`) |
 | `SEED_*_PASSWORD` | Chỉ dùng khi seed thủ công từ máy bạn |

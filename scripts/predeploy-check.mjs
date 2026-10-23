@@ -51,9 +51,11 @@ for (const k of ['NEXT_PUBLIC_SITE_URL', 'NEXTAUTH_URL', 'APP_URL', 'ALLOWED_ORI
   else if (isPlaceholder(v)) fail(`${k} still contains a placeholder`)
   else ok(`${k} set`)
 }
-for (const k of ['NEXTAUTH_SECRET', 'CRON_SECRET']) {
+for (const k of ['NEXTAUTH_SECRET', 'CRON_SECRET', 'DATA_ENCRYPTION_KEY']) {
   if (get(k) && get(k).length < 32) fail(`${k} is shorter than 32 characters`)
 }
+const maxVideoMb = Number(get('MAX_VIDEO_UPLOAD_MB') || 500)
+if (maxVideoMb > 60) warn(`MAX_VIDEO_UPLOAD_MB=${maxVideoMb} — uploads are buffered in RAM; use ≤40 on a 512 MB instance`)
 
 console.log('\n── Public URLs / domain ──')
 const site = url('NEXT_PUBLIC_SITE_URL')

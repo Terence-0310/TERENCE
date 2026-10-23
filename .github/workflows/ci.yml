@@ -2,7 +2,8 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # deploy/render is the branch Render deploys (render.yaml).
+    branches: [main, deploy/render]
   pull_request:
     branches: [main]
 

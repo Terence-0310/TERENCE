@@ -74,3 +74,22 @@ docker run --rm --memory=512m --cpus=0.1 -p 10000:10000 --env-file <env-file-kh�
 node scripts/smoke-test.mjs http://localhost:10000 --e2e     # chỉ với DB không phải production
 node scripts/predeploy-check.mjs --env-file .env.render --live
 ```
+
+## Lượt 2 — sau Deep Cleanup + tối ưu image (2026-10-24, nhánh `deploy/render`)
+
+| Hạng mục | Kết quả | Bằng chứng |
+|---|---|---|
+| `npm ci`, `prisma generate`, `tsc`, `npm run lint` | ✅ PASS | exit 0 |
+| Unit + integration tests | ✅ PASS | 34 files, 367 tests |
+| `npm run build` (Next 16.4.3) | ✅ PASS | |
+| Docker build `Dockerfile.render` (standalone) | ✅ PASS | image **505 MB** (trước 1,28 GB); `node_modules` runtime 118 MB (trước 707 MB) |
+| RAM, cùng tải (8 trang/API + 20 socket), 512 MB / 0,1 CPU | ✅ | đỉnh **112 MiB** (image cũ 149 MiB); 1 kết nối Redis |
+| Boot | ✅ | 18 s tới `/api/health/live` |
+| Smoke chỉ-đọc trên Neon production thật | ✅ 12/12 | trang `/`, `/browse`, phim, search, `/shorts`, `/xem-chung`, rewrite `/watch-party` đều 200 |
+| E2E (branch Neon tạm `slim-e2e`, đã xóa) | ✅ 24/24 | auth, Watch Party realtime, LiveKit token, guard admin/cron/webhook |
+| Upload → Neon Object Storage (branch) | ✅ | GET 200 `image/png` |
+| Body upload quá cỡ | ✅ | 413 trước khi đọc body |
+| Thu hồi session khi reset mật khẩu | ✅ | session cũ rỗng sau reset; session mới hợp lệ |
+| `npm run deploy:check` (Neon, Upstash, Storage, LiveKit — chỉ đọc) | ✅ PASS | migrate status up to date |
+| Elastic Cloud | ❌ NOT TESTED | chưa có endpoint |
+| Deploy thật trên Render | ❌ NOT TESTED | chờ phê duyệt |

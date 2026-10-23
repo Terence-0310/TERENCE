@@ -6,7 +6,7 @@ import { prisma } from "@/src/be/shared/db/prisma";
 import { AuthService } from "@/src/be/modules/auth";
 import { Adapter } from "next-auth/adapters";
 import * as AuthRepository from "@/src/be/modules/auth/auth.repository";
-import { getAccountStatus } from "@/src/be/modules/auth/account-status";
+import { getAccountStatus, credentialVersionOf } from "@/src/be/modules/auth/account-status";
 import { rateLimit } from "@/src/be/shared/rate-limit";
 
 // Brute-force guard for credential sign-in: 10 attempts / minute per IP+email.
@@ -148,9 +148,10 @@ export const authOptions: NextAuthOptions = {
         try {
           const dbUser = await prisma.user.findUnique({
             where: { id: user.id },
-            select: { avatar: true, image: true },
+            select: { avatar: true, image: true, passwordHash: true },
           });
           token.picture = dbUser?.avatar ?? dbUser?.image ?? user.image ?? null;
+          if (dbUser) token.credentialVersion = credentialVersionOf(dbUser.passwordHash);
         } catch {
           /* keep whatever NextAuth already set on token.picture */
         }
@@ -178,6 +179,13 @@ export const authOptions: NextAuthOptions = {
         if (status === null || status?.active === false) {
           throw new Error("ACCOUNT_DISABLED");
         }
+        // Password changed since this session was issued → revoke it. Sessions
+        // issued before this check existed adopt the current version instead
+        // of being logged out en masse.
+        if (status && token.credentialVersion && status.credentialVersion !== token.credentialVersion) {
+          throw new Error("SESSION_REVOKED");
+        }
+        if (status && !token.credentialVersion) token.credentialVersion = status.credentialVersion;
         if (status) {
           token.isEmailVerified = status.isEmailVerified;
           if (status.role !== token.role) {

@@ -11,7 +11,7 @@ Xóa các branch snapshot cũ khi không cần (`neon branches delete <name>`) �
 
 ## 2. Rollback ứng dụng (Render)
 - Dashboard → service → **Events/Deploys** → chọn deploy cũ → **Rollback to this deploy**. Render chạy lại image đã build, không build lại.
-- Hoặc theo git: `git revert <commit>` → push nhánh `deploy/render-free` → **Manual Deploy**.
+- Hoặc theo git: `git revert <commit>` → push nhánh `deploy/render` → **Manual Deploy**.
 - Nếu deploy mới không qua health check (`/api/health/live`), Render giữ phiên bản cũ đang chạy.
 - Sau rollback: `node scripts/smoke-test.mjs https://<service>.onrender.com`.
 

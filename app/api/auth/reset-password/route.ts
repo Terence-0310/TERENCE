@@ -4,6 +4,7 @@ import { AuthService } from '@/src/be/modules/auth'
 import { logger } from '@/src/be/shared/utils/logger'
 import { resetPasswordSchema } from '@/src/be/modules/auth/auth.schema'
 import { hashResetToken } from '@/src/be/modules/auth/reset-token'
+import { invalidateAccountStatus } from '@/src/be/modules/auth/account-status'
 import { rateLimit, getClientIdentifier } from '@/src/be/shared/rate-limit'
 
 const log = logger.child({ module: 'auth-reset-password' })
@@ -56,6 +57,8 @@ export async function POST(req: NextRequest) {
         where: { userId: resetToken.userId }
       })
     ])
+    // New password → new credential version: other sessions are revoked on their next request.
+    invalidateAccountStatus(resetToken.userId)
 
     return NextResponse.json({ message: 'Đặt lại mật khẩu thành công' })
   } catch (error) {

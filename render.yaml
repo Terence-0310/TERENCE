@@ -12,7 +12,7 @@ services:
     runtime: docker
     plan: free
     region: singapore
-    branch: deploy/render-free
+    branch: deploy/render
     dockerfilePath: ./Dockerfile.render
     dockerContext: .
     # Liveness only (no DB/Redis), so health checks never wake Neon compute.
@@ -45,6 +45,15 @@ services:
         generateValue: true
       - key: CRON_SECRET
         generateValue: true
+      # Optional: wallet-metadata encryption key. Set it to the *current*
+      # NEXTAUTH_SECRET value before rotating NEXTAUTH_SECRET, so existing
+      # encrypted rows stay readable.
+      - key: DATA_ENCRYPTION_KEY
+        sync: false
+
+      # Uploads are buffered in memory — keep video uploads small on 512 MB.
+      - key: MAX_VIDEO_UPLOAD_MB
+        value: "40"
 
       # ── Neon PostgreSQL (pooled for the app, direct for migrations) ──
       - key: DATABASE_URL

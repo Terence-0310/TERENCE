@@ -28,10 +28,32 @@ const EXTENSION_BY_MIME: Record<string, string> = {
 }
 
 // ─── Size limits ────────────────────────────────────────────────
-const MAX_MOVIE_IMAGE_SIZE = 5 * 1024 * 1024  // 5MB for movie posters/backdrops/thumbnails
+export const MAX_MOVIE_IMAGE_SIZE = 5 * 1024 * 1024  // 5MB for movie posters/backdrops/thumbnails
 const MAX_GENERAL_IMAGE_SIZE = 10 * 1024 * 1024 // 10MB general
-const MAX_VIDEO_SIZE = 500 * 1024 * 1024       // 500MB
+// Uploads are buffered in memory: keep this well below the instance RAM
+// (Render Free: 512 MB → MAX_VIDEO_UPLOAD_MB=40 in render.yaml).
+const MAX_VIDEO_SIZE = (Number(process.env.MAX_VIDEO_UPLOAD_MB) || 500) * 1024 * 1024
 export const MAX_AVATAR_SIZE = 5 * 1024 * 1024 // 5MB
+export const MAX_GENERAL_UPLOAD_SIZE = Math.max(MAX_GENERAL_IMAGE_SIZE, MAX_VIDEO_SIZE)
+
+// Multipart framing (boundaries, part headers, other fields) on top of the file.
+const MULTIPART_OVERHEAD = 64 * 1024
+
+/**
+ * Reject an upload by its Content-Length *before* `req.formData()` buffers
+ * the whole body — otherwise a 500 MB body is read into RAM before any size
+ * check runs. Returns a 413 response, or null when the request may proceed.
+ */
+export function rejectOversizedUpload(req: Request, maxFileBytes: number): Response | null {
+  const length = Number(req.headers.get('content-length'))
+  if (Number.isFinite(length) && length > maxFileBytes + MULTIPART_OVERHEAD) {
+    return Response.json(
+      { error: `File quá lớn. Tối đa ${Math.round(maxFileBytes / 1024 / 1024)}MB` },
+      { status: 413 },
+    )
+  }
+  return null
+}
 
 export type MovieMediaField = 'poster' | 'backdrop' | 'thumbnail'
 

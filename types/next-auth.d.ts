@@ -32,5 +32,7 @@ declare module 'next-auth/jwt' {
     isActive: boolean
     isEmailVerified: boolean
     permissions: string[]
+    /** Password fingerprint at sign-in; a mismatch revokes the session. */
+    credentialVersion?: string
   }
 }

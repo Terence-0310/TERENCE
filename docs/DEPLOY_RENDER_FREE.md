@@ -1,6 +1,6 @@
 # Triển khai TERENCE lên Render Free
 
-Nhánh: `deploy/render-free` · Kết luận hiện tại: **PARTIALLY READY** (xem §9).
+Nhánh: `deploy/render` · Kết luận hiện tại: **PARTIALLY READY** (xem §9).
 
 ## 1. Kiến trúc
 
@@ -16,7 +16,7 @@ Elasticsearch KHÔNG chạy trên instance Render.
 
 | File | Vai trò |
 |---|---|
-| `Dockerfile.render` | Image Render: build Next + biên dịch `server.ts` → `dist/server.js` (esbuild), runtime chỉ có production deps |
+| `Dockerfile.render` | Image Render (~505 MB): Next `standalone` (chỉ node_modules được trace) + `server.ts` bundle bằng esbuild cùng Socket.IO/ioredis/pino → `dist/server.js`; không có Prisma CLI/TypeScript lúc chạy (migration chạy từ máy bạn) |
 | `Dockerfile.render.dockerignore` | Loại `.env*` và file thừa khỏi build context |
 | `render.yaml` | Blueprint: 1 web service `plan: free`, `region: singapore`, `healthCheckPath: /api/health/live`, `autoDeploy: false` |
 | `.env.render.example` | Mẫu biến môi trường (không có giá trị thật) |
@@ -95,12 +95,12 @@ node scripts/predeploy-check.mjs --live # phải kết thúc bằng "✓ Pre-dep
 ### 4.6 Đẩy code (cần bạn duyệt)
 ```bash
 git add <các file deploy> && git commit -m "deploy: Render Free configuration"
-git push -u origin deploy/render-free
+git push -u origin deploy/render
 ```
 Nhánh hiện còn chứa thay đổi chưa commit của bạn từ trước — hãy tự chọn file đưa vào commit.
 
 ### 4.7 Tạo service trên Render
-1. Render Dashboard → **New → Blueprint** → chọn repo `Terence-0310/TERENCE`, nhánh `deploy/render-free`.
+1. Render Dashboard → **New → Blueprint** → chọn repo `Terence-0310/TERENCE`, nhánh `deploy/render`.
 2. Render đọc `render.yaml`: 1 web service **Free**, Singapore. Kiểm tra lại "Plan: Free" trước khi bấm Apply.
 3. Điền các biến `sync: false` (xem `docs/RENDER_VARIABLES.md`). Với URL, nếu chưa biết tên service: tạo xong lấy `https://<service>.onrender.com`, cập nhật 4 biến URL rồi **Manual Deploy → Clear build cache & deploy** (vì `NEXT_PUBLIC_SITE_URL` được nhúng lúc build).
 4. `autoDeploy: false` → mỗi lần deploy bấm **Manual Deploy**.
