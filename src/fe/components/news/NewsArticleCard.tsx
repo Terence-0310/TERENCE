@@ -1,10 +1,10 @@
 'use client'
 
 // ============================================
-// NewsArticleCard — Article cards & layouts for /news
+// NewsArticleCard — Article cards & layouts for /news (baomoi-style)
 // ============================================
 
-import { ArrowUpRight, Newspaper } from 'lucide-react'
+import { Newspaper } from 'lucide-react'
 import { formatRelativeDate } from '@/src/be/modules/news/format'
 import { useState, useCallback, type ReactNode } from 'react'
 import type { NewsArticle } from '@/src/be/modules/news/legacy-types'
@@ -43,34 +43,34 @@ function ArticleImage({ article, className = '' }: { article: NewsArticle; class
   const [imgError, setImgError] = useState(false)
   const handleImgError = useCallback(() => setImgError(true), [])
 
-  if (!article.image || imgError) {
-    return (
-      <div className={`flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-primary/15 via-card to-card ${className}`}>
-        <Newspaper className="h-8 w-8 text-white/15" />
-        <span className="px-3 text-center text-[11px] font-semibold uppercase tracking-wider text-white/25 line-clamp-1">
-          {article.sourceName}
-        </span>
-      </div>
-    )
-  }
   return (
-    <img
-      src={article.image}
-      alt={article.title}
-      // Many news CDNs refuse hotlinked images when a foreign Referer is sent.
-      referrerPolicy="no-referrer"
-      className={`object-cover transition-transform duration-500 group-hover:scale-[1.04] ${className}`}
-      loading="lazy"
-      onError={handleImgError}
-    />
+    <div className={`relative overflow-hidden rounded-lg bg-card ${className}`}>
+      {article.image && !imgError ? (
+        <img
+          src={article.image}
+          alt={article.title}
+          // Many news CDNs refuse hotlinked images when a foreign Referer is sent.
+          referrerPolicy="no-referrer"
+          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+          loading="lazy"
+          onError={handleImgError}
+        />
+      ) : (
+        <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 bg-gradient-to-br from-primary/15 via-card to-card">
+          <Newspaper className="h-7 w-7 text-white/15" />
+          <span className="px-3 text-center text-[10px] font-semibold uppercase tracking-wider text-white/25 line-clamp-1">
+            {article.sourceName}
+          </span>
+        </div>
+      )}
+    </div>
   )
 }
 
-function ArticleMeta({ article, light = false }: { article: NewsArticle; light?: boolean }) {
+function ArticleMeta({ article }: { article: NewsArticle }) {
   return (
-    <div className={`flex items-center gap-2 text-[11px] ${light ? 'text-white/70' : 'text-white/40'}`}>
-      <span className="font-semibold text-primary truncate max-w-[140px]">{article.sourceName}</span>
-      <span className="h-1 w-1 rounded-full bg-current opacity-50" />
+    <div className="flex items-center gap-2.5 text-xs text-white/40">
+      <span className="font-semibold text-primary/90 truncate max-w-[160px]">{article.sourceName}</span>
       <time dateTime={article.publishedAt} className="whitespace-nowrap">
         {formatRelativeDate(article.publishedAt)}
       </time>
@@ -78,91 +78,117 @@ function ArticleMeta({ article, light = false }: { article: NewsArticle; light?:
   )
 }
 
-// ── Lead story: big image with the headline over it ──
+const titleHover = 'group-hover:text-primary transition-colors'
 
-function LeadStory({ article }: { article: NewsArticle }) {
+// ── Lead story: headline + summary on the left, big image on the right ──
+
+export function NewsLead({ article }: { article: NewsArticle }) {
   const description = cleanDescription(article)
   return (
-    <ArticleLink
-      article={article}
-      className="group relative flex min-h-[340px] md:min-h-[440px] overflow-hidden rounded-3xl border border-white/[0.06] bg-card"
-    >
-      <ArticleImage article={article} className="absolute inset-0 h-full w-full" />
-      <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-black/0" />
-      <div className="relative mt-auto p-6 md:p-8">
-        <span className="mb-3 inline-flex rounded-full bg-primary px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-black">
-          Tiêu điểm
-        </span>
-        <ArticleMeta article={article} light />
-        <h3 className="mt-2 text-xl md:text-3xl font-extrabold leading-tight text-white line-clamp-3 group-hover:text-primary transition-colors">
+    <ArticleLink article={article} className="group grid grid-cols-1 gap-5 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+      <div className="order-2 md:order-1 min-w-0">
+        <h2 className={`text-2xl lg:text-[28px] font-bold leading-snug text-white ${titleHover}`}>
           {article.title}
-        </h3>
+        </h2>
+        <div className="mt-3"><ArticleMeta article={article} /></div>
         {description && (
-          <p className="mt-3 hidden sm:block max-w-2xl text-sm leading-relaxed text-white/65 line-clamp-2">
-            {description}
-          </p>
+          <p className="mt-3 text-sm leading-relaxed text-white/55 line-clamp-5">{description}</p>
         )}
       </div>
+      <ArticleImage article={article} className="order-1 md:order-2 aspect-[3/2]" />
     </ArticleLink>
   )
 }
 
-// ── Row: thumbnail left, headline right ──
+// ── Image on top, headline below (row of three under the lead) ──
 
-function NewsArticleRow({ article }: { article: NewsArticle }) {
+function NewsTile({ article }: { article: NewsArticle }) {
   return (
-    <ArticleLink
-      article={article}
-      className="group flex gap-4 rounded-2xl p-2 -m-2 transition-colors hover:bg-white/[0.03]"
-    >
-      <div className="relative aspect-[4/3] w-28 sm:w-32 flex-shrink-0 overflow-hidden rounded-xl bg-card">
-        <ArticleImage article={article} className="h-full w-full" />
-      </div>
-      <div className="min-w-0 flex-1 py-0.5">
-        <ArticleMeta article={article} />
-        <h3 className="mt-1.5 text-sm font-semibold leading-snug text-white/90 line-clamp-3 group-hover:text-primary transition-colors">
+    // Phones: thumbnail-left row, like NewsList, so three tiles don't stack as huge images.
+    <ArticleLink article={article} className="group flex min-w-0 gap-4 sm:block">
+      <ArticleImage article={article} className="aspect-[3/2] w-32 flex-shrink-0 sm:w-auto sm:aspect-[16/9]" />
+      <div className="min-w-0 flex-1">
+        <h3 className={`sm:mt-3 text-[15px] font-semibold leading-snug text-white/90 line-clamp-3 ${titleHover}`}>
           {article.title}
         </h3>
+        <div className="mt-2"><ArticleMeta article={article} /></div>
       </div>
     </ArticleLink>
   )
 }
 
-// ── Card: image on top ──
+export function NewsTileRow({ articles }: { articles: NewsArticle[] }) {
+  return (
+    <div className="grid grid-cols-1 gap-5 sm:grid-cols-3 sm:gap-6">
+      {articles.map((article) => (
+        <NewsTile key={article.id} article={article} />
+      ))}
+    </div>
+  )
+}
+
+// ── Thumbnail left, headline + summary right, separated by rules ──
+
+export function NewsList({ articles }: { articles: NewsArticle[] }) {
+  return (
+    <div className="divide-y divide-white/[0.07]">
+      {articles.map((article) => {
+        const description = cleanDescription(article)
+        return (
+          <ArticleLink key={article.id} article={article} className="group flex gap-4 md:gap-5 py-5 first:pt-0 last:pb-0">
+            <ArticleImage article={article} className="aspect-[3/2] w-32 sm:w-48 md:w-60 flex-shrink-0" />
+            <div className="min-w-0 flex-1">
+              <h3 className={`text-[15px] md:text-lg font-semibold leading-snug text-white/90 line-clamp-3 ${titleHover}`}>
+                {article.title}
+              </h3>
+              <div className="mt-2"><ArticleMeta article={article} /></div>
+              {description && (
+                <p className="mt-2 hidden sm:block text-sm leading-relaxed text-white/45 line-clamp-2">{description}</p>
+              )}
+            </div>
+          </ArticleLink>
+        )
+      })}
+    </div>
+  )
+}
+
+// ── Text-only headlines for the sidebar ──
+
+export function NewsHeadlineList({ articles }: { articles: NewsArticle[] }) {
+  return (
+    <div className="divide-y divide-white/[0.07]">
+      {articles.map((article) => (
+        <ArticleLink key={article.id} article={article} className="group block py-3.5 first:pt-0 last:pb-0">
+          <h3 className={`text-[15px] leading-snug text-white/85 line-clamp-3 ${titleHover}`}>{article.title}</h3>
+          <div className="mt-1.5"><ArticleMeta article={article} /></div>
+        </ArticleLink>
+      ))}
+    </div>
+  )
+}
+
+// ── Card grid (used by related posts on /news/[slug]) ──
 
 interface NewsArticleCardProps {
   article: NewsArticle
-  /** Compact mode for smaller grids */
+  /** Compact mode hides the summary */
   compact?: boolean
 }
 
 export function NewsArticleCard({ article, compact = false }: NewsArticleCardProps) {
   const description = cleanDescription(article)
   return (
-    <ArticleLink
-      article={article}
-      className="group flex flex-col overflow-hidden rounded-2xl border border-white/[0.06] bg-card/40 transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 hover:shadow-xl hover:shadow-black/40"
-    >
-      <div className="relative aspect-[16/9] overflow-hidden bg-card">
-        <ArticleImage article={article} className="h-full w-full" />
-        <span className="absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-full bg-black/60 text-white/80 opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100">
-          <ArrowUpRight className="h-3.5 w-3.5" />
-        </span>
-      </div>
-      <div className="flex flex-1 flex-col p-4">
-        <ArticleMeta article={article} />
-        <h3 className="mt-2 font-bold leading-snug text-white line-clamp-2 group-hover:text-primary transition-colors text-[15px]">
-          {article.title}
-        </h3>
-        {!compact && description && (
-          <p className="mt-2 text-sm leading-relaxed text-white/45 line-clamp-2">{description}</p>
-        )}
-      </div>
+    <ArticleLink article={article} className="group min-w-0">
+      <ArticleImage article={article} className="aspect-[16/9]" />
+      <h3 className={`mt-3 font-semibold leading-snug text-white/90 line-clamp-2 ${titleHover}`}>{article.title}</h3>
+      <div className="mt-2"><ArticleMeta article={article} /></div>
+      {!compact && description && (
+        <p className="mt-2 text-sm leading-relaxed text-white/45 line-clamp-2">{description}</p>
+      )}
     </ArticleLink>
   )
 }
-
-// ── Layouts ──
 
 interface NewsArticleGridProps {
   articles: NewsArticle[]
@@ -170,54 +196,11 @@ interface NewsArticleGridProps {
 }
 
 export function NewsArticleGrid({ articles, compact = false }: NewsArticleGridProps) {
-  // One or two big cards would leave most of the row empty: use rows instead.
-  if (articles.length < 3) {
-    return (
-      <div className="grid grid-cols-1 gap-x-8 gap-y-5 md:grid-cols-2">
-        {articles.map((article) => (
-          <NewsArticleRow key={article.id} article={article} />
-        ))}
-      </div>
-    )
-  }
   return (
-    <div className="grid gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
       {articles.map((article) => (
         <NewsArticleCard key={article.id} article={article} compact={compact} />
       ))}
-    </div>
-  )
-}
-
-/** Lead story + side list, then the remaining stories as compact rows. */
-export function NewsFeatured({ articles }: { articles: NewsArticle[] }) {
-  const [lead, ...others] = articles
-  if (!lead) return null
-  const side = others.slice(0, 4)
-  const rest = others.slice(4)
-  // Two columns of rows: drop a dangling last item so the block ends evenly.
-  const restEven = rest.length > 1 ? rest.slice(0, rest.length - (rest.length % 2)) : rest
-
-  return (
-    <div className="space-y-10">
-      <div className={`grid grid-cols-1 gap-6 ${side.length > 0 ? 'lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]' : ''}`}>
-        <LeadStory article={lead} />
-        {side.length > 0 && (
-          <div className="flex flex-col justify-between gap-5 rounded-3xl border border-white/[0.06] bg-card/30 p-5">
-            {side.map((article) => (
-              <NewsArticleRow key={article.id} article={article} />
-            ))}
-          </div>
-        )}
-      </div>
-
-      {restEven.length > 0 && (
-        <div className="grid grid-cols-1 gap-x-8 gap-y-5 md:grid-cols-2 border-t border-white/[0.06] pt-8">
-          {restEven.map((article) => (
-            <NewsArticleRow key={article.id} article={article} />
-          ))}
-        </div>
-      )}
     </div>
   )
 }
