@@ -37,6 +37,8 @@ export class TmdbTimeoutError extends Error {
   }
 }
 
+let warnedMissingCredentials = false
+
 export async function tmdbFetch<T>(
   endpoint: string,
   options: FetchOptions = {},
@@ -51,6 +53,16 @@ export async function tmdbFetch<T>(
   if (endpoint.includes('NaN') || endpoint.includes('undefined') || endpoint.includes('null')) {
     log.error({ endpoint }, `Blocked invalid endpoint fetch: ${endpoint}`)
     throw new Error(`[TMDB] Invalid endpoint: ${endpoint}`)
+  }
+
+  // No credentials → every call would be a guaranteed 401 (and a log line):
+  // fail fast without a network round-trip; callers already fall back.
+  if (!TMDB_CONFIG.apiKey && !TMDB_CONFIG.accessToken) {
+    if (!warnedMissingCredentials) {
+      warnedMissingCredentials = true
+      log.warn('TMDB_API_KEY / TMDB_READ_ACCESS_TOKEN not set — TMDB requests are skipped')
+    }
+    throw new TmdbApiError(401, endpoint, 'TMDB credentials not configured')
   }
 
   const url = new URL(`${TMDB_CONFIG.baseUrl}${endpoint}`)
