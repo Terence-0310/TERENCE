@@ -1,6 +1,13 @@
 import path from 'path'
 import fs from 'fs/promises'
 import { prisma } from '@/src/be/shared/db/prisma'
+import {
+  deleteObject,
+  isObjectStorageEnabled,
+  objectKeyFromUrl,
+  objectStoragePath,
+  putPublicObject,
+} from './object-storage'
 
 const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads')
 
@@ -21,10 +28,32 @@ const EXTENSION_BY_MIME: Record<string, string> = {
 }
 
 // ─── Size limits ────────────────────────────────────────────────
-const MAX_MOVIE_IMAGE_SIZE = 5 * 1024 * 1024  // 5MB for movie posters/backdrops/thumbnails
+export const MAX_MOVIE_IMAGE_SIZE = 5 * 1024 * 1024  // 5MB for movie posters/backdrops/thumbnails
 const MAX_GENERAL_IMAGE_SIZE = 10 * 1024 * 1024 // 10MB general
-const MAX_VIDEO_SIZE = 500 * 1024 * 1024       // 500MB
+// Uploads are buffered in memory: keep this well below the instance RAM
+// (Render Free: 512 MB → MAX_VIDEO_UPLOAD_MB=40 in render.yaml).
+const MAX_VIDEO_SIZE = (Number(process.env.MAX_VIDEO_UPLOAD_MB) || 500) * 1024 * 1024
 export const MAX_AVATAR_SIZE = 5 * 1024 * 1024 // 5MB
+export const MAX_GENERAL_UPLOAD_SIZE = Math.max(MAX_GENERAL_IMAGE_SIZE, MAX_VIDEO_SIZE)
+
+// Multipart framing (boundaries, part headers, other fields) on top of the file.
+const MULTIPART_OVERHEAD = 64 * 1024
+
+/**
+ * Reject an upload by its Content-Length *before* `req.formData()` buffers
+ * the whole body — otherwise a 500 MB body is read into RAM before any size
+ * check runs. Returns a 413 response, or null when the request may proceed.
+ */
+export function rejectOversizedUpload(req: Request, maxFileBytes: number): Response | null {
+  const length = Number(req.headers.get('content-length'))
+  if (Number.isFinite(length) && length > maxFileBytes + MULTIPART_OVERHEAD) {
+    return Response.json(
+      { error: `File quá lớn. Tối đa ${Math.round(maxFileBytes / 1024 / 1024)}MB` },
+      { status: 413 },
+    )
+  }
+  return null
+}
 
 export type MovieMediaField = 'poster' | 'backdrop' | 'thumbnail'
 
@@ -40,6 +69,33 @@ export interface UploadResult {
 // ─── Helpers ────────────────────────────────────────────────────
 async function ensureDir(dir: string) {
   await fs.mkdir(dir, { recursive: true })
+}
+
+/**
+ * Persist an upload: to object storage when configured (durable, served by
+ * the bucket), otherwise to public/uploads on the local disk.
+ */
+async function storeFile(
+  subDir: string,
+  fileName: string,
+  buffer: Buffer,
+  mimeType: string,
+): Promise<{ path: string; url: string }> {
+  if (isObjectStorageEnabled()) {
+    const key = `${subDir}/${fileName}`
+    const url = await putPublicObject(key, buffer, mimeType)
+    return { path: objectStoragePath(key), url }
+  }
+  const targetDir = path.join(UPLOAD_DIR, subDir)
+  await ensureDir(targetDir)
+  const filePath = path.join(targetDir, fileName)
+  await fs.writeFile(filePath, buffer)
+  return { path: filePath, url: `/uploads/${subDir}/${fileName}` }
+}
+
+/** True for URLs this module issued (local /uploads/... or our bucket), i.e. safe to delete. */
+export function isManagedUploadUrl(url: string | null | undefined): url is string {
+  return !!url && (url.startsWith('/uploads/') || objectKeyFromUrl(url) !== null)
 }
 
 function sanitizeFileName(name: string): string {
@@ -142,10 +198,8 @@ export async function handleMovieMediaUpload(
     throw new Error(validation.error)
   }
 
-  // Storage path: /public/uploads/movies/{poster|backdrop|thumbnail}/
+  // Storage path: movies/{poster|backdrop|thumbnail}/ (bucket key or public/uploads/)
   const subDir = `movies/${field}`
-  const targetDir = path.join(UPLOAD_DIR, subDir)
-  await ensureDir(targetDir)
 
   // Generate secure filename
   const buffer = Buffer.from(await file.arrayBuffer())
@@ -154,12 +208,8 @@ export async function handleMovieMediaUpload(
     throw new Error('Nội dung file không phải ảnh JPEG/PNG/WebP hợp lệ')
   }
   const fileName = generateMovieMediaFileName(movieId, `x${EXTENSION_BY_MIME[sniffed]}`)
-  const filePath = path.join(targetDir, fileName)
 
-  // Write file
-  await fs.writeFile(filePath, buffer)
-
-  const url = `/uploads/${subDir}/${fileName}`
+  const { path: filePath, url } = await storeFile(subDir, fileName, buffer, sniffed)
 
   // Track in DB
   await prisma.upload.create({
@@ -212,15 +262,9 @@ export async function handleFileUpload(
   }
 
   const subDir = sanitizeSubDir(rawSubDir)
-  const targetDir = path.join(UPLOAD_DIR, subDir)
-  await ensureDir(targetDir)
-
   const fileName = generateUniqueFileName(file.name, EXTENSION_BY_MIME[mimeType])
-  const filePath = path.join(targetDir, fileName)
 
-  await fs.writeFile(filePath, buffer)
-
-  const url = `/uploads/${subDir}/${fileName}`
+  const { path: filePath, url } = await storeFile(subDir, fileName, buffer, mimeType)
 
   await prisma.upload.create({
     data: {
@@ -240,10 +284,15 @@ export async function handleFileUpload(
 // ─── Delete ─────────────────────────────────────────────────────
 
 export async function deleteUploadedFile(url: string) {
-  if (!url || !url.startsWith('/uploads/')) return
+  if (!isManagedUploadUrl(url)) return
   try {
-    const filePath = path.join(process.cwd(), 'public', url)
-    await fs.unlink(filePath)
+    const key = objectKeyFromUrl(url)
+    if (key) {
+      await deleteObject(key)
+    } else {
+      const filePath = path.join(process.cwd(), 'public', url)
+      await fs.unlink(filePath)
+    }
     await prisma.upload.deleteMany({ where: { url } })
   } catch {
     // File might already be deleted

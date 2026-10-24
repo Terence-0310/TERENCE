@@ -2,6 +2,7 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { Star, Play, Plus, ThumbsUp, ChevronDown } from 'lucide-react'
 import type { Movie } from '@/types/movie'
@@ -27,7 +28,14 @@ export function MovieCard({ movie, priority = false, showRank, landscape = false
 
   const aspectClass = landscape ? 'aspect-video' : 'aspect-[2/3]'
 
-  const href = (movie as MovieWithOptionalUrl).customUrl || (movie.mediaType === 'tv' ? `/tv/${movie.id}` : `/movie/${movie.id}`)
+  // Clicking the card opens the detail page; only the popup's play button
+  // jumps straight into the player.
+  const customUrl = (movie as MovieWithOptionalUrl).customUrl
+  const href = customUrl || (movie.mediaType === 'tv' ? `/tv/${movie.id}` : `/movie/${movie.id}`)
+  const watchHref = customUrl && !customUrl.startsWith('/movie/')
+    ? customUrl
+    : `/watch/${movie.slug || movie.id}`
+  const router = useRouter()
 
   return (
     <Link href={href} className={`group relative block flex-shrink-0 focus-ring hover:z-50 ${landscape ? 'rounded-xl' : 'rounded-[2.5rem] md:rounded-[3rem]'}`}>
@@ -152,7 +160,11 @@ export function MovieCard({ movie, priority = false, showRank, landscape = false
         <div className="p-4 flex flex-col gap-2 relative z-10">
           {/* Action Buttons Row */}
           <div className="flex items-center gap-2 mb-1">
-            <button className="flex h-9 w-9 items-center justify-center rounded-full bg-primary hover:bg-[#1fbda9] transition-all shadow-[0_0_15px_rgba(45,212,191,0.4)] hover:scale-110" onClick={(e) => e.preventDefault()}>
+            <button
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-primary hover:bg-[#1fbda9] transition-all shadow-[0_0_15px_rgba(45,212,191,0.4)] hover:scale-110"
+              title="Xem ngay"
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); router.push(watchHref) }}
+            >
               <Play className="h-4 w-4 fill-black text-black ml-0.5" />
             </button>
             <button className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-white/20 bg-black/40 hover:border-white/80 hover:bg-white/10 text-white transition-all" onClick={(e) => e.preventDefault()}>

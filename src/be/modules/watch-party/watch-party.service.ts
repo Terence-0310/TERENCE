@@ -4,6 +4,7 @@
 // Business logic for watch party operations.
 // Includes: Room CRUD, Chat, Host Transfer, Sync.
 
+import { randomInt } from 'crypto'
 import * as repo from './watch-party.repository'
 import { prisma } from '@/lib/db'
 import { getMovieLoader, getEpisodeLoader, getUserLoader } from '@/src/be/shared/db/loaders'
@@ -15,12 +16,15 @@ const log = logger.child({ module: 'watch-party-service' })
 
 // ── Helpers ──
 
-/** Generate a short uppercase room code (6 chars) */
+/**
+ * Generate a short uppercase room code (6 chars). The code is what lets people
+ * join, so it comes from a CSPRNG rather than the predictable Math.random.
+ */
 function generateRandomRoomCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
   let code = ''
   for (let i = 0; i < 6; i++) {
-    code += chars[Math.floor(Math.random() * chars.length)]
+    code += chars[randomInt(chars.length)]
   }
   return code
 }

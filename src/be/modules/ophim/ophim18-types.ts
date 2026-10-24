@@ -163,5 +163,5 @@ export type {
   MappedCategory,
   MappedCountry,
   SyncResult,
-} from './sync-types'
+} from '@/src/be/shared/catalog-sync/sync-types'
 

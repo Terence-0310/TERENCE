@@ -1,1 +1,16 @@
+# Secret scan of the staged changes (rules: .gitleaks.toml). Uses a local
+# gitleaks binary, else the pinned Docker image; if neither is available it
+# warns instead of blocking. Bypassing (--no-verify) is visible in review.
+GITLEAKS_IMAGE="zricethezav/gitleaks:v8.28.0"
+if command -v gitleaks >/dev/null 2>&1; then
+  gitleaks git --pre-commit --staged --redact --no-banner --config .gitleaks.toml || {
+    echo "✗ gitleaks found a possible secret in the staged changes — remove it before committing."; exit 1; }
+elif command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+  # Added lines only — removing a leaked secret must never be blocked.
+  git diff --cached --no-color -U0 | grep -E '^\+' | grep -vE '^\+\+\+ ' | MSYS_NO_PATHCONV=1 docker run --rm -i -v "$(pwd)/.gitleaks.toml:/c.toml:ro" "$GITLEAKS_IMAGE" stdin --config /c.toml --redact --no-banner --log-level warn || {
+    echo "✗ gitleaks found a possible secret in the staged changes — remove it before committing."; exit 1; }
+else
+  echo "! gitleaks not available (install it or start Docker) — staged changes were NOT secret-scanned."
+fi
+
 npx lint-staged

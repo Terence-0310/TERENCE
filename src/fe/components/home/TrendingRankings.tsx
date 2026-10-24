@@ -130,7 +130,7 @@ function RankingColumn({
           items.map((item) => (
             <Link
               key={item.movie.id}
-              href={`/watch/${item.movie.id}`}
+              href={`/movie/${item.movie.id}`}
               className="flex items-center gap-3 rounded-lg px-2 py-2 rank-item group"
             >
               {/* Rank number */}
@@ -204,7 +204,7 @@ function RecentReviewItem({ review }: { review: RecentReview }) {
             <span className="text-white/40">{review.content ? review.content.substring(0, 60) : ''}{(review.content?.length || 0) > 60 ? '...' : ''}</span>
           </p>
           <Link
-            href={`/watch/${review.movie.id}`}
+            href={`/movie/${review.movie.id}`}
             className="mt-0.5 flex items-center gap-1 text-xs text-white/30 hover:text-primary transition"
           >
             <Play className="h-2.5 w-2.5 fill-current" />

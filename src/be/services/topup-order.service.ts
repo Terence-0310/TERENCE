@@ -1,3 +1,4 @@
+import { randomInt } from 'crypto';
 import { prisma } from '@/lib/db/prisma';
 import {
   buildVietQrImageUrl,
@@ -10,11 +11,13 @@ import { calculateTCoinBonus } from '@/src/be/modules/tcoin/tcoin.service';
 import { notifyUser } from '@/src/be/shared/realtime/notify';
 import { getWalletOverview } from './wallet.service';
 
+// Bank-transfer reference code: CSPRNG so codes can't be predicted from ones
+// already seen (Math.random is not cryptographically secure).
 function generateShortCode(): string {
   const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let result = '';
   for ( let i = 0; i < 8; i++ ) {
-    result += characters.charAt(Math.floor(Math.random() * characters.length));
+    result += characters.charAt(randomInt(characters.length));
   }
   return result;
 }

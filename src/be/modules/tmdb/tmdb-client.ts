@@ -99,6 +99,11 @@ export async function getVideos(tmdbId: number, mediaType: 'movie' | 'tv'): Prom
   return tmdbFetch(`/${mediaType}/${tmdbId}/videos`, { language: 'en-US' })
 }
 
+/** Get videos in Vietnamese, English and language-neutral form (used by Shorts). */
+export async function getVideosMultiLanguage(tmdbId: number, mediaType: 'movie' | 'tv'): Promise<TmdbVideosResponse> {
+  return tmdbFetch(`/${mediaType}/${tmdbId}/videos`, { language: 'vi-VN', include_video_language: 'vi,en,null' })
+}
+
 /** Get cast & crew credits */
 export async function getCredits(tmdbId: number, mediaType: 'movie' | 'tv'): Promise<TmdbCreditsResponse> {
   return tmdbFetch(`/${mediaType}/${tmdbId}/credits`, { language: 'vi-VN' })

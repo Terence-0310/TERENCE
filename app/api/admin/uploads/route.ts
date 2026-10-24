@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin, errorResponse, successResponse } from '@/src/be/modules/admin/api-helpers'
 import { UploadsService } from '@/src/be/modules/uploads/uploads.service'
+import { rejectOversizedUpload, MAX_GENERAL_UPLOAD_SIZE } from '@/src/be/modules/uploads/legacy-upload'
 import { logAdminAction, getClientIp } from '@/src/be/modules/admin/audit'
 
 // POST /api/admin/uploads — upload file
@@ -9,6 +10,9 @@ export async function POST(req: NextRequest) {
   if (auth instanceof Response) return auth
 
   try {
+    // Size check before formData() buffers the body.
+    const tooLarge = rejectOversizedUpload(req, MAX_GENERAL_UPLOAD_SIZE)
+    if (tooLarge) return tooLarge
     const formData = await req.formData()
     const file = formData.get('file') as File | null
     const subDir = (formData.get('subDir') as string) || 'general'

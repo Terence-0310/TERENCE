@@ -76,7 +76,9 @@ export const redis: Redis | null = REDIS_URL
   ? globalForRedis.redis || createRedisClient(REDIS_URL)
   : null
 
-if (process.env.NODE_ENV !== 'production' && redis) {
+// Cached in every environment: server.ts and the Next.js bundles load separate
+// copies of this module in one process and must share one connection.
+if (redis) {
   globalForRedis.redis = redis
 }
 

@@ -40,7 +40,6 @@ describe('GET /api/admin/summary', () => {
     const { NextResponse } = await import('next/server')
     mockRequireAdmin.mockResolvedValue(NextResponse.json({ error: 'Unauthorized' }, { status: 401 }))
 
-    const req = createMockRequest('/api/admin/summary')
     const res = await summaryRoute()
     const { status } = await parseResponse(res)
 

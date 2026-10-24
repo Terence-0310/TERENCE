@@ -1,0 +1,49 @@
+# Build-context filter for Dockerfile.render (BuildKit picks <Dockerfile>.dockerignore).
+# On Render the context is a fresh git clone (no .env), this also protects local builds.
+
+# ── Secrets ──
+.env
+.env.*
+**/.env
+**/.env.*
+
+# ── Build artifacts / deps ──
+node_modules
+.next
+dist
+.turbo
+tsconfig.tsbuildinfo
+coverage/
+.vitest/
+
+# ── VCS / editors / docs ──
+.git
+.github
+.husky
+.vscode
+.idea
+.ai/
+.neon
+*.md
+docs/
+
+# ── Data / dumps / runtime state ──
+*.db
+*.db-journal
+/*.sql
+/*.dump
+backups/
+.deploy-state/
+public/uploads/
+
+# ── Not needed in the image ──
+FUN/
+tests/
+vitest.config.ts
+deploy/
+deploy.sh
+ecosystem.config.js
+Dockerfile*
+docker-compose*.yml
+render.yaml
+TERENCE_Postman_Collection.json

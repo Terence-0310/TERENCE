@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { requireAdmin, errorResponse, successResponse } from '@/src/be/modules/admin/api-helpers'
-import { handleMovieMediaUpload, deleteUploadedFile } from '@/src/be/modules/uploads/legacy-upload'
+import { handleMovieMediaUpload, deleteUploadedFile, isManagedUploadUrl, rejectOversizedUpload, MAX_MOVIE_IMAGE_SIZE } from '@/src/be/modules/uploads/legacy-upload'
 import { logAdminAction, getClientIp } from '@/src/be/modules/admin/audit'
 import { prisma } from '@/src/be/shared/db/prisma'
 
@@ -10,6 +10,9 @@ export async function POST(req: NextRequest) {
   if (auth instanceof Response) return auth
 
   try {
+    // Size check before formData() buffers the body.
+    const tooLarge = rejectOversizedUpload(req, MAX_MOVIE_IMAGE_SIZE)
+    if (tooLarge) return tooLarge
     const formData = await req.formData()
     const file = formData.get('file') as File | null
     const movieId = formData.get('movieId') as string | null
@@ -24,7 +27,7 @@ export async function POST(req: NextRequest) {
     const result = await handleMovieMediaUpload(file, movieId, 'thumbnail', auth.user.email)
 
     // Delete old thumbnail if local
-    if (movie.thumbUrl && movie.thumbUrl.startsWith('/uploads/')) {
+    if (isManagedUploadUrl(movie.thumbUrl)) {
       await deleteUploadedFile(movie.thumbUrl)
     }
 

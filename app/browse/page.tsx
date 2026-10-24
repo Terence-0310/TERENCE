@@ -8,7 +8,7 @@ import type { Metadata } from 'next'
 import type { Genre, Movie } from '@/types/movie'
 
 // Map one Elasticsearch hit (our owned, watchable catalog) into the Movie
-// shape the catalog grid renders. `customUrl` points straight at the player
+// shape the catalog grid renders. `customUrl` points at the title's detail page
 // and the enrichment fields (director / cast / quality / episodes) let the
 // card show full info. isExternal:false marks it as a real, watchable title.
 function esItemToMovie(m: SearchResultItem): Movie {
@@ -30,7 +30,7 @@ function esItemToMovie(m: SearchResultItem): Movie {
     runtimeFormatted: '',
     mediaType: m.contentType === 'series' ? 'tv' : 'movie',
     slug: m.slug,
-    customUrl: `/watch/${m.slug}`,
+    customUrl: `/movie/${m.slug}`,
     isExternal: false,
     quality: m.quality,
     director: m.director,

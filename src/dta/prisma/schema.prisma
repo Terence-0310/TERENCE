@@ -154,30 +154,30 @@ enum SyncLogLevel {
 // ─────────────────────────────────────────────────────────────────
 
 model User {
-  id              String    @id @default(cuid())
-  name            String
-  email           String    @unique
-  passwordHash    String?
-  role            Role      @default(USER)
-  avatar          String?
-  image           String?
-  isEmailVerified Boolean   @default(false)
-  emailVerified   DateTime?
-  bio             String?
-  isActive        Boolean   @default(true)
-  status          String    @default("active")
-  blockedReason   String?
+  id                  String    @id @default(cuid())
+  name                String
+  email               String    @unique
+  passwordHash        String?
+  role                Role      @default(USER)
+  avatar              String?
+  image               String?
+  isEmailVerified     Boolean   @default(false)
+  emailVerified       DateTime?
+  bio                 String?
+  isActive            Boolean   @default(true)
+  status              String    @default("active")
+  blockedReason       String?
   // TCoin perk denormalisation — kept in sync by tcoin.service.spendTcoins so
   // any list (comments, chat, header) can render a user's perks without
   // recomputing them from wallet_transactions. null = not active.
-  avatarFrameUntil   DateTime? // neon avatar frame (30d)
+  avatarFrameUntil    DateTime? // neon avatar frame (30d)
   exclusiveBadgeUntil DateTime? // chat badge (permanent → far-future date)
-  lastLoginAt     DateTime?
-  lastLoginIp     String?
-  loginCount      Int       @default(0)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  deletedAt       DateTime?
+  lastLoginAt         DateTime?
+  lastLoginIp         String?
+  loginCount          Int       @default(0)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  deletedAt           DateTime?
 
   sessions               Session[]
   adminLogs              AdminLog[]              @relation("AdminActor")
@@ -195,6 +195,8 @@ model User {
   movieReports           MovieReport[]
   adImpressions          AdImpression[]
   notifications          Notification[]
+  shortLikes             ShortLike[]
+  shortComments          ShortComment[]
 }
 
 /// In-app user notification (realtime bell). Pushed live via Socket.IO
@@ -202,10 +204,10 @@ model User {
 model Notification {
   id        String   @id @default(cuid())
   userId    String
-  type      String   // review_liked, tcoin, system, ...
+  type      String // review_liked, tcoin, system, ...
   title     String
   message   String?
-  link      String?  // optional in-app link to open on click
+  link      String? // optional in-app link to open on click
   isRead    Boolean  @default(false)
   createdAt DateTime @default(now())
 
@@ -296,30 +298,30 @@ model Movie {
   ageRating        String?
   // Legacy text fields — kept for backward compat during migration
 
-  tags            String?
-  seoTitle        String?
-  seoDescription  String?
-  seoKeywords     String?
-  isCopyright     Boolean   @default(false)
-  isActive        Boolean   @default(true)
-  isFeatured      Boolean   @default(false)
-  isTrending      Boolean   @default(false)
-  isRecommended   Boolean   @default(false)
-  isPublished     Boolean   @default(false)
-  metadataSource  String?
-  matchConfidence Float?
-  sourceStatus    String    @default("pending")
-  viewCount       Int       @default(0)
-  publishedAt     DateTime?
+  tags             String?
+  seoTitle         String?
+  seoDescription   String?
+  seoKeywords      String?
+  isCopyright      Boolean   @default(false)
+  isActive         Boolean   @default(true)
+  isFeatured       Boolean   @default(false)
+  isTrending       Boolean   @default(false)
+  isRecommended    Boolean   @default(false)
+  isPublished      Boolean   @default(false)
+  metadataSource   String?
+  matchConfidence  Float?
+  sourceStatus     String    @default("pending")
+  viewCount        Int       @default(0)
+  publishedAt      DateTime?
   // Early-access embargo: while this is in the future, only users holding the
   // TCoin "early-access" perk may watch. null = available to everyone.
   earlyAccessUntil DateTime?
-  lastSyncedAt    DateTime?
-  createdBy       String?
-  updatedBy       String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  deletedAt       DateTime?
+  lastSyncedAt     DateTime?
+  createdBy        String?
+  updatedBy        String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
 
   episodes        Episode[]
   genres          MovieGenre[]
@@ -333,6 +335,7 @@ model Movie {
   reviews         Review[]
   watchPartyRooms WatchPartyRoom[]
   movieReports    MovieReport[]
+  shorts          Short[]
   // Legacy pivot — kept for backward compat; alias to genres
 
   @@index([slug])
@@ -798,14 +801,14 @@ model TopupOrder {
 
 model BankWebhookLog {
   id            String   @id @default(cuid())
-  provider      String   // SEPAY, VIETQR...
+  provider      String // SEPAY, VIETQR...
   eventType     String?
   rawPayload    Json
   signature     String?
   processed     Boolean  @default(false)
   error         String?  @db.Text
-  transactionId String?  // ID giao dịch từ ngân hàng
-  orderCode     String?  // Mã đơn hàng đối chiếu (nếu có)
+  transactionId String? // ID giao dịch từ ngân hàng
+  orderCode     String? // Mã đơn hàng đối chiếu (nếu có)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }
@@ -821,37 +824,37 @@ model BankWebhookLog {
 // ─────────────────────────────────────────────────────────────────
 
 model Advertisement {
-  id              String    @id @default(cuid())
-  title           String
+  id               String    @id @default(cuid())
+  title            String
   // VIDEO | IMAGE | BANNER — string for forward-compat (no enum
   // migrations needed when we add formats).
-  type            String
+  type             String
   // PRE_ROLL | MID_ROLL | HOME_BANNER | DETAIL_BANNER
-  placement       String
+  placement        String
   // Seconds. For video ads: 15 / 30 / 60 typically. For static banners
   // this is `null`.
-  duration        Int?
+  duration         Int?
   // Public URL the player loads (mp4 / hls / jpg / png).
-  mediaUrl        String    @db.Text
+  mediaUrl         String    @db.Text
   // Where to send the user on click.
-  targetUrl       String?   @db.Text
+  targetUrl        String?   @db.Text
   // For VIDEO ads: after this many seconds the "Bỏ qua" button shows.
   // `null` → not skippable.
   skipAfterSeconds Int?
   // Higher priority wins when multiple ads are eligible.
-  priority        Int       @default(0)
+  priority         Int       @default(0)
   // Schedule window — both nullable so an "evergreen" ad never expires.
-  startAt         DateTime?
-  endAt           DateTime?
-  isActive        Boolean   @default(true)
+  startAt          DateTime?
+  endAt            DateTime?
+  isActive         Boolean   @default(true)
   // Cache-friendly metrics so we can sort by performance without
   // hitting AdImpression for every list query.
-  impressionCount Int       @default(0)
-  clickCount      Int       @default(0)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  impressionCount  Int       @default(0)
+  clickCount       Int       @default(0)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
-  impressions     AdImpression[]
+  impressions AdImpression[]
 
   @@index([placement, isActive, priority])
   @@index([isActive, startAt, endAt])
@@ -860,8 +863,8 @@ model Advertisement {
 model AdImpression {
   id        String   @id @default(cuid())
   adId      String
-  userId    String?  // null for anonymous viewers
-  event     String   // 'impression' | 'skip' | 'complete' | 'click'
+  userId    String? // null for anonymous viewers
+  event     String // 'impression' | 'skip' | 'complete' | 'click'
   placement String?
   createdAt DateTime @default(now())
 
@@ -1162,4 +1165,68 @@ model MovieReport {
   @@index([userId])
   @@index([status])
   @@index([createdAt])
+}
+
+// ============================================
+// SHORTS — vertical short-video feed (TikTok / Reels style)
+// ============================================
+// Sources: TMDB videos API (clips/teasers/trailers of catalog titles),
+// YouTube Data API (#shorts, optional key) and admin-added URLs.
+
+model Short {
+  id           String   @id @default(cuid())
+  movieId      String?
+  title        String
+  description  String?
+  hashtags     String? // space-separated, without '#'
+  source       String   @default("admin") // tmdb | youtube | admin
+  externalId   String?  @unique // de-dupe key, e.g. "yt:<videoKey>"
+  videoType    String   @default("youtube") // youtube | mp4 | hls
+  videoUrl     String // YouTube video key, or media URL for mp4/hls
+  thumbnailUrl String?
+  orientation  String   @default("landscape") // portrait | landscape
+  duration     Int? // seconds
+  language     String?
+  status       String   @default("published") // draft | published | hidden
+  viewCount    Int      @default(0)
+  likeCount    Int      @default(0)
+  commentCount Int      @default(0)
+  shareCount   Int      @default(0)
+  publishedAt  DateTime @default(now())
+  createdBy    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  movie    Movie?         @relation(fields: [movieId], references: [id], onDelete: SetNull)
+  likes    ShortLike[]
+  comments ShortComment[]
+
+  @@index([status, publishedAt])
+  @@index([movieId])
+}
+
+model ShortLike {
+  id        String   @id @default(cuid())
+  shortId   String
+  userId    String
+  createdAt DateTime @default(now())
+
+  short Short @relation(fields: [shortId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([shortId, userId])
+  @@index([userId])
+}
+
+model ShortComment {
+  id        String   @id @default(cuid())
+  shortId   String
+  userId    String
+  content   String
+  createdAt DateTime @default(now())
+
+  short Short @relation(fields: [shortId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([shortId, createdAt])
 }

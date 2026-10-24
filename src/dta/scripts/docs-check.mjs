@@ -7,7 +7,6 @@
 //
 // Usage:
 //   npm run docs:check
-//   node scripts/docs-check.mjs
 //
 // Exit codes:
 //   0 = OK (README đã được cập nhật hoặc không cần)
@@ -16,42 +15,28 @@
 import { execSync } from 'child_process'
 
 const WATCHED_PATHS = [
-  'app/',
-  'src/server/',
-  'lib/',
-  'server/',
-  'prisma/schema.prisma',
-  'prisma/seed.ts',
-  'hooks/',
-  'services/',
-  'types/',
-  'scripts/',
-  'middleware.ts',
+  'app/api/',
+  'src/be/',
+  'src/dta/prisma/schema.prisma',
+  'src/constants/',
+  'lib/env.ts',
+  'proxy.ts',
   'server.ts',
   'next.config.mjs',
-  '.env.example',
   'package.json',
 ]
 
 function getChangedFiles() {
+  // Staged + unstaged changes against the last commit. stderr is piped, so no
+  // shell redirection is needed (keeps this working under cmd.exe too).
   try {
-    // Compare staged + unstaged changes against last commit
-    const output = execSync('git diff --name-only HEAD 2>/dev/null || git diff --name-only --cached 2>/dev/null || echo ""', {
+    const output = execSync('git diff --name-only HEAD', {
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
     }).trim()
-    return output ? output.split('\n').filter(Boolean) : []
+    return output ? output.split(/\r?\n/).filter(Boolean) : []
   } catch {
-    // Fallback: check staged files
-    try {
-      const output = execSync('git diff --name-only --cached', {
-        encoding: 'utf-8',
-        stdio: ['pipe', 'pipe', 'pipe'],
-      }).trim()
-      return output ? output.split('\n').filter(Boolean) : []
-    } catch {
-      return []
-    }
+    return []
   }
 }
 
@@ -89,7 +74,6 @@ function main() {
 
   console.log('\n⚠️  CẢNH BÁO: Có thay đổi code quan trọng nhưng README.md chưa được cập nhật!')
   console.log('   Hãy kiểm tra xem README.md có cần cập nhật không.')
-  console.log('   Xem luật bắt buộc: README.md → Mục 11')
   console.log('')
   console.log('   Nếu không cần cập nhật README (fix bug nhỏ), bỏ qua cảnh báo này.')
   console.log('')

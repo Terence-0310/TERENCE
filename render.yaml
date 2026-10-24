@@ -1,0 +1,151 @@
+# ============================================
+# TERENCE — Render Blueprint (Free plan only)
+# ============================================
+# Render → New → Blueprint → pick this repo + branch deploy/render-free.
+# Values marked `sync: false` are prompted for in the Render dashboard on first
+# creation and are never stored in git. See docs/RENDER_VARIABLES.md.
+# ============================================
+
+services:
+  - type: web
+    name: terence
+    runtime: docker
+    plan: free
+    region: singapore
+    branch: deploy/render
+    dockerfilePath: ./Dockerfile.render
+    dockerContext: .
+    # Liveness only (no DB/Redis), so health checks never wake Neon compute.
+    healthCheckPath: /api/health/live
+    # Deploy manually after `scripts/predeploy-check.mjs` + migrations (docs/DEPLOY_RENDER_FREE.md).
+    autoDeploy: false
+    envVars:
+      # ── Runtime basics ──
+      - key: NODE_ENV
+        value: production
+      - key: HOSTNAME
+        value: 0.0.0.0
+      - key: TZ
+        value: Asia/Ho_Chi_Minh
+      - key: LOG_LEVEL
+        value: info
+
+      # ── Public URLs: https://<service>.onrender.com (also used as Docker build args) ──
+      - key: NEXT_PUBLIC_SITE_URL
+        sync: false
+      - key: NEXTAUTH_URL
+        sync: false
+      - key: APP_URL
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
+
+      # ── Secrets ──
+      - key: NEXTAUTH_SECRET
+        generateValue: true
+      - key: CRON_SECRET
+        generateValue: true
+      # Optional: wallet-metadata encryption key. Set it to the *current*
+      # NEXTAUTH_SECRET value before rotating NEXTAUTH_SECRET, so existing
+      # encrypted rows stay readable.
+      - key: DATA_ENCRYPTION_KEY
+        sync: false
+
+      # Uploads are buffered in memory — keep video uploads small on 512 MB.
+      - key: MAX_VIDEO_UPLOAD_MB
+        value: "40"
+
+      # ── Neon PostgreSQL (pooled for the app, direct for migrations) ──
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+
+      # ── Upstash Redis (rediss://, TLS) ──
+      - key: REDIS_URL
+        sync: false
+
+      # ── Neon Object Storage (uploads; Render Free disk is ephemeral) ──
+      - key: UPLOADS_BUCKET
+        value: uploads
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_ENDPOINT_URL_S3
+        sync: false
+      - key: AWS_REGION
+        value: ap-southeast-1
+
+      # ── LiveKit Cloud ──
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
+        sync: false
+      - key: LIVEKIT_URL
+        sync: false
+      - key: NEXT_PUBLIC_LIVEKIT_URL
+        sync: false
+
+      # ── Build-time public flags ──
+      - key: NEXT_PUBLIC_GOOGLE_AUTH_ENABLED
+        value: "false"
+      - key: NEXT_PUBLIC_TMDB_IMAGE_BASE_URL
+        value: https://image.tmdb.org/t/p
+      - key: NEXT_PUBLIC_REGION
+        value: VN
+
+      # ── Optional integrations (leave empty to disable) ──
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: EMAIL_FROM_NAME
+        value: TERENCE
+      - key: EMAIL_FROM_ADDRESS
+        sync: false
+      - key: TMDB_API_KEY
+        sync: false
+      - key: TMDB_READ_ACCESS_TOKEN
+        sync: false
+      - key: TMDB_BASE_URL
+        value: https://api.themoviedb.org/3
+      - key: KKPHIM_BASE_URL
+        value: https://phimapi.com
+      - key: OPHIM_BASE_URL
+        value: https://ophim1.com
+      - key: DISABLE_OPHIM_CHECK
+        value: "true"
+      - key: SEPAY_WEBHOOK_API_KEY
+        sync: false
+      - key: SEPAY_API_KEY
+        sync: false
+      - key: SEPAY_BANK_CODE
+        sync: false
+      - key: SEPAY_BANK_ACCOUNT
+        sync: false
+      - key: VIETQR_ACCOUNT_NAME
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GNEWS_API_KEY
+        sync: false
+      - key: YOUTUBE_API_KEY
+        sync: false
+
+      # ── Elasticsearch: Elastic Cloud (hosted — never run ES on the 512 MB instance) ──
+      # Leave ELASTICSEARCH_HOST empty to use the PostgreSQL search fallback.
+      - key: ELASTICSEARCH_HOST
+        sync: false
+      - key: ELASTICSEARCH_API_KEY
+        sync: false
+      - key: ELASTICSEARCH_INDEX_MOVIES
+        value: terence_movies

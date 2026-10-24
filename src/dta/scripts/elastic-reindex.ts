@@ -5,10 +5,8 @@
 // Usage:
 //   npm run search:reindex              # full reindex (recreates index)
 //   npm run search:reindex -- --batch=200
-//   npm run search:sync -- --movieId=xxx
+//   npm run search:reindex -- --movieId=xxx   # index a single movie
 //   npm run search:clear                # delete the entire movies index
-//
-// Backwards-compatible aliases: `elastic:reindex`, `elastic:sync`.
 
 import { reindexAll, indexMovie, clearIndex, disconnect } from '../../be/modules/search/movie-search-indexer'
 import { closeClient, isAvailable, getMoviesIndex } from '../../be/modules/search/elastic-client'

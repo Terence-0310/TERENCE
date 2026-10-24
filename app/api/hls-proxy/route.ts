@@ -117,16 +117,30 @@ export async function GET(req: NextRequest) {
 
   let upstreamRes: Response
   try {
-    upstreamRes = await fetch(upstream.href, {
-      headers: {
-        // Mimic a real browser so Cloudflare WAF doesn't 520 us.
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        'Accept': '*/*',
-        'Referer': `${upstream.protocol}//${upstream.host}/`,
-        ...(range ? { Range: range } : {}),
-      },
-      cache: 'no-store',
-    })
+    // Follow redirects by hand so every hop is re-checked against the host
+    // allowlist — an allowed CDN must not be able to bounce us to an internal
+    // address (SSRF via redirect).
+    for (let hop = 0; ; hop++) {
+      upstreamRes = await fetch(upstream.href, {
+        headers: {
+          // Mimic a real browser so Cloudflare WAF doesn't 520 us.
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+          'Accept': '*/*',
+          'Referer': `${upstream.protocol}//${upstream.host}/`,
+          ...(range ? { Range: range } : {}),
+        },
+        cache: 'no-store',
+        redirect: 'manual',
+      })
+      const location = upstreamRes.status >= 300 && upstreamRes.status < 400 ? upstreamRes.headers.get('location') : null
+      if (!location) break
+      if (hop >= 3) return new Response('Too many redirects', { status: 502 })
+      const next = new URL(location, upstream)
+      if ((next.protocol !== 'https:' && next.protocol !== 'http:') || !isAllowedHost(next)) {
+        return new Response('Redirect host not allowed', { status: 403 })
+      }
+      upstream = next
+    }
   } catch (err) {
     console.error('[hls-proxy] fetch FAIL', upstream.pathname, err instanceof Error ? err.message : err)
     return new Response(`Upstream fetch failed: ${err instanceof Error ? err.message : 'unknown'}`, { status: 502 })

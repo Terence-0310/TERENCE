@@ -30,7 +30,7 @@ export async function annotateRelatedWatchable(related: Movie[] | undefined): Pr
 
   return related.map((m) => {
     const slug = slugByTmdb.get(m.id)
-    if (slug) return { ...m, slug, customUrl: `/watch/${slug}`, isExternal: false }
+    if (slug) return { ...m, slug, customUrl: `/movie/${slug}`, isExternal: false }
     return { ...m, isExternal: true }
   })
 }

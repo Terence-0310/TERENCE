@@ -9,6 +9,8 @@
 
 import './lib/load-env'
 import { createServer } from 'http'
+import { readFileSync } from 'fs'
+import { join } from 'path'
 import next from 'next'
 import { Server as SocketIOServer } from 'socket.io'
 import { registerWatchPartyHandlers } from './src/be/modules/watch-party/watch-party.socket'
@@ -49,6 +51,15 @@ function parseAllowedOrigins(): string[] | '*' {
 }
 
 const ALLOWED_ORIGINS = parseAllowedOrigins()
+
+// Standalone runtime (Dockerfile.render): hand Next the config serialized at
+// build time — exactly what Next's own standalone server.js does — instead of
+// re-evaluating next.config.mjs, which needs webpack that standalone output
+// does not ship.
+if (!dev && process.env.NEXT_STANDALONE_RUNTIME === '1' && !process.env.__NEXT_PRIVATE_STANDALONE_CONFIG) {
+  const requiredFiles = JSON.parse(readFileSync(join(process.cwd(), '.next', 'required-server-files.json'), 'utf8'))
+  process.env.__NEXT_PRIVATE_STANDALONE_CONFIG = JSON.stringify(requiredFiles.config)
+}
 
 const app = next({ dev, hostname, port })
 const handle = app.getRequestHandler()
@@ -121,8 +132,9 @@ app.prepare().then(() => {
   }, 5 * 60 * 1000)
 
   // 2. CronJob: Tự động Reindex Elasticsearch vào 2:00 sáng mỗi ngày
+  // (chỉ khi có ELASTICSEARCH_HOST — vd Render Free không chạy ES, search dùng Prisma fallback)
   let lastReindexDate = ''
-  setInterval(() => {
+  if (process.env.ELASTICSEARCH_HOST) setInterval(() => {
     const now = new Date()
     const currentDate = now.toDateString()
 
@@ -154,8 +166,8 @@ app.prepare().then(() => {
     console.log(`   🌐 Web:      http://${hostname}:${port}`)
     console.log(`   🔌 Socket:   ws://${hostname}:${port}/api/socketio`)
     console.log(`   📡 Mode:     ${dev ? 'Development' : 'Production'}`)
-    if (!dev) {
-      console.log(`   🎬 RTC:      https://rtc.terence.com.vn`)
+    if (!dev && process.env.NEXT_PUBLIC_LIVEKIT_URL) {
+      console.log(`   🎬 RTC:      ${process.env.NEXT_PUBLIC_LIVEKIT_URL}`)
     }
     console.log('')
   })

@@ -50,3 +50,33 @@ tmp/
 # Script output files
 scripts/*.txt
 scripts/*.json
+
+# Production deploy (deploy/oracle): DB backups + deployed image tags
+/backups/
+/.deploy-state/
+.neon
+
+# Render (real values for scripts/predeploy-check.mjs) + compiled custom server
+.env.render
+/dist/
+
+# Secrets: every env variant except committed templates
+.env.*
+!.env.example
+!.env.*.example
+!deploy/oracle/env.production.example
+
+# Keys, certificates, credential exports
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+*.jks
+credentials*.json
+service-account*.json
+
+# Database dumps / exports anywhere (migration .sql files stay tracked)
+*.dump
+*.sql.gz
+*.bak

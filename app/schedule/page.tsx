@@ -51,7 +51,7 @@ export default async function SchedulePage({ searchParams }: { searchParams: Pro
         <div className="space-y-3">
           {currentDay.slots.map((slot) => {
             const Row = slot.movieSlug ? Link : 'div'
-            const rowProps = slot.movieSlug ? { href: `/watch/${slot.movieSlug}` } : {}
+            const rowProps = slot.movieSlug ? { href: `/movie/${slot.movieSlug}` } : {}
             return (
             <Row
               key={slot.id}

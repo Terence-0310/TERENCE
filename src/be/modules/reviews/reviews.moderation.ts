@@ -12,7 +12,7 @@ import { createNotification } from '@/src/be/modules/notifications/notifications
 function movieLink(m: { slug: string | null; tmdbId: number | null; contentType: string }): string | null {
   const isSeries = ['series', 'tv', 'anime'].includes(m.contentType ?? '')
   if (m.tmdbId) return `/${isSeries ? 'tv' : 'movie'}/${m.tmdbId}`
-  return m.slug ? `/watch/${m.slug}` : null
+  return m.slug ? `/movie/${m.slug}` : null
 }
 
 export async function listPendingReviews(page = 1, limit = 20) {

@@ -87,7 +87,7 @@ export async function POST(
       const isSeries = ['series', 'tv', 'anime'].includes(m?.contentType ?? '')
       const link = m?.tmdbId
         ? `/${isSeries ? 'tv' : 'movie'}/${m.tmdbId}`
-        : m?.slug ? `/watch/${m.slug}` : null
+        : m?.slug ? `/movie/${m.slug}` : null
       const { createNotification } = await import('@/src/be/modules/notifications/notifications.service')
       await createNotification({
         userId: review.userId,

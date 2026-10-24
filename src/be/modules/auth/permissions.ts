@@ -48,6 +48,7 @@ export async function hasPermission(user: PublicUser | null, permission: Permiss
     'users.block': 'user.block',
     'users.change_role': 'user.role.update',
     'logs.view': 'adminlog.read',
+    'reports.view': 'report.read',
     'settings.manage': 'settings.update',
   }
   

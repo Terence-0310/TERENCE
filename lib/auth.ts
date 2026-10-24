@@ -6,7 +6,13 @@ import { prisma } from "@/src/be/shared/db/prisma";
 import { AuthService } from "@/src/be/modules/auth";
 import { Adapter } from "next-auth/adapters";
 import * as AuthRepository from "@/src/be/modules/auth/auth.repository";
-import { getAccountStatus } from "@/src/be/modules/auth/account-status";
+import { getAccountStatus, credentialVersionOf } from "@/src/be/modules/auth/account-status";
+import { rateLimit } from "@/src/be/shared/rate-limit";
+
+// Brute-force guard for credential sign-in: 10 attempts / minute per IP+email.
+const loginLimiter = rateLimit({ windowMs: 60_000, maxRequests: 10 });
+// Must stay in sync with SAFE_LOGIN_ERRORS in auth-context.tsx so the UI shows it.
+const LOGIN_RATE_LIMIT_ERROR ="Quá nhiều lần đăng nhập, vui lòng thử lại sau 1 phút";
 
 const googleAuthConfigured = Boolean(
   process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET,
@@ -49,9 +55,18 @@ export const authOptions: NextAuthOptions = {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" }
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         if (!credentials?.email || !credentials?.password) {
           throw new Error("Missing credentials");
+        }
+
+        const forwarded = req?.headers?.["x-forwarded-for"];
+        const ip = (Array.isArray(forwarded) ? forwarded[0] : forwarded)?.split(",")[0]?.trim()
+          || (req?.headers?.["x-real-ip"] as string | undefined)
+          || "unknown";
+        const attempt = await loginLimiter.check(`auth-login:${ip}:${credentials.email.toLowerCase()}`);
+        if (!attempt.allowed) {
+          throw new Error(LOGIN_RATE_LIMIT_ERROR);
         }
 
         const user = await AuthRepository.findUserByEmail(credentials.email);
@@ -133,9 +148,10 @@ export const authOptions: NextAuthOptions = {
         try {
           const dbUser = await prisma.user.findUnique({
             where: { id: user.id },
-            select: { avatar: true, image: true },
+            select: { avatar: true, image: true, passwordHash: true },
           });
           token.picture = dbUser?.avatar ?? dbUser?.image ?? user.image ?? null;
+          if (dbUser) token.credentialVersion = credentialVersionOf(dbUser.passwordHash);
         } catch {
           /* keep whatever NextAuth already set on token.picture */
         }
@@ -163,6 +179,13 @@ export const authOptions: NextAuthOptions = {
         if (status === null || status?.active === false) {
           throw new Error("ACCOUNT_DISABLED");
         }
+        // Password changed since this session was issued → revoke it. Sessions
+        // issued before this check existed adopt the current version instead
+        // of being logged out en masse.
+        if (status && token.credentialVersion && status.credentialVersion !== token.credentialVersion) {
+          throw new Error("SESSION_REVOKED");
+        }
+        if (status && !token.credentialVersion) token.credentialVersion = status.credentialVersion;
         if (status) {
           token.isEmailVerified = status.isEmailVerified;
           if (status.role !== token.role) {

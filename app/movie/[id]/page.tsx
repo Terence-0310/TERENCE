@@ -12,6 +12,7 @@ import { generateSlug } from '@/src/be/modules/admin/validators'
 import { FavoriteButton } from '@/src/fe/components/shared/FavoriteButton'
 import { annotateRelatedWatchable } from '@/src/be/modules/movies/related-annotate'
 import type { Metadata } from 'next'
+import { DbMovieDetail, findCatalogMovie } from './_components/DbMovieDetail'
 
 /**
  * Lazy-persist a TMDB-only movie into our DB on first view so it becomes
@@ -93,6 +94,21 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     } catch {
       // fall through
     }
+  } else {
+    // Non-numeric id = catalog slug (or DB id) → metadata from our DB.
+    const movie = await findCatalogMovie(id).catch(() => null)
+    if (movie) {
+      const description = movie.description || movie.shortDescription || ''
+      return {
+        title: `${movie.title}${movie.year ? ` (${movie.year})` : ''} — Terence`,
+        description: description.slice(0, 155) || `Xem ${movie.title} trên Terence`,
+        openGraph: {
+          title: `${movie.title} — Terence`,
+          description,
+          images: movie.backdropUrl ? [{ url: movie.backdropUrl, width: 1280, height: 720 }] : [],
+        },
+      }
+    }
   }
   return { title: 'Phim — Terence' }
 }
@@ -100,11 +116,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function MovieDetailPage({ params }: PageProps) {
   const { id } = await params
   
+  // Non-numeric id = title from our own catalog (slug or DB id): render the
+  // catalog detail page. The player is only opened from its "Xem phim" button.
   if (isNaN(Number(id))) {
-    // If ID is not numeric, it's an internal DB slug from OPhim. 
-    // Redirect directly to the Watch player which supports DB playback natively.
-    const { redirect } = await import('next/navigation')
-    redirect(`/watch/${id}`)
+    return <DbMovieDetail refId={id} />
   }
 
   const movieId = Number(id)
@@ -127,7 +142,7 @@ export default async function MovieDetailPage({ params }: PageProps) {
   if (dbMovie?.title) movie.title = dbMovie.title
   if (dbMovie?.description) movie.overview = dbMovie.description
 
-  // Mark "Phim tương tự" entries: watchable ones link to the player, the rest
+  // Mark "Phim tương tự" entries: watchable ones link to their catalog page, the rest
   // get a "Trailer" badge so the row stays rich without misleading the user.
   movie.relatedMovies = await annotateRelatedWatchable(movie.relatedMovies)
 

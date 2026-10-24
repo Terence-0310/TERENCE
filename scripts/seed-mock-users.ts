@@ -55,7 +55,6 @@ async function main() {
     const walletsBatch: any[] = []
     const transactionsBatch: any[] = []
     const topupOrdersBatch: any[] = []
-    const adminLogsBatch: any[] = []
 
     for (let i = 0; i < batchSize; i++) {
         const userId = crypto.randomUUID()

@@ -4,7 +4,7 @@
 
 import { NextResponse } from 'next/server'
 import { requireAdmin, isUser } from '@/src/be/modules/admin/admin.guard'
-import { getClient, getMoviesIndex, isAvailable } from '@/src/be/modules/search/elastic-client'
+import { getClient, getMoviesIndex, isAvailable, isServerless } from '@/src/be/modules/search/elastic-client'
 import { logger } from '@/src/be/shared/utils/logger'
 
 const log = logger.child({ module: 'admin-elastic-health' })
@@ -30,9 +30,13 @@ export async function GET() {
     }
 
     const client = getClient()
+    // Elastic Serverless has no _cluster/health or _stats APIs.
+    const serverless = await isServerless()
 
     // Cluster health
-    const health = await client.cluster.health()
+    const health = serverless
+      ? { status: 'serverless', cluster_name: 'elastic-serverless', number_of_nodes: null, active_shards: null }
+      : await client.cluster.health()
 
     // Index info
     let indexInfo = null
@@ -40,11 +44,11 @@ export async function GET() {
       const exists = await client.indices.exists({ index })
       if (exists) {
         const count = await client.count({ index })
-        const stats = await client.indices.stats({ index })
+        const stats = serverless ? null : await client.indices.stats({ index })
         indexInfo = {
           exists: true,
           documentCount: count.count,
-          sizeInBytes: stats._all?.total?.store?.size_in_bytes || 0,
+          sizeInBytes: stats?._all?.total?.store?.size_in_bytes || 0,
         }
       } else {
         indexInfo = { exists: false, documentCount: 0, sizeInBytes: 0 }

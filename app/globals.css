@@ -538,3 +538,11 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Shorts — double-tap like burst */
+@keyframes short-like {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.4); }
+  25% { opacity: 1; transform: translate(-50%, -50%) scale(1.15); }
+  60% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -80%) scale(1.1); }
+}

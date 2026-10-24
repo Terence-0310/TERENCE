@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import { prisma } from '@/src/be/shared/db/prisma'
 
 // JWT sessions are stateless, so a block/role change made by an admin would
@@ -8,6 +9,13 @@ export interface AccountStatus {
   active: boolean
   role: string
   isEmailVerified: boolean
+  /** Changes whenever the password changes — sessions carrying an older value are revoked. */
+  credentialVersion: string
+}
+
+/** Short fingerprint of the password hash (never the hash itself) for the JWT. */
+export function credentialVersionOf(passwordHash: string | null | undefined): string {
+  return crypto.createHash('sha256').update(passwordHash ?? '').digest('hex').slice(0, 16)
 }
 
 const TTL_MS = 30_000
@@ -23,10 +31,15 @@ export async function getAccountStatus(userId: string): Promise<AccountStatus | 
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { isActive: true, deletedAt: true, role: true, isEmailVerified: true },
+    select: { isActive: true, deletedAt: true, role: true, isEmailVerified: true, passwordHash: true },
   })
   const status = user
-    ? { active: user.isActive && !user.deletedAt, role: user.role, isEmailVerified: user.isEmailVerified }
+    ? {
+        active: user.isActive && !user.deletedAt,
+        role: user.role,
+        isEmailVerified: user.isEmailVerified,
+        credentialVersion: credentialVersionOf(user.passwordHash),
+      }
     : null
   cache.set(userId, { at: Date.now(), status })
   return status

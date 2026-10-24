@@ -451,34 +451,6 @@
               ]
             }
           }
-        },
-        {
-          "name": "Kích hoạt Đồng Bộ Tập Phim",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n    \"movieSlug\": \"one-piece\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/admin/sync/ophim/episodes",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "admin",
-                "sync",
-                "ophim",
-                "episodes"
-              ]
-            }
-          }
         }
       ]
     },

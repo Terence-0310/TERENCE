@@ -5,6 +5,7 @@
 
 import { prisma } from '@/src/be/shared/db/prisma'
 import { Role } from '@prisma/client'
+import { hashToken } from './reset-token'
 
 export async function findUserByEmail(email: string) {
   return prisma.user.findUnique({
@@ -55,15 +56,17 @@ export async function deleteExpiredSessions(userId: string) {
   })
 }
 
+// Verification tokens are stored as SHA-256 digests (like password-reset
+// tokens); callers always pass the raw token from the email link.
 export async function findVerificationToken(token: string) {
   return prisma.verificationToken.findUnique({
-    where: { token },
+    where: { token: hashToken(token) },
   })
 }
 
 export async function deleteVerificationToken(identifier: string, token: string) {
   return prisma.verificationToken.deleteMany({
-    where: { identifier, token },
+    where: { identifier, token: hashToken(token) },
   })
 }
 
@@ -75,7 +78,7 @@ export async function deleteVerificationTokensByIdentifier(identifier: string) {
 
 export async function createVerificationToken(identifier: string, token: string, expires: Date) {
   return prisma.verificationToken.create({
-    data: { identifier, token, expires },
+    data: { identifier, token: hashToken(token), expires },
   })
 }
 

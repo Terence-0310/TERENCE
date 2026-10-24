@@ -10,6 +10,7 @@
 import type { Socket } from 'socket.io'
 import { prisma } from '@/src/be/shared/db/prisma'
 import { logger } from '@/src/be/shared/utils/logger'
+import { credentialVersionOf } from '@/src/be/modules/auth/account-status'
 
 const log = logger.child({ module: 'socket-auth' })
 
@@ -66,9 +67,12 @@ export async function resolveSocketUser(socket: Socket): Promise<SocketUser | nu
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, role: true, name: true, isActive: true },
+      select: { id: true, role: true, name: true, isActive: true, passwordHash: true },
     })
     if (!user || !user.isActive) return null
+    // Same revocation rule as the NextAuth jwt callback: password changed → session invalid.
+    const issuedFor = payload?.credentialVersion as string | undefined
+    if (issuedFor && issuedFor !== credentialVersionOf(user.passwordHash)) return null
     return { id: user.id, role: user.role, name: user.name }
   } catch (err) {
     log.warn({ err: err instanceof Error ? err.message : err }, 'Socket session decode failed')

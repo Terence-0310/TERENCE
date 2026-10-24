@@ -1,12 +1,11 @@
 # 🎬 TERENCE — Nền tảng xem phim trực tuyến
 
-> **Terence** là nền tảng khám phá và thưởng thức phim trực tuyến chất lượng cao,
-> xây dựng bằng **Next.js 16** (App Router + custom server), **Prisma ORM + PostgreSQL**,
-> **Socket.IO**, **LiveKit (WebRTC)**, tích hợp **TMDB** và nguồn dữ liệu **OPhim / OPhim18 / KKPhim**.
+> **Terence** là nền tảng khám phá và xem phim trực tuyến, xây dựng bằng **Next.js 16**
+> (App Router + custom server), **Prisma ORM + PostgreSQL**, **Socket.IO**, **LiveKit (WebRTC)**,
+> tích hợp **TMDB** và các nguồn dữ liệu **OPhim / OPhim18 / KKPhim**.
 >
 > 📚 Đồ án môn **Công nghệ phần mềm** — Đại học HUTECH.
 
-![Status](https://img.shields.io/badge/status-production-brightgreen)
 ![Next.js](https://img.shields.io/badge/Next.js-16-black)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue)
 ![Prisma](https://img.shields.io/badge/Prisma-6-2D3748)
@@ -15,65 +14,52 @@
 ![Tests](https://img.shields.io/badge/tests-341%20passing-success)
 ![License](https://img.shields.io/badge/license-Educational-orange)
 
-> 📌 **Tài liệu này là nguồn tham chiếu duy nhất cho toàn hệ thống.** Mọi mô tả về kiến trúc,
-> database, API, biến môi trường và trạng thái tính năng dưới đây đều được kiểm chứng trực tiếp
-> từ mã nguồn (cập nhật 2026-06).
+> 📌 Tài liệu này mô tả kiến trúc, database, API, phân quyền, biến môi trường và cách vận hành
+> hệ thống. Nội dung được đối chiếu trực tiếp với mã nguồn và kiểm thử end-to-end (cập nhật 2026-10).
 
 ---
 
 ## 📑 Mục lục
 
-- [1. Tổng quan hệ thống](#1-tổng-quan-hệ-thống)
+- [1. Tổng quan](#1-tổng-quan)
 - [2. Kiến trúc hệ thống](#2-kiến-trúc-hệ-thống)
-- [3. Trạng thái hoàn thiện tính năng](#3-trạng-thái-hoàn-thiện-tính-năng)
-- [4. Danh mục tính năng](#4-danh-mục-tính-năng)
+- [3. Tính năng](#3-tính-năng)
+- [4. Phân quyền (RBAC)](#4-phân-quyền-rbac)
 - [5. Tech Stack](#5-tech-stack)
 - [6. Cấu trúc thư mục](#6-cấu-trúc-thư-mục)
 - [7. Database (PostgreSQL + Prisma)](#7-database-postgresql--prisma)
-  - [7.3 ERD](#73-erd-lõi) · [7.4 Class Diagram — Domain](#74-class-diagram--domain-model) · [7.5 Class Diagram — Tầng kiến trúc](#75-class-diagram--tầng-kiến-trúc-controller--service--repository)
 - [8. Danh mục API](#8-danh-mục-api)
-- [9. Luồng nghiệp vụ chính (Sequence)](#9-luồng-nghiệp-vụ-chính-sequence)
-- [10. Use Case & User Story](#10-use-case--user-story)
-- [11. Realtime: Socket.IO & LiveKit](#11-realtime-socketio--livekit)
-- [12. Data Pipeline (OPhim → TMDB)](#12-data-pipeline-ophim--tmdb)
+- [9. Luồng nghiệp vụ chính](#9-luồng-nghiệp-vụ-chính)
+- [10. Realtime: Socket.IO & LiveKit](#10-realtime-socketio--livekit)
+- [11. Data Pipeline (OPhim → TMDB)](#11-data-pipeline-ophim--tmdb)
+- [12. Shorts (video ngắn kiểu TikTok)](#12-shorts-video-ngắn-kiểu-tiktok)
 - [13. Thanh toán TCoin (SePay / VietQR)](#13-thanh-toán-tcoin-sepay--vietqr)
-- [14. Cài đặt & Chạy local](#14-cài-đặt--chạy-local)
-- [15. Biến môi trường](#15-biến-môi-trường)
-- [16. Deploy Production](#16-deploy-production)
-- [17. Scripts & Lệnh thường dùng](#17-scripts--lệnh-thường-dùng)
-- [18. Coding Convention & Workflow](#18-coding-convention--workflow)
-- [19. Roadmap](#19-roadmap)
+- [14. Bảo mật](#14-bảo-mật)
+- [15. Cài đặt & chạy local](#15-cài-đặt--chạy-local)
+- [16. Biến môi trường](#16-biến-môi-trường)
+- [17. Deploy production](#17-deploy-production)
+- [18. Scripts](#18-scripts)
+- [19. Kiểm thử](#19-kiểm-thử)
+- [20. Quy ước code & workflow](#20-quy-ước-code--workflow)
+- [21. Roadmap](#21-roadmap)
 - [License](#license)
 
 ---
 
-## 1. Tổng quan hệ thống
+## 1. Tổng quan
 
-### 1.1 Giới thiệu
+TERENCE là nền tảng xem phim full-stack:
 
-TERENCE là nền tảng xem phim trực tuyến full-stack: người dùng khám phá kho phim, xem phim với
-**HLS adaptive streaming**, **xem chung real-time (Watch Party)** kèm chat và gọi video/voice, kiếm
-và tiêu **TCoin** (tiền ảo demo, nạp qua chuyển khoản ngân hàng VietQR/SePay). Hệ thống có pipeline
-đồng bộ dữ liệu tự động từ OPhim/OPhim18/KKPhim, làm giàu metadata từ TMDB, và một **CMS quản trị**
-đầy đủ cho admin.
+- **Người xem**: duyệt/tìm kiếm phim, xem phim bằng **HLS adaptive streaming**, lưu tiến trình & xem
+  tiếp, yêu thích, đánh giá, **xem chung real-time (Watch Party)** kèm chat và gọi video/voice,
+  kiếm và tiêu **TCoin** (tiền ảo, nạp qua chuyển khoản VietQR/SePay).
+- **Quản trị**: CMS tại `/dashboard` — quản lý phim/tập/nguồn, người dùng, kiểm duyệt đánh giá, tin
+  tức, quảng cáo, TCoin, thông báo, đồng bộ dữ liệu, nhật ký audit — với phân quyền 5 cấp.
+- **Dữ liệu**: pipeline đồng bộ tự động từ OPhim/OPhim18/KKPhim, làm giàu metadata từ TMDB, tìm
+  kiếm full-text bằng Elasticsearch (tự fallback về PostgreSQL khi ES không sẵn sàng).
 
-### 1.2 Mục tiêu & trạng thái
-
-| # | Mục tiêu | Trạng thái |
-|---|----------|------------|
-| 1 | Web app xem phim full-stack hoàn chỉnh | ✅ Đạt |
-| 2 | Tích hợp nguồn dữ liệu phim tự động (TMDB, OPhim, KKPhim) | ✅ Đạt |
-| 3 | Hệ thống quản trị nội dung (CMS) cho admin | ✅ Đạt |
-| 4 | Watch Party — xem phim chung real-time + chat + call | ✅ Đạt |
-| 5 | TCoin — tiền ảo + nạp tiền qua VietQR/SePay | ✅ Đạt |
-| 6 | Tìm kiếm full-text (Elasticsearch + fallback Prisma) | ✅ Đạt |
-| 7 | Kiến trúc module-based, layered, dễ mở rộng | ✅ Đạt |
-
-### 1.3 Định hướng
-
-Mô hình **Modular Monolith**: đơn giản khi triển khai nhưng sẵn sàng tách microservice. Database
-**đã chạy PostgreSQL** (không còn SQLite). Ưu tiên tiếp theo: AI recommendation, mobile app,
-cổng thanh toán thực tế đa nhà cung cấp.
+Mô hình **Modular Monolith**: một process Next.js + Socket.IO, backend chia module theo domain
+trong `src/be/modules/`, dễ tách service khi cần.
 
 ---
 
@@ -92,7 +78,8 @@ graph TB
     end
 
     subgraph Server["⚙️ Next.js 16 + Custom Server (server.ts)"]
-        API["API Routes<br/>/api/v1, /api/admin, /api/auth, /api/tcoin, /api/payments"]
+        PROXY["proxy.ts<br/>auth cookie + CSRF cho /dashboard, /api/admin"]
+        API["API Routes<br/>/api/v1, /api/admin, /api/auth, /api/tcoin, /api/payments, /api/watch-party"]
         SC["Server Components (SSR)"]
         SOCKET["Socket.IO Server<br/>Watch Party · Notifications · Live view-count"]
 
@@ -111,7 +98,7 @@ graph TB
     subgraph Data["💾 Data Layer"]
         PRISMA["Prisma ORM 6"]
         PG[("PostgreSQL")]
-        REDIS[("Redis (ioredis)")]
+        REDIS[("Redis — optional")]
         ES[("Elasticsearch 8 — optional")]
     end
 
@@ -125,7 +112,7 @@ graph TB
         SMTP["SMTP (Nodemailer)"]
     end
 
-    Client -->|HTTP / Fetch / SWR| API
+    Client -->|HTTP / Fetch / SWR| PROXY --> API
     Client -->|SSR| SC
     SIO_C -->|WebSocket| SOCKET
     LK_C -->|WebRTC| LIVEKIT
@@ -135,8 +122,7 @@ graph TB
     SC --> Modules
     SOCKET --> WP
 
-    Modules --> PRISMA
-    PRISMA --> PG
+    Modules --> PRISMA --> PG
     Modules --> REDIS
     SEARCH --> ES
 
@@ -148,99 +134,114 @@ graph TB
     Modules --> SMTP
 ```
 
-### 2.2 Kiến trúc phân tầng (Layered)
+### 2.2 Phân tầng
 
 ```
-app/ (App Router)         → Pages (RSC/Client) + API route handlers (mỏng, chỉ điều phối)
-   └─ delegate →  src/be/modules/<domain>/<domain>.controller.ts   (HTTP boundary, validate)
-                     └─ <domain>.service.ts                         (business logic)
-                          └─ <domain>.repository.ts / prisma        (data access)
-src/fe/                   → Components, hooks, contexts, realtime client
-src/dta/                  → Prisma schema, seed, scripts đồng bộ dữ liệu
-lib/ , src/lib/           → tiện ích dùng chung (LiveKit, email, redis, tmdb-image…)
-server.ts                 → Custom server: Next.js + Socket.IO trên cùng 1 process
-middleware.ts             → Bảo vệ route (auth/role) ở edge
+app/ (App Router)         → Pages (RSC/Client) + API route handlers
+   └─ src/be/modules/<domain>/<domain>.controller.ts   (HTTP boundary, validate bằng Zod)
+         └─ <domain>.service.ts                         (business logic)
+              └─ <domain>.repository.ts / prisma        (data access)
+src/be/shared/            → guards (requireAuth/requireAdmin), api-handler, rate-limit, realtime, logger
+src/fe/                   → components, hooks, contexts, realtime client
+src/dta/                  → Prisma schema + migrations, seed, scripts đồng bộ dữ liệu
+src/lib/permissions/      → ma trận quyền theo role + kiểm tra quyền (server & UI)
+lib/                      → tiện ích dùng chung (auth/NextAuth, env, mail, LiveKit, tmdb-image…)
+server.ts                 → custom server: Next.js + Socket.IO trên cùng 1 process
+proxy.ts                  → Next.js proxy (trước đây middleware): cookie phiên + CSRF cho khu vực quản trị
 ```
+
+Phần lớn route mỏng và uỷ thác cho controller; một số route đơn giản (favorites, reviews, quản trị
+phim…) truy vấn Prisma trực tiếp trong handler.
 
 ### 2.3 Luồng hoạt động chính
 
 | # | Luồng | Mô tả |
 |---|-------|-------|
-| 1 | **Page Render** | Truy cập → Next.js render Server Component → Prisma query PostgreSQL |
-| 2 | **Client Interaction** | Client Component gọi `/api/v1/*` → Controller → Service → Response |
-| 3 | **Admin CMS** | `/dashboard` → `/api/admin/*` → Service + ghi `AdminLog` (audit) |
-| 4 | **Watch Party** | Socket.IO sync playback + chat; LiveKit cho voice/video |
-| 5 | **Data Pipeline** | OPhim/KKPhim sync → TMDB enrichment → upsert → `SyncJob`/`SyncLog` |
-| 6 | **Video Playback** | HLS.js adaptive; lưu progress (DB `WatchHistory` + localStorage) |
-| 7 | **Payments** | Tạo đơn nạp → VietQR → SePay webhook → cộng TCoin tự động + email |
+| 1 | **Page render** | Next.js render Server Component → service → Prisma/PostgreSQL |
+| 2 | **Client interaction** | Client Component gọi `/api/v1/*` → controller → service → JSON |
+| 3 | **Admin CMS** | `/dashboard` → `/api/admin/*` → kiểm tra quyền → service + ghi `AdminLog` |
+| 4 | **Watch Party** | REST tạo/join phòng; Socket.IO sync playback + chat; LiveKit voice/video |
+| 5 | **Data pipeline** | OPhim/KKPhim sync → TMDB enrichment → upsert → `SyncJob`/`SyncLog` → reindex ES |
+| 6 | **Video playback** | HLS.js adaptive; lưu tiến trình (DB `WatchHistory` + localStorage) |
+| 7 | **Payments** | Tạo đơn nạp → QR VietQR → webhook SePay → cộng TCoin + email + toast realtime |
 
 ---
 
-## 3. Trạng thái hoàn thiện tính năng
+## 3. Tính năng
 
-> Bảng dưới là đánh giá **trung thực** dựa trên code (TypeScript build sạch, 341 unit test pass).
-
-| Tính năng | Trạng thái | Ghi chú |
-|-----------|:---------:|---------|
-| Auth (đăng ký/đăng nhập/verify email/reset password, 5 roles) | ✅ Hoàn thành | NextAuth + bcrypt, session, Turnstile |
-| Duyệt / tìm kiếm / lọc phim | ✅ Hoàn thành | Elasticsearch 5-tier + fallback Prisma |
-| Chi tiết phim, cast & crew, phim tương tự | ✅ Hoàn thành | — |
-| Player HLS + resume + danh sách tập | ✅ Hoàn thành | — |
-| Lịch sử xem / Xem tiếp | ✅ Hoàn thành | Đồng bộ DB + localStorage |
-| Watch Party (sync playback + chat) | ✅ Hoàn thành | Socket.IO, Redis pool room code |
-| Watch Party voice/video call | ✅ Hoàn thành | LiveKit WebRTC |
-| Đánh giá phim + moderation | ✅ Hoàn thành | Workflow approve/reject/flag |
-| Tin tức (GNews + AI generator) | ✅ Hoàn thành | Gemini, fallback rỗng khi thiếu key |
-| TCoin: earn / spend / lịch sử | ✅ Hoàn thành | Daily check-in, review, verify email… |
-| Nạp TCoin qua VietQR / SePay | ✅ Hoàn thành | Webhook + polling + email auto-credit |
-| Analytics tracking (page/movie view) | ✅ Hoàn thành | `/api/v1/analytics/track`, broadcast realtime |
-| AI recommendation (gợi ý cá nhân hoá) | ✅ Hoàn thành | Content-based + Elasticsearch MLT theo watch history → rail "Dành Cho Bạn" |
-| Admin CRUD (phim, tập, user, news, genres, countries, ads…) | ✅ Hoàn thành | + Audit log, settings, Redis viewer |
-| Data pipeline (OPhim/OPhim18/KKPhim + TMDB) | ✅ Hoàn thành | SyncJob/SyncLog tracking |
-| Trang Lịch chiếu (`/schedule`) | ✅ Hoàn thành | Luôn dùng phim thật từ DB (releases theo `publishedAt` + lấp bằng phim mới nhất), slot click sang `/watch`. `isDemo` chỉ khi DB rỗng. Giờ/rạp/giá là flavor tự sinh |
-| Shorts — feed video ngắn (`/shorts`) | ✅ Hoàn thành | Feed dọc kiểu TikTok: ưu tiên `contentType='short'`, lấp bằng phim xem nhiều có backdrop; embed trailer YouTube nếu có; infinite scroll. API `/api/v1/shorts` |
-| Đa cổng thanh toán | ✅ Khung sẵn sàng | `PaymentProvider` + registry; SePay là adapter đầu tiên và chạy qua khung. Cắm Momo/ZaloPay chỉ cần thêm provider + route |
-
-**Không còn code chết / stub:** các stub cũ (`payments.types.ts`, `analytics.types.ts`,
-`TODO_NOT_ACTIVE.md`, `payments/README.md`) đã được dọn; barrel export trỏ tới service/controller thật.
-
----
-
-## 4. Danh mục tính năng
-
-### 4.1 Người dùng
+### 3.1 Người dùng (khách & thành viên)
 
 | Nhóm | Tính năng | Chi tiết |
 |------|-----------|----------|
-| 🔐 Auth | Đăng ký / Đăng nhập | Email + password (bcrypt), session cookie, Cloudflare Turnstile, verify email, reset password |
-| 🎬 Phim | Duyệt & tìm kiếm | Lọc thể loại / quốc gia / năm / loại, full-text + gợi ý |
-| 🎬 Phim | Chi tiết | Poster, backdrop, cast & crew, trailer, phim tương tự |
-| 📺 Player | Xem phim HLS | Adaptive bitrate, resume, multi-source, phụ đề |
-| 📺 Player | Danh sách tập | Series / anime / TV season |
-| 📋 Lịch sử | Xem tiếp | Continue watching đồng bộ khi đăng nhập |
-| 🎉 Watch Party | Xem chung | Tạo/join phòng, sync playback, chat, voice/video call, host transfer, request/approve |
-| 📰 Tin tức | Tin phim | GNews + AI (Gemini) + phim sắp chiếu |
-| ⭐ Đánh giá | Review | Rating 1–5 sao + comment + like, qua moderation |
-| 💰 TCoin | Tiền ảo | Earn (check-in, review, verify email…), Spend (perks), nạp VietQR |
-| 👤 Profile | Hồ sơ | Avatar, bio, thống kê, perks đang kích hoạt, thông báo |
+| 🔐 Tài khoản | Đăng ký / đăng nhập | Email + mật khẩu (bcryptjs) hoặc Google OAuth; xác minh email; quên / đặt lại mật khẩu; rate-limit chống brute-force |
+| 🎬 Phim | Duyệt & tìm kiếm | Lọc thể loại / quốc gia / năm / loại; full-text + gợi ý (autocomplete) |
+| 🎬 Phim | Trang giới thiệu | Bấm vào phim luôn mở trang giới thiệu (`/movie/<slug>`): poster, thông tin, thể loại, trailer, danh sách tập, diễn viên, bình luận, phim tương tự; nút **Xem phim** / chọn tập mới mở player. Nút ▶ trên card và "Xem tiếp" vào thẳng player |
+| 📺 Player | Xem phim HLS | Adaptive bitrate, auto-resume, nhiều nguồn, phụ đề, danh sách tập/season |
+| 📋 Cá nhân | Lịch sử & yêu thích | Xem tiếp đồng bộ khi đăng nhập, danh sách yêu thích, gợi ý "Dành cho bạn" |
+| 🎉 Watch Party | Xem chung | Tạo/join phòng bằng mã (khách cũng tham gia được), sync playback, chat, voice/video, chuyển host, duyệt yêu cầu tham gia |
+| ⭐ Đánh giá | Review | 1–5 sao + nội dung + like, hiển thị sau khi được duyệt |
+| 💰 TCoin | Ví tiền ảo | Kiếm (điểm danh, review, xác minh email…), tiêu (perks: bỏ quảng cáo, theme phòng, khung avatar…), nạp qua VietQR |
+| 🎞️ Shorts | Video ngắn kiểu TikTok | Feed dọc, thả tim, bình luận, chia sẻ, 3 tab; nguồn TMDB / YouTube / trailer kho (xem Mục 12) |
+| 📰 Nội dung | Tin tức, lịch chiếu, Top View | Tin phim (GNews/AI), lịch chiếu từ dữ liệu thật, bảng xếp hạng realtime |
+| 👤 Hồ sơ | Profile | Avatar, bio, thống kê, perks đang kích hoạt, thông báo |
+| 🚩 Báo lỗi | Report | Báo lỗi phim/tập (cả khách), giới hạn 5 lần/ngày/phim với người đăng nhập |
 
-### 4.2 Quản trị (Admin)
+### 3.2 Quản trị (`/dashboard`)
 
 | Nhóm | Tính năng |
 |------|-----------|
-| 📊 Dashboard | Thống kê users/phim/doanh thu/lượt xem, biểu đồ 7 ngày, realtime Top View |
-| 🎬 Phim | CRUD; publish / hide / archive / restore; feature / trending / recommend |
-| 📺 Episodes & Sources | Quản lý tập, video source, phụ đề, validate nguồn |
-| 👥 Users | Block/unblock, reset password, phân quyền (permissions), restore |
-| 📰 Tin tức | CRUD bài viết + AI generate |
-| ⭐ Reviews | Approve / reject / flag |
-| 🏷️ Metadata | CRUD genres, countries |
-| 📣 Ads | CRUD quảng cáo (pre-roll/mid-roll/banner), lịch chạy, impression |
-| 📤 Upload | Poster, backdrop, thumbnail, media |
-| 🔄 Sync | Trigger OPhim/KKPhim sync, TMDB enrichment, Elastic reindex |
-| 💰 TCoin | Ví, giao dịch, điều chỉnh, hoàn tiền, xác nhận đơn nạp |
-| 📝 Audit | `AdminLog`: ai làm gì, lúc nào |
-| ⚙️ Hệ thống | Settings, Redis viewer, báo cáo (reports), notifications broadcast |
+| 📊 Tổng quan & thống kê | Users / phim / doanh thu / lượt xem, biểu đồ, Top View realtime, báo cáo chất lượng nội dung |
+| 🎬 Phim | CRUD; publish / hide / archive; xoá mềm & khôi phục; feature / trending / recommend |
+| 📺 Tập & nguồn | Quản lý tập, video source, phụ đề, kiểm tra nguồn hỏng |
+| 🏷️ Metadata | CRUD thể loại, quốc gia |
+| 👥 Người dùng | Tạo, sửa, khoá/mở khoá, đặt lại mật khẩu, đổi role, ghi đè quyền từng user, xoá mềm & khôi phục |
+| ⭐ Kiểm duyệt | Duyệt / từ chối đánh giá |
+| 📰 Tin tức | CRUD bài viết + sinh bài bằng AI (Gemini) |
+| 🎞️ Shorts | Nhập video từ TMDB/YouTube/trailer kho, thêm thủ công (YouTube/MP4/HLS), ẩn/hiện, xoá, xoá bình luận |
+| 📣 Quảng cáo | CRUD quảng cáo (pre-roll / mid-roll / banner), lịch chạy, thống kê impression |
+| 💰 TCoin | Ví, giao dịch, điều chỉnh số dư, hoàn tiền, xác nhận đơn nạp thủ công |
+| 🔔 Thông báo | Gửi thông báo broadcast |
+| 🔄 Đồng bộ | Sync OPhim catalog/phim, enrich TMDB, reindex Elasticsearch, validate nguồn |
+| 📝 Audit & hệ thống | Nhật ký `AdminLog`, cài đặt hệ thống, Redis viewer |
+
+Sidebar dashboard chỉ hiển thị các mục mà tài khoản có quyền sử dụng.
+
+---
+
+## 4. Phân quyền (RBAC)
+
+5 role theo thứ bậc: `SUPER_ADMIN (100) > ADMIN (80) > STAFF (60) > EDITOR (40) > USER (0)`.
+
+- **Nguồn quyền**: ma trận trong [src/lib/permissions/role-permissions.ts](src/lib/permissions/role-permissions.ts)
+  (khoá quyền ở [src/constants/permissions.ts](src/constants/permissions.ts)). Nếu bảng `RolePermission`
+  trong DB có dữ liệu thì DB được ưu tiên; ghi đè theo từng user (`UserPermission`) luôn được áp dụng sau cùng.
+- **Kiểm tra phía server**: mọi route `/api/admin/*` gọi `requireAdmin('<quyền>')` — yêu cầu
+  `dashboard.view` **và** quyền cụ thể của thao tác. `SUPER_ADMIN` luôn được phép.
+- **Phía UI**: session NextAuth mang danh sách quyền hiệu lực (`session.user.permissions`); dùng
+  `can()` trong [src/lib/permissions/ui-guard.ts](src/lib/permissions/ui-guard.ts) để ẩn/hiện chức năng.
+- **Đổi role**: chỉ được gán role thấp hơn role của chính mình.
+
+| Khu vực | SUPER_ADMIN | ADMIN | STAFF | EDITOR | USER |
+|---------|:-:|:-:|:-:|:-:|:-:|
+| Vào dashboard | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Xem / sửa phim, tập | ✅ | ✅ | ✅ | ✅ (sửa) | ❌ |
+| Tạo phim, tập | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Publish / hide / archive phim | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Xoá phim | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Thể loại, quốc gia (thêm/sửa) | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Tin tức | ✅ | ✅ | ❌ | ✅ | ❌ |
+| Upload media | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Quản lý Shorts | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Kiểm duyệt đánh giá | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Quản lý người dùng (xem/tạo/sửa/khoá/đổi role) | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Xoá người dùng | ✅ | ❌ | ❌ | ❌ | ❌ |
+| TCoin & thanh toán | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Quảng cáo, broadcast thông báo | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Thống kê, nhật ký audit | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Đồng bộ dữ liệu, Elasticsearch, Redis | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Xem cài đặt hệ thống | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Sửa cài đặt hệ thống | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Hồ sơ, review, lịch sử xem, TCoin, thích/bình luận Shorts của chính mình | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 ---
 
@@ -249,79 +250,79 @@ middleware.ts             → Bảo vệ route (auth/role) ở edge
 | Layer | Công nghệ | Phiên bản |
 |-------|-----------|-----------|
 | Framework | Next.js (App Router + RSC + custom server) | 16 |
-| Runtime ngôn ngữ | TypeScript / React | 5.7 / 19 |
-| Styling | Tailwind CSS + Radix UI + shadcn/ui | 4 |
-| **Database** | **PostgreSQL** qua Prisma ORM | Prisma 6 |
-| Cache / Realtime store | Redis (ioredis) | 5 |
-| Search | Elasticsearch (optional, fallback Prisma) | 8 |
-| Auth | NextAuth + bcrypt / bcryptjs | 4 |
-| Video Streaming | HLS.js (adaptive bitrate) | 1.6 |
+| Ngôn ngữ / UI | TypeScript / React | 5.7 / 19 |
+| Styling | Tailwind CSS + Radix UI (shadcn/ui) | 4 |
+| Database | PostgreSQL qua Prisma ORM | Prisma 6 |
+| Cache / rate-limit store | Redis (ioredis) — tuỳ chọn | 5 |
+| Search | Elasticsearch — tuỳ chọn, fallback PostgreSQL | 8 |
+| Auth | NextAuth (JWT session) + bcryptjs, Google OAuth | 4 |
+| Video streaming | HLS.js (adaptive bitrate) | 1.6 |
 | Realtime | Socket.IO | 4.8 |
-| Voice/Video Call | LiveKit (WebRTC) | 2.x |
+| Voice/Video call | LiveKit (WebRTC) | 2.x |
 | Thanh toán | SePay webhook + VietQR | — |
 | Nguồn dữ liệu phim | TMDB v3, OPhim, OPhim18, KKPhim | — |
 | Tin tức / AI | GNews API + Gemini | — |
 | Email | Nodemailer (SMTP) | 7 |
-| State / Data fetching | React Context + SWR | — |
-| Validation / Forms | Zod + React Hook Form | — |
+| Data fetching | React Context + SWR | — |
+| Validation | Zod | 3 |
 | Charts | Recharts | 2.15 |
 | Logging | pino + pino-pretty | — |
 | Test | Vitest | 4 |
-| Deploy | PM2 + Nginx (Vultr VPS) / Docker / Cloudflare | — |
+| Deploy | PM2 + Nginx (VPS) / Docker / Cloudflare | — |
 
 ---
 
 ## 6. Cấu trúc thư mục
 
 ```
-TERENCE-main/
+TERENCE/
 ├── app/                        # Next.js App Router
-│   ├── api/                    #   REST API (handler mỏng → controller)
-│   │   ├── admin/              #     Admin APIs
-│   │   ├── auth/               #     NextAuth + register/verify/reset
-│   │   ├── v1/                 #     Public APIs (movies, search, watch-history, reviews…)
-│   │   ├── tcoin/              #     Ví, reward, topup, spend
-│   │   ├── payments/           #     SePay create/status/webhook
-│   │   ├── watch-party/        #     Tạo/join/sync/chat/role phòng
-│   │   ├── cron/               #     expire-orders, reconcile-orders
-│   │   └── livekit, news, ads, user, hls-proxy, tmdb-image, health …
-│   ├── dashboard/              #   Admin panel (movies, users, tcoin, news, ads, settings…)
-│   ├── movie/[id]/ · tv/[id]/  #   Chi tiết phim / series / season
-│   ├── watch/[id]/             #   Trình xem phim (HLS player)
-│   ├── xem-chung/[code]/       #   Watch party (alias /watch-together qua rewrite)
-│   ├── tcoin/ · profile/ · reviews/ · news/ · browse/ · top-view/ · schedule/ …
-│   └── login · signup · forgot-password · reset-password · verify-email
+│   ├── api/                    #   REST API
+│   │   ├── admin/              #     API quản trị (requireAdmin + permission)
+│   │   ├── auth/               #     NextAuth + register / verify-email / forgot / reset
+│   │   ├── v1/                 #     API công khai & người dùng (movies, search, reviews, favorites, watch-history…)
+│   │   ├── tcoin/ · payments/  #     Ví, reward, spend, đơn nạp, SePay
+│   │   ├── watch-party/        #     Tạo / join / sync / chat / role phòng
+│   │   ├── cron/               #     expire-orders, reconcile-orders (Bearer CRON_SECRET)
+│   │   └── livekit · news · ads · user · hls-proxy · tmdb-image · health …
+│   ├── dashboard/              #   Trang quản trị
+│   ├── movie/[id] · tv/[id]    #   Trang giới thiệu: id số = TMDB, slug/id DB = phim trong kho
+│   ├── watch/[id]              #   Trình xem phim
+│   ├── xem-chung/[code]        #   Watch party (alias /watch-party qua rewrite)
+│   └── browse · movies · series · news · schedule · shorts · top-view · reviews · tcoin · profile · favorites …
 │
 ├── src/
-│   ├── be/                     # Backend
-│   │   ├── modules/            #   Domain modules (controller/service/repository)
-│   │   │   ├── admin · auth · users · movies · episodes · watch · watch-party
-│   │   │   ├── tcoin · payments · reviews · news · ads · notifications · analytics
-│   │   │   ├── search · uploads
-│   │   │   └── ophim · kkphim · tmdb · pipeline   (data sync)
-│   │   └── shared/             #   db (prisma), realtime/notify, api-handler, utils, middleware
-│   ├── fe/
-│   │   ├── components/         #   ui (shadcn), shared, player, watch-party, news, admin…
-│   │   └── features/           #   hooks, contexts, realtime client
+│   ├── be/
+│   │   ├── modules/            #   admin · auth · users · movies · episodes · watch · watch-party
+│   │   │                       #   tcoin · payments · reviews · news · ads · notifications · analytics
+│   │   │                       #   search · uploads · ophim · kkphim · tmdb · pipeline
+│   │   ├── services/           #   topup-order, wallet, video-source resolver, tmdb services
+│   │   └── shared/             #   db, guards, api-handler, rate-limit, realtime, logger, errors
+│   ├── fe/                     #   components (ui, shared, player, watch-party, admin…), features (hooks, contexts)
 │   ├── dta/
-│   │   ├── prisma/             #   schema.prisma, seed.ts
-│   │   └── scripts/            #   sync-ophim*, enrich-tmdb, elastic-reindex, seed-ads…
-│   ├── constants/ · lib/ · services/ · types/
+│   │   ├── prisma/             #   schema.prisma, migrations/, seed.ts
+│   │   └── scripts/            #   sync-ophim*, sync-kkphim*, enrich-tmdb, elastic-reindex, seed-ads…
+│   ├── constants/              #   roles, permissions
+│   ├── lib/                    #   permissions (matrix, access-control, ui-guard), redis, cache
+│   └── types/
 │
-├── lib/                        # LiveKit, email, auth helpers, tmdb-image, data/schedule
-├── tests/                      # Unit & integration (Vitest) — 26 file, 341 test
-├── deploy/                     # Nginx, PM2 ecosystem
-├── server.ts                   # Custom server (Next.js + Socket.IO)
-├── middleware.ts               # Route protection
-└── package.json
+├── lib/                        # auth (NextAuth), env, mail, LiveKit, tmdb-image, player, watch-history, watch-party
+├── types/                      # kiểu dùng chung + next-auth.d.ts
+├── scripts/                    # tiện ích vận hành / demo (xem Mục 18)
+├── tests/                      # Vitest: unit + integration
+├── deploy/nginx/               # cấu hình Nginx mẫu
+├── server.ts                   # custom server (Next.js + Socket.IO)
+├── proxy.ts                    # bảo vệ /dashboard & /api/admin (cookie + CSRF)
+├── docker-compose.yml          # db, elasticsearch, redis, mailpit, app
+└── .env.example                # mẫu biến môi trường
 ```
 
 ---
 
 ## 7. Database (PostgreSQL + Prisma)
 
-> Datasource: `provider = "postgresql"` (xem `src/dta/prisma/schema.prisma`). Có `DATABASE_URL`
-> (pooled) và `DIRECT_URL` (migration).
+Schema: [src/dta/prisma/schema.prisma](src/dta/prisma/schema.prisma) — **45 model**, migration
+baseline `20261006000000_baseline` + `…_shorts`. `DATABASE_URL` (pooled) + `DIRECT_URL` (migration).
 
 ### 7.1 Enum
 
@@ -343,7 +344,7 @@ TERENCE-main/
 | `SyncJobStatus` | PENDING · RUNNING · SUCCESS · COMPLETED · FAILED · CANCELLED · PARTIAL |
 | `SyncLogLevel` | INFO · WARN · ERROR |
 
-### 7.2 Models chính
+### 7.2 Models
 
 | Nhóm | Models |
 |------|--------|
@@ -356,10 +357,11 @@ TERENCE-main/
 | Quảng cáo | `Advertisement`, `AdImpression` |
 | Watch Party | `WatchPartyRoom`, `WatchPartyParticipant`, `WatchPartyMessage`, `WatchPartyState` |
 | Vận hành | `AdminLog`, `PageView`, `Upload`, `SystemSetting` |
+| Shorts | `Short`, `ShortLike`, `ShortComment` |
 | Pipeline | `SyncJob`, `SyncLog` |
 
-> ⚠️ Không tồn tại model `Short` hay `PaymentOrder`. Video ngắn là enum `MovieType.SHORT`;
-> đơn nạp TCoin là model **`TopupOrder`** (không phải `PaymentOrder`).
+> Video ngắn của feed `/shorts` nằm ở model `Short` (có thể liên kết `Movie`); không có model `PaymentOrder` —
+> đơn nạp TCoin là `TopupOrder`, gói nạp nằm trong bảng `TCoinPackage`.
 
 ### 7.3 ERD (lõi)
 
@@ -373,6 +375,7 @@ erDiagram
     User ||--o{ TopupOrder : "tops up"
     User ||--o{ WatchPartyRoom : hosts
     User ||--o{ AdminLog : performs
+    User ||--o{ UserPermission : overrides
 
     Wallet ||--o{ WalletTransaction : has
     TopupOrder }o--|| TCoinPackage : "for"
@@ -384,6 +387,7 @@ erDiagram
     Movie ||--o{ MovieSource : tracked_by
     Movie ||--o{ WatchHistory : watched_in
     Movie ||--o{ Review : reviewed_in
+    Movie ||--o{ MovieReport : reported_in
     Movie ||--o{ SyncJob : synced_by
 
     Episode ||--o{ VideoSource : has
@@ -399,23 +403,23 @@ erDiagram
         string id PK
         string title
         string slug
-        MovieType type
-        PublishStatus status
+        string contentType
+        string status
         int tmdbId
         int viewCount
         datetime publishedAt
+        datetime deletedAt
     }
     User {
         string id PK
         string email
         Role role
-        UserStatus status
+        string status
+        boolean isActive
     }
 ```
 
-### 7.4 Class Diagram — Domain Model
-
-> Lược đồ lớp các thực thể nghiệp vụ chính (rút gọn từ Prisma model — chỉ thuộc tính tiêu biểu).
+### 7.4 Class diagram — Domain model
 
 ```mermaid
 classDiagram
@@ -428,8 +432,6 @@ classDiagram
         +Boolean isEmailVerified
         +int loginCount
         +DateTime avatarFrameUntil
-        +login() Session
-        +verifyEmail()
     }
     class Movie {
         +String id
@@ -441,9 +443,6 @@ classDiagram
         +int viewCount
         +Float rating
         +DateTime publishedAt
-        +publish()
-        +archive()
-        +incrementView()
     }
     class Episode {
         +String id
@@ -451,7 +450,6 @@ classDiagram
         +int episodeNumber
         +String streamType
         +String streamUrl
-        +String quality
     }
     class VideoSource {
         +String id
@@ -464,20 +462,16 @@ classDiagram
         +String id
         +String userId
         +String movieId
-        +Float rating
+        +int rating
         +String content
         +String status
         +int likeCount
         +Boolean isSpoiler
-        +approve()
-        +reject()
     }
     class Wallet {
         +String id
         +String userId
         +int balance
-        +credit(amount)
-        +debit(amount)
     }
     class WalletTransaction {
         +String id
@@ -485,38 +479,36 @@ classDiagram
         +String direction
         +int amount
         +int balanceAfter
-        +String status
     }
     class TopupOrder {
         +String id
-        +String userId
-        +int amount
+        +String code
+        +int amountVnd
+        +int coinAmount
         +String transferContent
-        +PaymentStatus status
+        +String status
     }
     class WatchPartyRoom {
         +String id
         +String roomCode
-        +String hostId
+        +String hostUserId
         +String movieId
-        +RoomStatus status
-        +createRoom()
-        +join(user)
-        +syncPlayback(state)
+        +String status
     }
     class WatchPartyParticipant {
         +String id
         +String roomId
-        +PartyMemberRole role
+        +String role
+        +String status
     }
     class WatchHistory {
         +String id
         +String userId
         +String movieId
-        +int progress
+        +Float progress
+        +int currentTime
         +int duration
-        +Boolean completed
-        +saveProgress()
+        +Boolean isCompleted
     }
 
     User "1" --> "1" Wallet : owns
@@ -531,12 +523,10 @@ classDiagram
     Movie "1" --> "*" WatchHistory : watched in
     Episode "1" --> "*" VideoSource : has
     WatchPartyRoom "1" --> "*" WatchPartyParticipant : has
-    WatchPartyRoom "1" --> "1" Movie : plays
+    WatchPartyRoom "*" --> "0..1" Movie : plays
 ```
 
-### 7.5 Class Diagram — Tầng kiến trúc (Controller / Service / Repository)
-
-> Mẫu phân tầng áp dụng cho mọi module backend trong `src/be/modules/<domain>`.
+### 7.5 Class diagram — Tầng kiến trúc
 
 ```mermaid
 classDiagram
@@ -544,6 +534,11 @@ classDiagram
         <<route.ts>>
         +GET(req) Response
         +POST(req) Response
+    }
+    class Guard {
+        <<src/be/shared/guards>>
+        +requireAuth(permission?)
+        +requireAdmin(permission?)
     }
     class Controller {
         <<HTTP boundary>>
@@ -561,95 +556,86 @@ classDiagram
     }
     class PrismaClient {
         <<ORM>>
-        +query()
     }
     class RealtimeNotifier {
         +notifyRoom(room, event, payload)
         +notifyAdmins(event, payload)
     }
 
+    ApiRoute --> Guard : checks
     ApiRoute --> Controller : delegates
     Controller --> Service : calls
     Service --> Repository : uses
     Service ..> RealtimeNotifier : emits events
     Repository --> PrismaClient : persists
-    PrismaClient --> PostgreSQL : SQL
-
-    class MovieService {
-        +getMovieList(params)
-        +getMovieBySlug(slug)
-        +getHomeData()
-        +getTrendingMovies()
-    }
-    class TCoinService {
-        +getWallet(userId)
-        +claimDailyCheckin(userId)
-        +spendTcoins(userId, optionId)
-        +adminAdjust(userId, amount)
-    }
-    class WatchPartyService {
-        +createRoom(hostId, movieId)
-        +joinRoom(roomCode, userId)
-        +syncState(roomCode, state)
-    }
-    class PaymentsService {
-        +processSePayWebhook(payload) WebhookResult
-    }
-    Service <|-- MovieService
-    Service <|-- TCoinService
-    Service <|-- WatchPartyService
-    Service <|-- PaymentsService
 ```
 
 ---
 
 ## 8. Danh mục API
 
-> Tất cả handler trong `app/api/**/route.ts` đều mỏng và uỷ thác cho controller ở `src/be/modules`.
+> 🔓 công khai · 👤 cần đăng nhập · 🛡️ cần quyền quản trị. Postman collection:
+> [TERENCE_Postman_Collection.json](TERENCE_Postman_Collection.json) (biến `baseUrl = http://localhost:3000/api`).
 
 <details>
-<summary><strong>📡 Public — /api/v1</strong></summary>
+<summary><strong>📡 Phim, tìm kiếm, nội dung — /api/v1 & khác</strong></summary>
 
-| Path | Mô tả |
-|------|-------|
-| `GET /api/v1/home` | Dữ liệu trang chủ |
-| `GET /api/v1/movies` · `/[slug]` · `/[slug]/episodes` · `/[slug]/playback` | Danh sách / chi tiết / tập / playback |
-| `GET /api/v1/movies/trending-stats` · `/most-liked` · `/recommendations` | Bảng xếp hạng & gợi ý |
-| `POST /api/v1/movies/[slug]/report` | Báo lỗi phim |
-| `GET /api/v1/search` · `/search/suggest` | Tìm kiếm + gợi ý |
-| `GET/POST /api/v1/reviews` · `/[id]/like` · `/recent` · `/top` · `/movies/[slug]/reviews` | Đánh giá |
-| `… /api/v1/watch-history` (`/bootstrap` `/progress` `/continue` `/complete` `/sync` `/[id]`) | Lịch sử & tiến trình xem |
-| `GET /api/v1/notifications` · `/read-all` | Thông báo |
-| `POST /api/v1/analytics/track` | Ghi page/movie view + broadcast realtime |
+| Path | Quyền | Mô tả |
+|------|:-:|-------|
+| `GET /api/v1/home` | 🔓 | Dữ liệu trang chủ |
+| `GET /api/v1/movies` · `/[slug]` · `/[slug]/episodes` · `/[slug]/playback` | 🔓 | Danh sách / chi tiết / tập / nguồn phát |
+| `GET /api/v1/movies/trending-stats` · `/most-liked` · `/recommendations` | 🔓 | Xếp hạng & gợi ý (cá nhân hoá khi đăng nhập) |
+| `POST /api/v1/movies/[slug]/report` | 🔓 | Báo lỗi phim |
+| `GET /api/v1/search` · `/search/suggest` | 🔓 | Tìm kiếm + autocomplete (rate-limit 20/phút) |
+| `GET /api/v1/shorts` (`tab`, `seed`, `skip`, `limit`, `movieId`) · `GET /api/v1/shorts/[id]` | 🔓 | Feed Shorts · một video |
+| `POST /api/v1/shorts/[id]/view` · `/share` · `GET /[id]/comments` | 🔓 | Đếm lượt xem / chia sẻ · danh sách bình luận |
+| `POST /api/v1/shorts/[id]/like` · `POST /[id]/comments` · `DELETE /[id]/comments/[commentId]` | 👤 | Thích (bật/tắt) · bình luận · xoá bình luận |
+| `GET /api/v1/thumbnails` | 🔓 | Thumbnail |
+| `GET /api/v1/reviews` · `/recent` · `/top` · `/movies/[slug]/reviews` | 🔓 | Danh sách đánh giá |
+| `POST /api/v1/reviews` · `/reviews/[id]/like` | 👤 | Viết / like đánh giá |
+| `GET/POST /api/v1/favorites` | 👤 | Danh sách / bật-tắt yêu thích |
+| `… /api/v1/watch-history` (`/bootstrap` `/progress` `/continue` `/complete` `/sync` `/[id]`) | 👤 | Lịch sử & tiến trình xem |
+| `GET /api/v1/notifications` · `POST /read-all` | 👤 | Thông báo |
+| `POST /api/v1/analytics/track` | 🔓 | Ghi page/movie view + broadcast realtime |
+| `GET /api/news` · `/news/category` · `/news/related` · `/news/search` | 🔓 | Tin tức |
+| `GET /api/movies/upcoming` | 🔓 | Phim sắp chiếu |
+| `GET /api/ads/active` · `POST /api/ads/events` | 🔓 | Quảng cáo đang chạy · ghi impression |
+| `GET/PATCH /api/user/profile` · `POST /api/user/profile/avatar` | 👤 | Hồ sơ |
+| `GET /api/hls-proxy` · `/api/tmdb-image/[id]` · `/api/health` | 🔓 | Proxy HLS (whitelist host) · ảnh TMDB · health check |
 
 </details>
 
 <details>
 <summary><strong>🔐 Auth — /api/auth</strong></summary>
 
-`[...nextauth]` · `POST /register` · `POST /verify-email` · `POST /forgot-password` · `POST /reset-password`
+`[...nextauth]` (credentials + Google) · `POST /register` · `GET/POST /verify-email` ·
+`POST /forgot-password` · `POST /reset-password`. Đăng nhập, đăng ký, quên/đặt lại mật khẩu đều có rate-limit.
 
 </details>
 
 <details>
 <summary><strong>💰 TCoin & Payments</strong></summary>
 
-| Path | Mô tả |
-|------|-------|
-| `GET /api/tcoin/overview` · `/wallet` · `/transactions` · `/my-perks` | Ví & lịch sử |
-| `POST /api/tcoin/spend` · `/reward/daily-checkin` · `/reward/verify-email` | Tiêu / kiếm TCoin |
-| `POST /api/tcoin/topup/create-bank-order` · `GET/DELETE /api/tcoin/order/[id]` | Đơn nạp |
-| `POST /api/payments/sepay/create` · `GET /status/[id]` · `POST /webhook` | VietQR + SePay |
-| `POST /api/webhooks/sepay` | Webhook ngân hàng (đường dẫn phụ) |
-| `GET /api/cron/expire-orders` · `/reconcile-orders` | Cron đối soát đơn |
+| Path | Quyền | Mô tả |
+|------|:-:|-------|
+| `GET /api/tcoin/overview` | 🔓 | Gói nạp, perks, quy tắc kiếm (kèm số dư nếu đăng nhập) |
+| `GET /api/tcoin/wallet` · `/transactions` · `/my-perks` | 👤 | Ví & lịch sử |
+| `POST /api/tcoin/spend` · `/reward/daily-checkin` · `/reward/verify-email` | 👤 | Tiêu / kiếm TCoin |
+| `POST /api/tcoin/topup/create-bank-order` · `GET/DELETE /api/tcoin/order/[code]` | 👤 | Đơn nạp |
+| `POST /api/payments/sepay/create` · `GET /status/[id]` | 👤 | Tạo QR · trạng thái đơn |
+| `POST /api/payments/sepay/webhook` · `POST /api/webhooks/sepay` | 🔑 | Webhook ngân hàng (xác thực API key SePay) |
+| `GET/POST /api/cron/expire-orders` · `/reconcile-orders` | 🔑 | Cron đối soát (Bearer `CRON_SECRET`) |
 
 </details>
 
 <details>
-<summary><strong>🎉 Watch Party</strong></summary>
+<summary><strong>🎉 Watch Party — /api/watch-party</strong></summary>
 
-`POST /create` · `/join` · `/leave` · `GET /[roomCode]` · `/[roomCode]/messages` ·
-`POST /[roomCode]/sync` · `/role` · `/request` · `/approve` · `GET /api/livekit/token`
+`GET /` (phòng đang mở) · `POST /create` · `POST /join` · `POST /leave` · `GET/PATCH /[roomCode]` ·
+`GET/POST /[roomCode]/messages` · `GET/POST /[roomCode]/sync` · `POST /[roomCode]/role` ·
+`POST /[roomCode]/request` · `POST /[roomCode]/approve` · `GET/POST /api/livekit/token`.
+Khách chưa đăng nhập vẫn tạo/tham gia được; danh tính người dùng luôn lấy từ session, không tin `userId` gửi lên.
+Token LiveKit chỉ cấp cho participant đang hoạt động của đúng phòng.
 
 </details>
 
@@ -658,23 +644,26 @@ classDiagram
 
 | Path | Mô tả |
 |------|-------|
-| `GET /summary` · `/sync/summary` · `/sync/logs` | Dashboard & sync stats |
-| `GET/POST /movies` · `… /[id]` · `/[id]/{publish,hide,archive,restore,feature,trending,recommend}` · `/movies/reports` | Quản lý phim |
-| `GET/POST /episodes` · `/[id]` · `/video-sources` · `/subtitles` | Tập & nguồn |
-| `GET/POST /users` · `/[id]` · `/[id]/{block,unblock,reset-password,permissions,restore}` | Người dùng |
-| `GET/POST /genres` · `/countries` · `/news` (`/[id]` `/ai-generate`) · `/ads` (`/[id]`) | Metadata, tin, ads |
-| `GET/PATCH /reviews` · `/reviews/[id]` | Duyệt review |
-| `POST /uploads` (`/movie-poster` `/movie-backdrop` `/movie-thumbnail` `/movie-media`) | Upload |
+| `GET /summary` · `/reports` · `/search` · `/sync/summary` · `/sync/logs` | Dashboard, báo cáo, tìm kiếm nhanh, thống kê sync |
+| `GET/POST /movies` · `GET/PUT/DELETE /movies/[id]` · `POST /movies/[id]/{publish,hide,archive,restore,feature,trending,recommend}` · `GET /movies/reports` | Quản lý phim |
+| `GET/POST /episodes` · `GET/PUT/DELETE /episodes/[id]` · `/video-sources` · `/subtitles` | Tập, nguồn, phụ đề |
+| `GET/POST /users` · `GET/PUT/PATCH/DELETE /users/[id]` · `POST /users/[id]/{block,unblock,reset-password,restore}` · `GET/PUT /users/[id]/permissions` | Người dùng |
+| `GET/POST /genres` · `/countries` (+ `PATCH/DELETE /[id]`) | Metadata |
+| `GET/POST /news` · `GET/PATCH/DELETE /news/[id]` · `POST /news/ai-generate` | Tin tức |
+| `GET/POST /shorts` · `PATCH/DELETE /shorts/[id]` · `POST /shorts/verify` · `POST /shorts/sync` (`{ source: tmdb \| youtube \| catalog \| all, limit, perMovie }`) | Shorts |
+| `GET/POST /ads` · `GET/PATCH/DELETE /ads/[id]` | Quảng cáo |
+| `GET /reviews` · `PATCH /reviews/[id]` (`{ action: "approve" \| "reject" }`) | Kiểm duyệt |
+| `GET/POST /uploads` · `POST /uploads/{movie-poster,movie-backdrop,movie-thumbnail,movie-media}` | Upload |
 | `POST /sync/ophim/catalog` · `/sync/ophim/movie/[slug]` · `/sync/tmdb/[movieId]` · `/sync/elastic/[movieId]` · `/sync/validate-sources` | Pipeline |
-| `GET /elastic/health` · `POST /elastic/reindex` · `/search` | Elasticsearch |
-| `GET/POST /tcoin/wallets` · `/payments` · `/adjust` · `/refund` · `/orders/[id]/confirm` · `/users/[id]/transactions` | TCoin admin |
-| `GET /logs` · `/reports` · `/settings` · `/redis` · `/notifications` · `POST /notifications/broadcast` | Vận hành |
+| `GET /elastic/health` · `POST /elastic/reindex` | Elasticsearch |
+| `GET /tcoin/wallets` · `/tcoin/payments` · `/tcoin/users/[id]/transactions` · `POST /tcoin/adjust` · `/tcoin/refund` · `/tcoin/orders/[id]/confirm` | TCoin |
+| `GET /logs` · `GET/POST /settings` · `GET/POST /redis` · `GET /notifications` · `POST /notifications/broadcast` | Vận hành |
 
 </details>
 
 ---
 
-## 9. Luồng nghiệp vụ chính (Sequence)
+## 9. Luồng nghiệp vụ chính
 
 ### 9.1 Xem phim + lưu tiến trình
 
@@ -690,16 +679,14 @@ sequenceDiagram
 
     U->>FE: Mở chi tiết phim
     FE->>API: GET /movies/{slug}
-    API->>SV: getMovieBySlug
-    SV->>DB: SELECT movie + genres + cast + episodes
+    API->>DB: movie + genres + cast + episodes
     DB-->>FE: Movie detail
     U->>FE: Nhấn "Xem phim"
     FE->>API: GET /movies/{slug}/playback
-    API->>SV: getPlayback(userId)
-    SV->>DB: episodes + sources + watch progress
-    DB-->>FE: streamUrl + progress
+    API->>SV: resolve nguồn (DB → OPhim → demo/trailer)
+    SV-->>FE: streamUrl + tiến trình đã lưu
     FE->>HLS: init adaptive stream (auto-resume)
-    loop Mỗi ~30s
+    loop Định kỳ khi đang xem
         FE->>API: POST /watch-history/progress
         API->>DB: UPSERT WatchHistory
     end
@@ -718,103 +705,142 @@ sequenceDiagram
     participant DB as PostgreSQL
     participant LK as LiveKit
 
-    H->>API: POST /create {movieId}
-    API->>DB: INSERT WatchPartyRoom + State
-    API-->>H: roomCode
-    G->>API: POST /join {roomCode}
+    H->>API: POST /create {title, movieId, displayName}
+    API->>DB: INSERT WatchPartyRoom + State + host Participant
+    API-->>H: room.code + participant.id
+    G->>API: POST /join {roomCode, displayName}
     API->>DB: INSERT Participant
     SIO-->>H: participant:joined
     H->>SIO: playback:sync (play/pause/seek)
-    SIO->>DB: UPDATE WatchPartyState (throttle ~5s)
+    SIO->>DB: UPDATE WatchPartyState (throttle)
     SIO-->>G: playback:sync broadcast
     G->>SIO: message:send
     SIO->>DB: INSERT WatchPartyMessage
     SIO-->>H: message:new
-    H->>LK: GET /api/livekit/token → connect
-    G->>LK: join → audio/video stream
+    H->>API: POST /api/livekit/token {roomId, userId: participantId}
+    H->>LK: connect
+    G->>LK: join → audio/video
 ```
 
-### 9.3 Đăng nhập (Activity)
+### 9.3 Đăng nhập
 
 ```mermaid
 flowchart TD
     A([Bắt đầu]) --> B[Nhập email & mật khẩu]
-    B --> C{Validate?}
-    C -->|Sai| B
-    C -->|OK| D[POST /api/auth]
-    D --> E{Tồn tại?}
-    E -->|Không| B
-    E -->|Có| F{Bị khoá?}
-    F -->|BANNED/SUSPENDED| B
-    F -->|ACTIVE| G[So khớp bcrypt]
-    G -->|Sai| B
-    G -->|Đúng| H[Tạo session cookie] --> I([Vào trang chủ])
+    B --> C{Vượt rate-limit?}
+    C -->|Có| R[Báo thử lại sau 1 phút] --> B
+    C -->|Không| D{Tồn tại & đúng mật khẩu?}
+    D -->|Không| E[Thông báo chung: thông tin không chính xác] --> B
+    D -->|Có| F{Tài khoản bị khoá?}
+    F -->|Có| G[Báo tài khoản bị khoá] --> B
+    F -->|Không| H[Tạo JWT session<br/>role + permissions] --> I([Vào trang chủ])
 ```
 
----
+Session được kiểm tra lại trạng thái tài khoản ở mỗi lần đọc: user bị khoá sẽ mất phiên ngay, đổi
+role có hiệu lực mà không cần đăng nhập lại.
 
-## 10. Use Case & User Story
+### 9.4 Use case
 
 ```mermaid
 graph LR
-    USER["👤 User"] --- A1["Đăng ký/Đăng nhập"]
-    USER --- M1["Duyệt/Tìm kiếm"] & M4["Xem phim"] & M5["Xem tiếp"]
-    USER --- S1["Đánh giá"] & S3["Watch Party"] & S4["Voice/Video Call"]
-    USER --- T1["Kiếm/Tiêu TCoin"] & T2["Nạp VietQR"]
-    ADMIN["🛡️ Admin"] --- AD1["CRUD Phim/Tập"] & AD2["Quản lý User"] & AD3["Duyệt Review"]
-    ADMIN --- AD4["Tin tức/Ads"] & AD5["Sync dữ liệu"] & AD6["Audit Log"] & AD7["Quản lý TCoin"]
-    S3 -.includes.-> S4
+    GUEST["👀 Khách"] --- G1["Duyệt / tìm kiếm"] & G2["Xem phim"] & G3["Tham gia Watch Party"]
+    USER["👤 Thành viên"] --- U1["Xem tiếp / yêu thích"] & U2["Đánh giá"] & U3["Kiếm / tiêu / nạp TCoin"] & U4["Tạo Watch Party + call"]
+    EDITOR["✏️ Editor"] --- E1["Sửa phim / tập"] & E2["Viết tin tức"]
+    STAFF["🧰 Staff"] --- S1["Tạo phim / tập"] & S2["Thể loại / quốc gia"] & S3["Upload"]
+    ADMIN["🛡️ Admin"] --- A1["Publish / ẩn phim"] & A2["Quản lý user"] & A3["Kiểm duyệt review"] & A4["TCoin / Ads / Broadcast"] & A5["Sync / Audit"]
+    SUPER["👑 Super Admin"] --- SA1["Xoá phim / user"] & SA2["Cài đặt hệ thống"]
 ```
 
-| Mã | Actor | User Story |
-|----|-------|-----------|
-| US-01 | Guest/User | Duyệt & tìm phim qua bộ lọc + search để tìm phim phù hợp |
-| US-02 | User | Xem phim HLS mượt, tự resume vị trí cũ |
-| US-03 | User | Tạo Watch Party, chia sẻ room code, xem đồng bộ + chat + call |
-| US-04 | User | Đánh giá phim; review hiển thị sau khi admin duyệt |
-| US-05 | User | Kiếm TCoin từ hoạt động, nạp thêm qua VietQR, tiêu đổi perks |
-| US-06 | Admin/Staff | CRUD kho phim, publish/hide/archive, upload media |
-| US-07 | Admin | Trigger sync OPhim → enrich TMDB tự động |
-| US-08 | Admin/Staff | Duyệt review (approve/reject/flag) kèm audit log |
+---
+
+## 10. Realtime: Socket.IO & LiveKit
+
+- **Custom server** ([server.ts](server.ts)) chạy Next.js + Socket.IO trên cùng process, path
+  `/api/socketio`. Dev có realtime: `npm run dev:socket`.
+- **Xác thực socket**: cookie NextAuth được giải mã ở handshake ([src/be/shared/realtime/socket-auth.ts](src/be/shared/realtime/socket-auth.ts)).
+- **Sự kiện** ([src/be/shared/realtime/notify.ts](src/be/shared/realtime/notify.ts), `RT_EVENTS`):
+  - Watch Party: `playback:sync`, `message:new`, `participant:joined/left`, role / request / approve.
+  - Thông báo người dùng & admin, toast khi nạp TCoin thành công.
+  - **Live view-count**: phát tới admin, phòng phim `movie:{id}` và Top View.
+- **Redis**: lưu rate-limit & cache dùng chung; không có Redis thì tự rơi về bộ nhớ trong process.
+- **LiveKit**: voice/video trong phòng; dev offline dùng `docker-compose.dev-services.yml`.
 
 ---
 
-## 11. Realtime: Socket.IO & LiveKit
-
-- **Custom server** (`server.ts`) chạy Next.js + Socket.IO trên cùng process → không cần dịch vụ
-  realtime tách rời. Dev realtime: `npm run dev:socket`.
-- **Sự kiện** (xem `src/be/shared/realtime/notify.ts`, `RT_EVENTS`):
-  - Watch Party: `playback:sync`, `message:new`, `participant:joined/left`, role/request/approve.
-  - Thông báo admin & người dùng (broadcast).
-  - **Live view-count**: khi có lượt xem, `viewCount` tăng và phát tới admin, phòng phim
-    (`movie:{id}`) và Top View (`topview:listeners`).
-- **Redis (ioredis)**: pool room code cho watch party (fallback DB khi không có Redis), cache.
-- **LiveKit**: voice/video call trong phòng; token cấp qua `GET /api/livekit/token`.
-
----
-
-## 12. Data Pipeline (OPhim → TMDB)
+## 11. Data Pipeline (OPhim → TMDB)
 
 ```mermaid
 flowchart TD
     A[Admin trigger / CLI] --> B[Tạo SyncJob: RUNNING]
-    B --> C[OPhim/OPhim18/KKPhim: catalog]
+    B --> C[OPhim / OPhim18 / KKPhim: catalog]
     C --> D{Còn phim?}
-    D -->|Có| E[Fetch chi tiết → map → UPSERT Movie+Episodes+Genres+Countries]
+    D -->|Có| E[Fetch chi tiết → map → UPSERT Movie + Episodes + Genres + Countries]
     E --> F[Ghi SyncLog] --> D
     D -->|Hết| G[TMDB enrichment]
     G --> H{Match ≥ ngưỡng?}
-    H -->|Có| I[UPDATE poster/backdrop/cast/trailer + UPSERT Person]
+    H -->|Có| I[UPDATE poster / backdrop / cast / trailer + UPSERT Person]
     H -->|Không| J[SyncLog: no match]
-    I --> K[SyncJob: COMPLETED]
+    I --> K[SyncJob: COMPLETED → reindex Elasticsearch]
     J --> K
 ```
 
-- **Nguồn**: OPhim (`ophim`), OPhim18, KKPhim (`kkphim`) — client + mapper riêng.
-- **Enrichment**: `tmdb` module match theo title/year (ngưỡng tin cậy ~70%) rồi cập nhật metadata.
-- **Orchestration**: `pipeline/movie-enrichment-pipeline.ts` — lỗi TMDB **không** rollback dữ liệu OPhim.
-- **Tracking**: mọi thao tác ghi `SyncJob` + `SyncLog`. Search reindex qua Elasticsearch.
-- **CLI**: `npm run sync:ophim:catalog`, `sync:ophim18:catalog`, `enrich:tmdb`, `pipeline:movie`, `elastic:reindex`.
+- **Nguồn**: `ophim` (OPhim + OPhim18) và `kkphim` — client + mapper riêng từng nguồn.
+- **Enrichment**: module `tmdb` so khớp theo tiêu đề/năm (ngưỡng tin cậy ~70%).
+- **Orchestration**: [src/be/modules/pipeline/movie-enrichment-pipeline.ts](src/be/modules/pipeline/movie-enrichment-pipeline.ts) — lỗi TMDB không rollback dữ liệu nguồn.
+- **CLI**: xem Mục 18.
+
+---
+
+## 12. Shorts (video ngắn kiểu TikTok)
+
+Trang `/shorts` là feed video ngắn cuộn dọc giống TikTok / Facebook Reels, gắn với kho phim.
+
+**Trải nghiệm người xem**
+
+- Mỗi màn hình một video, cuộn/vuốt dọc có snap; chỉ video đang hiển thị được phát (các video khác chỉ hiện ảnh bìa → nhẹ máy).
+- Chạm để dừng/phát, **chạm đúp để thả tim** (hiệu ứng tim bay), nút bật/tắt tiếng (ghi nhớ lựa chọn), thanh tiến trình.
+- Cột tác vụ: ảnh phim (mở trang giới thiệu), ❤️ thích, 💬 bình luận (bottom sheet trên mobile, panel bên phải trên desktop), ↗ chia sẻ (Web Share API / sao chép link).
+- Nút **Xem phim đầy đủ** mở player; tên phim mở trang giới thiệu. Trang giới thiệu phim cũng có hàng "Shorts" của phim đó.
+- 3 tab: **Dành cho bạn** (xáo trộn theo seed riêng mỗi lượt truy cập — phân trang không lặp), **Mới nhất**, **Phổ biến**.
+- Cuộn vô hạn; phím tắt `↑/↓` hoặc `J/K` chuyển video, `Space` dừng, `M` tắt tiếng.
+- URL theo video đang xem (`/shorts?v=<id>`) để chia sẻ; mở link sẽ phát đúng video đó trước (có thẻ OG title/ảnh).
+- Lượt xem chỉ tính khi xem ≥ 3 giây, mỗi IP tối đa 1 lần / 10 phút / video. Video YouTube bị chặn nhúng sẽ hiện thông báo kèm link mở trên YouTube.
+
+**Nguồn video (API)**
+
+| Nguồn | Cấu hình | Nội dung |
+|-------|----------|----------|
+| **TMDB Videos API** | `TMDB_READ_ACCESS_TOKEN` / `TMDB_API_KEY` (đã dùng sẵn cho metadata) | Clip, teaser, hậu trường, trailer chính thức của từng phim (ưu tiên tiếng Việt, rồi clip/teaser trước trailer) — YouTube 16:9, hiển thị trên nền mờ |
+| **YouTube Data API v3** | `YOUTUBE_API_KEY` (tuỳ chọn) | Shorts dọc 9:16 thật, tìm theo `"<tên phim> <năm> #shorts"`, `videoDuration=short`, vùng VN; lọc theo tên phim. Mỗi phim tốn 100 quota (mặc định 10.000/ngày ≈ 100 phim) |
+| **Trailer trong kho** | Không cần | `Movie.trailerKey` có sẵn từ OPhim/KKPhim |
+| **Thủ công** | Dashboard | Link YouTube (watch / shorts / youtu.be), MP4 hoặc HLS (`.m3u8`, phát bằng hls.js) |
+
+Video trùng được loại bằng khoá `externalId` (`yt:<id>`); video YouTube bị chủ kênh chặn nhúng được phát hiện qua
+oEmbed (không cần key) và bỏ qua khi nhập — `npm run shorts:sync -- --verify` / nút "Kiểm tra video hỏng" quét lại và ẩn
+các video đã hỏng. Trên feed, video không phát được sẽ tự chuyển sang video kế tiếp. Lấy YouTube API key: Google Cloud Console →
+bật **YouTube Data API v3** → Credentials → *Create API key* → thêm `YOUTUBE_API_KEY=...` vào `.env`.
+
+**Nhập dữ liệu**
+
+```bash
+npm run shorts:sync                          # TMDB + trailer kho (+ YouTube nếu có key), 50 phim chưa có Shorts
+npm run shorts:sync -- --limit=200 --perMovie=3
+npm run shorts:sync -- --source=youtube      # chỉ YouTube #shorts
+npm run shorts:sync -- --all                 # quét lại cả phim đã có Shorts
+npm run shorts:sync -- --verify              # ẩn video YouTube không còn nhúng được
+```
+
+Docker: đặt `SYNC_SHORTS_ON_START=true` (và `SHORTS_SYNC_MOVIES`, mặc định 100) để tự nhập khi container khởi động.
+
+**Quản trị** — `/dashboard/shorts` (quyền `short.manage`: Super Admin, Admin, Staff, Editor): thống kê lượt
+xem/thích, nút nhập từ từng nguồn API, thêm video thủ công (chọn phim liên kết, hashtag, khung dọc/ngang,
+nháp/hiển thị), lọc theo trạng thái/nguồn, tìm kiếm, ẩn/hiện, xoá, xem trước. Người có quyền này cũng xoá được
+bình luận của người khác; người dùng thường chỉ xoá bình luận của mình.
+
+**Mã nguồn**: [src/be/modules/shorts/](src/be/modules/shorts/) (`shorts.providers.ts` nguồn API,
+`shorts.service.ts` feed/tương tác/đồng bộ, `shorts.controller.ts` HTTP) ·
+[src/fe/components/shorts/](src/fe/components/shorts/) (`ShortsFeed`, `ShortPlayer` — YouTube IFrame API / `<video>` / hls.js, `ShortComments`) ·
+[app/dashboard/shorts/page.tsx](app/dashboard/shorts/page.tsx).
 
 ---
 
@@ -829,124 +855,158 @@ sequenceDiagram
     participant DB as PostgreSQL
     participant SP as SePay (bank)
 
-    U->>API: POST /tcoin/topup/create-bank-order {amount}
-    API->>DB: INSERT TopupOrder (PENDING) + transferContent (TCOIN_xxx)
-    API-->>FE: QR VietQR + nội dung chuyển khoản
+    U->>API: POST /tcoin/topup/create-bank-order {packageId}
+    API->>DB: INSERT TopupOrder (PENDING, hết hạn sau 15 phút)
+    API-->>FE: QR VietQR + nội dung chuyển khoản TCOIN_xxx
     U->>SP: Chuyển khoản theo QR
-    SP->>API: POST /api/payments/sepay/webhook
-    API->>DB: BankWebhookLog + match order (chuẩn hoá memo, bỏ "_")
-    API->>DB: Wallet CREDIT + WalletTransaction + order COMPLETED
-    API-->>U: Email xác nhận + cộng TCoin
-    loop Polling FE (tạm dừng khi tab ẩn)
+    SP->>API: POST /api/payments/sepay/webhook (API key)
+    API->>DB: BankWebhookLog + khớp đơn (chuẩn hoá nội dung, bỏ "_")
+    API->>DB: Wallet CREDIT + WalletTransaction + order PAID
+    API-->>U: Email + toast realtime
+    loop Polling (tạm dừng khi tab ẩn)
         FE->>API: GET /payments/sepay/status/[id]
     end
 ```
 
-- **Idempotent webhook** (lưu `BankWebhookLog`), khớp đơn theo `transferContent`; ngân hàng có thể
-  lược ký tự `_` trong nội dung nên hệ thống **chuẩn hoá** trước khi so khớp.
-- Hai đường xác nhận: **webhook** (tức thời) + **polling** trạng thái phía FE.
-- Cron `expire-orders` / `reconcile-orders` dọn đơn quá hạn & đối soát.
+- `packageId` là id của bản ghi `TCoinPackage` (lấy từ `GET /api/tcoin/overview`).
+- Webhook **idempotent**: gửi lại cùng giao dịch không cộng tiền hai lần.
+- Ngân hàng có thể lược ký tự `_` trong nội dung nên hệ thống chuẩn hoá trước khi so khớp.
+- Cron `expire-orders` / `reconcile-orders` dọn đơn quá hạn và đối soát.
+- **Demo local** (SePay không gọi được localhost): `npm run demo:pay -- <MÃ_ĐƠN>` gửi đúng payload
+  webhook để đánh dấu đơn đã thanh toán.
 
 ---
 
-## 14. Cài đặt & Chạy local
+## 14. Bảo mật
+
+| Hạng mục | Cách làm |
+|----------|----------|
+| Mật khẩu | bcryptjs, tối thiểu 8 ký tự; token đặt lại mật khẩu ngẫu nhiên 32 byte, hết hạn 1 giờ |
+| Brute-force | Rate-limit: đăng nhập 10 lần/phút theo IP+email; đăng ký / quên / đặt lại mật khẩu 5 lần/phút theo IP; tìm kiếm 20 lần/phút |
+| Dò email | Đăng nhập trả thông báo chung; quên mật khẩu luôn trả cùng một thông điệp |
+| Phân quyền | `requireAdmin('<quyền>')` ở mọi API quản trị; UI ẩn chức năng không đủ quyền |
+| Khu vực quản trị | `proxy.ts` chặn khi thiếu cookie phiên; kiểm tra `Origin/Referer` (CSRF) cho POST/PUT/PATCH/DELETE |
+| Phiên | JWT 30 ngày, kiểm tra lại trạng thái khoá / role ở mỗi lần đọc session |
+| Webhook / cron | Xác thực API key SePay; cron yêu cầu `Authorization: Bearer $CRON_SECRET` |
+| Input | Zod validate ở biên API; nội dung tin tức hiển thị dạng text đã escape (HTML từ trình soạn thảo được chuyển thành đoạn văn) |
+| Socket.IO | CORS theo `ALLOWED_ORIGINS` ở production; xác thực cookie ở handshake |
+
+Báo cáo lỗ hổng: xem [SECURITY.md](SECURITY.md).
+
+---
+
+## 15. Cài đặt & chạy local
 
 ### Yêu cầu
-- **Node.js** ≥ 18, **npm** ≥ 9
-- **PostgreSQL** đang chạy (local hoặc cloud)
-- (Tuỳ chọn) Redis, Elasticsearch, TMDB key, LiveKit, SePay/VietQR, SMTP
+
+- **Node.js ≥ 20.9** (yêu cầu của Next.js 16), npm ≥ 10
+- **Docker** (khuyến nghị) để chạy PostgreSQL, Redis, Elasticsearch, Mailpit — hoặc tự cài PostgreSQL
+- (Tuỳ chọn) TMDB key, LiveKit, SePay/VietQR, Google OAuth, GNews/Gemini
 
 ### Cài đặt
 
 ```bash
-git clone <repo-url> && cd TERENCE-main
-npm install                       # postinstall tự chạy `prisma generate`
-cp .env.example .env              # điền DATABASE_URL (PostgreSQL) + các key
+git clone <repo-url> && cd TERENCE
+npm install                        # postinstall tự chạy `prisma generate`
+cp .env.example .env               # điền NEXTAUTH_SECRET và các key cần dùng
 
-# Tạo schema vào DB bằng migration (baseline đầy đủ 42 bảng):
-npm run db:deploy
-# DB cũ tạo bằng `db push` (chưa có lịch sử migration) → đánh dấu baseline một lần:
-#   npx prisma migrate resolve --schema=src/dta/prisma/schema.prisma --applied 20261006000000_baseline
+# Dịch vụ nền (PostgreSQL :5433, Redis :6379, Elasticsearch :9200, Mailpit :1025/:8025)
+docker compose up -d db redis elasticsearch mailpit
 
-npm run db:seed                   # seed admin, phim mẫu…
+npm run db:deploy                  # áp migration (45 bảng)
+npm run db:seed                    # tài khoản mẫu, thể loại, quốc gia, phim mẫu
+npm run search:reindex             # (tuỳ chọn) đẩy dữ liệu sang Elasticsearch
+npm run shorts:sync                # (tuỳ chọn) nhập video Shorts từ TMDB / trailer kho
 ```
+
+> DB cũ tạo bằng `prisma db push` (chưa có lịch sử migration) → đánh dấu baseline một lần:
+> `npx prisma migrate resolve --schema=src/dta/prisma/schema.prisma --applied 20261006000000_baseline`
 
 ### Chạy
 
 ```bash
-npm run dev          # Next.js dev (KHÔNG có Socket.IO)
-npm run dev:socket   # Custom server có Socket.IO (watch party) → http://localhost:3000
-npm run build && npm start   # Production
+npm run dev:socket   # Next.js + Socket.IO (đầy đủ watch party) → http://localhost:3000
+npm run dev          # chỉ Next.js dev (không có Socket.IO)
+npm run build && NODE_ENV=production npx tsx server.ts   # chạy bản production có Socket.IO
 ```
 
-### Tài khoản seed
+Email (xác minh, đặt lại mật khẩu, hoá đơn) ở local được Mailpit bắt lại: http://localhost:8025.
 
-| Email | Mật khẩu | Quyền |
-|-------|----------|-------|
-| `admin@terence.vn` | `Admin@12345` | Super Admin |
-| `staff@terence.vn` | `Staff@12345` | Staff |
-| `user@terence.vn` | `User@12345` | User |
+### Tài khoản seed (chỉ local/dev)
 
-> Mật khẩu trên chỉ dùng khi chạy **local/dev**. Ở production, đặt `SEED_ADMIN_PASSWORD`,
-> `SEED_STAFF_PASSWORD`, `SEED_USER_PASSWORD`; nếu bỏ trống, seed tự sinh mật khẩu ngẫu nhiên và in ra log
-> một lần. Seed chỉ **tạo mới** tài khoản, không bao giờ ghi đè mật khẩu/role của user đã có.
-> `SEED_ON_START` mặc định `false` — chỉ bật cho lần khởi động đầu tiên.
+| Email | Mật khẩu | Role |
+|-------|----------|------|
+| `admin@terence.vn` | `Admin@12345` | SUPER_ADMIN |
+| `staff@terence.vn` | `Staff@12345` | STAFF |
+| `editor@terence.vn` | `Staff@12345` | EDITOR |
+| `user@terence.vn` | `User@12345` | USER |
 
----
-
-## 15. Biến môi trường
-
-> Tham chiếu `.env.example`. Biến **Server-only** **không** prefix `NEXT_PUBLIC_`.
-
-| Nhóm | Biến |
-|------|------|
-| Core | `DATABASE_URL`, `DIRECT_URL`, `NODE_ENV`, `PORT`, `HOSTNAME`, `LOG_LEVEL` |
-| Auth | `NEXTAUTH_SECRET`, `NEXTAUTH_URL`, `APP_URL`, `NEXT_PUBLIC_SITE_URL`, `GOOGLE_CLIENT_ID/SECRET`, `NEXT_PUBLIC_TURNSTILE_SITE_KEY` |
-| Email (SMTP) | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `EMAIL_FROM_NAME`, `EMAIL_FROM_ADDRESS` |
-| Payments | `SEPAY_BANK_CODE`, `SEPAY_BANK_ACCOUNT`, `SEPAY_API_KEY`, `SEPAY_WEBHOOK_API_KEY`, `SEPAY_WEBHOOK_SECRET`, `VIETQR_BANK_ID`, `VIETQR_ACCOUNT_NO`, `VIETQR_ACCOUNT_NAME`, `VIETQR_TEMPLATE` |
-| TMDB | `TMDB_API_KEY`, `TMDB_READ_ACCESS_TOKEN`, `TMDB_BASE_URL`, `NEXT_PUBLIC_TMDB_IMAGE_BASE_URL` |
-| Nguồn phim | `OPHIM_BASE_URL`, `OPHIM_TIMEOUT`, `KKPHIM_BASE_URL`, `KKPHIM_TIMEOUT`, `DISABLE_OPHIM_CHECK`, `DEMO_HLS_URL` |
-| Search | `ELASTICSEARCH_HOST`, `ELASTICSEARCH_INDEX_MOVIES`, `ELASTICSEARCH_USERNAME/PASSWORD/API_KEY` |
-| Realtime / Cache | `REDIS_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`, `NEXT_PUBLIC_LIVEKIT_URL` |
-| Tin tức / AI | `GNEWS_API_KEY`, `GEMINI_API_KEY`, `GEMINI_MODEL` |
-| Khác | `CRON_SECRET`, `NEXT_PUBLIC_REGION`, `ALLOWED_ORIGINS`, `GRAPUCO_API_KEY` |
+- Production: đặt `SEED_ADMIN_PASSWORD`, `SEED_STAFF_PASSWORD`, `SEED_USER_PASSWORD`; nếu bỏ trống, seed
+  sinh mật khẩu ngẫu nhiên và in ra log một lần. Seed chỉ **tạo mới**, không ghi đè user đã có.
+- Đổi role cho một tài khoản có sẵn: `npm run user:role -- <email> ADMIN`.
 
 ---
 
-## 16. Deploy Production
+## 16. Biến môi trường
 
-### PM2 (Vultr VPS) + Nginx
+Mẫu đầy đủ: [.env.example](.env.example). Biến server-only **không** có prefix `NEXT_PUBLIC_`.
+[lib/env.ts](lib/env.ts) kiểm tra lúc khởi động: thiếu biến bắt buộc thì dừng, thiếu biến khuyến nghị thì cảnh báo.
+
+| Nhóm | Biến | Bắt buộc |
+|------|------|:-:|
+| Core | `DATABASE_URL`, `DIRECT_URL`, `NEXTAUTH_SECRET` | ✅ |
+| URL & bảo mật | `NEXTAUTH_URL`, `NEXT_PUBLIC_SITE_URL` / `APP_URL`, `CRON_SECRET`, `ALLOWED_ORIGINS` | ✅ production |
+| Logging / runtime | `NODE_ENV`, `PORT`, `HOSTNAME`, `LOG_LEVEL` | — |
+| Google OAuth | `NEXT_PUBLIC_GOOGLE_AUTH_ENABLED`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | — |
+| Email (SMTP) | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `EMAIL_FROM_NAME`, `EMAIL_FROM_ADDRESS` | — |
+| Thanh toán | `SEPAY_WEBHOOK_API_KEY` (hoặc `SEPAY_WEBHOOK_SECRET`), `SEPAY_BANK_CODE`, `SEPAY_BANK_ACCOUNT`, `SEPAY_API_KEY`, `SEPAY_API_BASE`, `VIETQR_ACCOUNT_NAME` (+ `VIETQR_BANK_ID`, `VIETQR_ACCOUNT_NO`, `VIETQR_TEMPLATE` dạng cũ) | — |
+| TMDB | `TMDB_API_KEY`, `TMDB_READ_ACCESS_TOKEN`, `TMDB_BASE_URL`, `NEXT_PUBLIC_TMDB_IMAGE_BASE_URL`, `NEXT_PUBLIC_REGION` | — |
+| Nguồn phim | `OPHIM_BASE_URL`, `OPHIM_TIMEOUT`, `OPHIM18_BASE_URL`, `OPHIM18_TIMEOUT`, `KKPHIM_BASE_URL`, `KKPHIM_TIMEOUT`, `DISABLE_OPHIM_CHECK` | — |
+| Player | `DEMO_HLS_URL`, `PUBLIC_STREAM_ALLOWED_HOSTS`, `NEXT_PUBLIC_ENABLE_RESUME`, `NEXT_PUBLIC_ENABLE_SUBTITLES` | — |
+| Search | `ELASTICSEARCH_HOST`, `ELASTICSEARCH_INDEX_MOVIES`, `ELASTICSEARCH_USERNAME`/`PASSWORD`/`API_KEY` | — |
+| Cache | `REDIS_URL` | — |
+| LiveKit | `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`, `LIVEKIT_URL`, `NEXT_PUBLIC_LIVEKIT_URL` | — |
+| Tin tức / AI | `GNEWS_API_KEY`, `GEMINI_API_KEY`, `GEMINI_MODEL` | — |
+| Shorts | `YOUTUBE_API_KEY` (tuỳ chọn — Shorts dọc từ YouTube) | — |
+| Docker boot | `SEED_ON_START`, `SEED_*_PASSWORD`, `SYNC_OPHIM_ON_START`, `SYNC_KKPHIM_ON_START`, `SYNC_SHORTS_ON_START`, `OPHIM_SYNC_PAGES`, `KKPHIM_SYNC_PAGES`, `SHORTS_SYNC_MOVIES` | — |
+
+---
+
+## 17. Deploy production
+
+### PM2 (VPS) + Nginx
 
 ```bash
-ssh root@<server-ip>
 cd /var/www && git clone <repo-url> TERENCE && cd TERENCE
-cp .env.example .env && nano .env        # điền production values
+cp .env.example .env && nano .env        # điền giá trị production
 
-npm install
-npx prisma generate
-npm run db:deploy                                          # áp migration (xem ghi chú baseline ở trên)
-SEED_ADMIN_PASSWORD='<mật khẩu mạnh>' npm run db:seed      # seed chỉ tạo mới, không ghi đè user có sẵn
+npm ci --legacy-peer-deps
+npm run db:deploy
+SEED_ADMIN_PASSWORD='<mật khẩu mạnh>' npm run db:seed
 npm run build
 
 mkdir -p logs
-pm2 start ecosystem.config.js
-pm2 save
+pm2 start ecosystem.config.js && pm2 save
 ```
 
-> Nginx reverse proxy + Cloudflare CDN đặt trước PM2. Cấu hình mẫu trong `deploy/`.
-> Socket.IO chạy chung process nên Nginx cần bật `proxy_set_header Upgrade/Connection` cho WebSocket.
+- Cập nhật phiên bản về sau: `./deploy.sh` (pull → install → migrate → build → `pm2 restart`).
+- Nginx reverse proxy (+ Cloudflare) đặt trước PM2; mẫu cấu hình ở [deploy/nginx/terence.conf](deploy/nginx/terence.conf).
+  Socket.IO chạy chung process nên Nginx phải chuyển tiếp header `Upgrade` / `Connection`.
+- Thêm domain mới thì cập nhật `ALLOWED_HOSTS` trong [proxy.ts](proxy.ts) (CSRF) và `ALLOWED_ORIGINS` (Socket.IO).
 
 ### Docker
 
 ```bash
-npm run docker:up        # docker compose up -d
-npm run docker:logs      # theo dõi log
+npm run docker:up        # docker compose up -d (db, elasticsearch, redis, mailpit, app)
+npm run docker:logs      # theo dõi log app
 npm run docker:reindex   # reindex Elasticsearch trong container
 ```
 
+Lần khởi động đầu đặt `SEED_ON_START=true` (và tuỳ chọn `SYNC_OPHIM_ON_START=true`) để seed + nạp dữ liệu.
+
 ---
 
-## 17. Scripts & Lệnh thường dùng
+## 18. Scripts
 
 ```bash
 # Dev / build
@@ -955,44 +1015,83 @@ npm run dev · dev:socket · build · start · lint
 # Database
 npm run db:generate · db:migrate · db:deploy · db:seed · db:reset
 
-# Sync dữ liệu phim
-npm run sync:ophim:catalog · sync:ophim18:catalog · sync:ophim:movie · enrich:tmdb · pipeline:movie
+# Đồng bộ dữ liệu phim
+npm run sync:ophim:catalog · sync:ophim:movie -- --slug=<slug>
+npm run sync:ophim18:catalog · sync:ophim18:movie
+npm run sync:kkphim:catalog · sync:kkphim:movie -- --slug=<slug>
+npm run enrich:tmdb · pipeline:movie
 
-# Search (Elasticsearch)
-npm run search:reindex · search:sync · search:clear · search:test
+# Tìm kiếm (Elasticsearch)
+npm run search:reindex [-- --movieId=<id>] · search:clear · search:test · search:test:tiers
+npm run search:sync-subtitles · search:sync-cast · search:enrich-real
 
-# Test
-npm test            # vitest run (26 file · 341 test)
-npm run test:watch · test:coverage
+# Shorts
+npm run shorts:sync [-- --limit=200 --perMovie=3 --source=tmdb|youtube|catalog --all]
+
+# Vận hành / demo
+npm run user:role -- <email> <ROLE>   # đổi role tài khoản
+npm run demo:pay -- <MÃ_ĐƠN>          # giả lập SePay webhook cho đơn nạp
+npm run seed:ads                      # quảng cáo mẫu
+npm run seed:demo-users · seed:demo-content · seed:demo-dashboard   # dữ liệu demo số lượng lớn
+npm run cleanup:demo-data             # xoá user demo đã seed
+npm run livekit:check                 # kiểm tra thông tin LiveKit Cloud
+
+# Kiểm thử & tài liệu
+npm test · test:watch · test:coverage · test:docker
+npm run docs:check                    # cảnh báo khi đổi code quan trọng mà chưa cập nhật README
 ```
 
 ---
 
-## 18. Coding Convention & Workflow
+## 19. Kiểm thử
 
-- **Layered, module-based**: route handler chỉ điều phối → controller (validate, HTTP) → service
-  (logic) → repository/prisma (data). Không nhét logic vào route.
-- **TypeScript strict**: `npx tsc --noEmit` phải sạch trước khi commit.
-- **Validation**: Zod ở biên controller; Forms dùng React Hook Form + resolver.
-- **Realtime**: phát sự kiện qua `src/be/shared/realtime/notify.ts` với hằng `RT_EVENTS` — đặt tên
-  phòng đồng nhất giữa server (`socket-handlers.ts`) và emitter.
-- **Audit**: thao tác admin ghi `AdminLog`.
-- **Test**: Vitest cho mapper, service thuần, api-handler… Chạy `npm test` trước khi PR.
-- **Git**: commit theo Conventional Commits (`feat:`, `fix:`, `chore:`, `style:`…). Husky +
-  lint-staged chạy lint khi commit.
+### 18.1 Tự động (Vitest)
+
+`npm test` — **29 file, 341 test** (unit + integration): mapper, service, api-handler, RBAC, guard quản
+trị, tcoin, payments/webhook, watch-party, auth API…
+
+CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) chạy `tsc --noEmit` → `lint` → `test` → `build`
+cho mỗi push / PR vào `main`.
+
+### 18.2 Kiểm thử end-to-end theo vai trò (2026-10)
+
+Chạy trên bản build production (`server.ts`, PostgreSQL + Redis + Elasticsearch thật), **204/204 kịch bản đạt**:
+
+| Vai trò | Nội dung đã kiểm tra |
+|---------|----------------------|
+| Khách | 27 trang công khai; 20 API công khai; chặn 401 với API cần đăng nhập; `/dashboard` chuyển về `/login`; báo lỗi phim ẩn danh; tạo/tham gia Watch Party |
+| Người dùng | Đăng ký (trùng email, mật khẩu yếu), đăng nhập (sai mật khẩu bị từ chối), hồ sơ, yêu thích, lưu tiến trình & xem tiếp, viết review (validate rating), thông báo, điểm danh (không nhận 2 lần), tiêu TCoin khi thiếu số dư, tạo đơn nạp + **webhook thanh toán cộng TCoin (idempotent)**, Watch Party (tạo, chat, sync, LiveKit token, rời phòng), Socket.IO; bị 403 ở mọi API quản trị |
+| Editor / Staff | Truy cập đúng các API được phép; bị 403 ở users, TCoin, logs, settings, Redis…; Editor không tạo được thể loại, Staff không đọc được tin tức |
+| Admin | Báo cáo, quản lý user, logs, ví TCoin; bị 403 khi sửa cài đặt hệ thống và xoá phim |
+| Super Admin | 14 trang dashboard; 24 API đọc; vòng đời thể loại, phim (tạo → publish/feature/trending/recommend/hide/archive → xoá mềm → khôi phục), tập; khoá/mở khoá user (user bị khoá mất phiên ngay); điều chỉnh TCoin; duyệt review; tin tức; broadcast; chặn CSRF từ origin lạ |
+| Shorts (47 kịch bản) | Feed 3 tab, seed ổn định & phân trang không trùng, deep-link `?v=`, trang giới thiệu có hàng Shorts; lượt xem/chia sẻ chống đếm trùng; thích/bình luận yêu cầu đăng nhập, validate nội dung, tác giả & người kiểm duyệt xoá bình luận; quản trị: Editor thêm YouTube/MP4, chặn link sai & video trùng, ẩn/hiện/xoá, nhập từ trailer kho, báo lỗi khi thiếu `YOUTUBE_API_KEY`; User bị 403 |
 
 ---
 
-## 19. Roadmap
+## 20. Quy ước code & workflow
 
-**Đã hoàn thành gần đây:** ✅ Lịch chiếu dùng dữ liệu thật · ✅ Shorts feed (`/shorts`) ·
-✅ AI recommendation cá nhân hoá · ✅ Khung đa cổng thanh toán (`PaymentProvider` + registry).
+- **Phân tầng theo module**: route handler → controller (validate, HTTP) → service (logic) →
+  repository/prisma. Logic nghiệp vụ không viết trong component UI.
+- **Phân quyền**: route quản trị luôn gọi `requireAdmin('<quyền>')` với khoá trong
+  `src/constants/permissions.ts`; thêm quyền mới thì cập nhật ma trận role và bảng ở Mục 4.
+- **Rate-limit**: dùng `rateLimit()` trong `src/be/shared/rate-limit.ts` ngay trong route handler.
+- **TypeScript strict**: `npx tsc --noEmit` phải sạch; `npm run lint` không còn warning.
+- **Validation**: Zod ở biên API.
+- **Realtime**: phát sự kiện qua `src/be/shared/realtime/notify.ts` với hằng `RT_EVENTS`.
+- **Audit**: thao tác quản trị ghi `AdminLog`.
+- **Git**: Conventional Commits (`feat:`, `fix:`, `chore:`…); Husky + lint-staged chạy ESLint khi commit.
+
+---
+
+## 21. Roadmap
 
 | Ưu tiên | Hạng mục | Mô tả |
 |:------:|----------|-------|
-| 🔴 Cao | Hardening PostgreSQL | Connection pooling (PgBouncer), index review, backup định kỳ |
-| 🟠 TB | Tích hợp cổng thật | Viết adapter Momo/ZaloPay thật cắm vào registry đã có; trang quản trị Shorts |
-| 🟡 Thấp | Nguồn lịch chiếu rạp thật | Thay flavor giờ/rạp/giá bằng dữ liệu rạp thực tế (nếu cần) |
+| 🔴 Cao | Hardening PostgreSQL | Connection pooling (PgBouncer), rà soát index, backup định kỳ |
+| 🟠 TB | Thống nhất response API quản trị | Một số route trả `{ data }`, số khác trả `{ success, data }` hoặc object trần — gom về một envelope |
+| 🟠 TB | Cổng thanh toán thật | Adapter Momo/ZaloPay cắm vào `PaymentProvider` registry đã có |
+| 🟡 Thấp | Shorts: tải video lên trực tiếp, gợi ý theo lịch sử xem | — |
+| 🟡 Thấp | Dữ liệu rạp thật cho lịch chiếu | — |
 | 🟡 Thấp | Mobile app | Client di động dùng chung API |
 
 ---
@@ -1000,4 +1099,4 @@ npm run test:watch · test:coverage
 ## License
 
 Đồ án giáo dục (Educational) — Đại học HUTECH, môn Công nghệ phần mềm. Không dùng cho mục đích
-thương mại. Dữ liệu phim thuộc về các nguồn tương ứng (TMDB, OPhim, …).
+thương mại. Dữ liệu phim thuộc về các nguồn tương ứng (TMDB, OPhim, KKPhim…).

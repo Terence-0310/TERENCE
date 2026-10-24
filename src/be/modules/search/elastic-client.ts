@@ -85,6 +85,28 @@ export async function isAvailable(): Promise<boolean> {
 }
 
 /**
+ * Elastic Cloud Serverless rejects cluster-level APIs (_cluster/health,
+ * _stats) and shard/replica index settings. Detected once from
+ * `GET /` (`version.build_flavor === 'serverless'`) and cached.
+ */
+let _serverless: boolean | null = null
+
+export async function isServerless(): Promise<boolean> {
+  if (_serverless === null) {
+    const info = await getClient().info()
+    _serverless = info.version?.build_flavor === 'serverless'
+  }
+  return _serverless
+}
+
+/** Index definition for this deployment: serverless manages shards itself. */
+export function moviesIndexDefinition(serverless: boolean) {
+  if (!serverless) return MOVIES_INDEX_MAPPING
+  const { number_of_shards: _shards, number_of_replicas: _replicas, ...settings } = MOVIES_INDEX_MAPPING.settings
+  return { ...MOVIES_INDEX_MAPPING, settings }
+}
+
+/**
  * Circuit-breaker hook: callers that actually hit ES and get an error report
  * it here so subsequent requests skip ES (fast Prisma fallback) for NEGATIVE_TTL
  * instead of each one paying the full request timeout. Re-probed after 5s.

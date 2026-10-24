@@ -3,10 +3,19 @@ import { prisma } from '@/src/be/shared/db/prisma'
 import { AuthService } from '@/src/be/modules/auth'
 import { logger } from '@/src/be/shared/utils/logger'
 import { resetPasswordSchema } from '@/src/be/modules/auth/auth.schema'
+import { hashResetToken } from '@/src/be/modules/auth/reset-token'
+import { invalidateAccountStatus } from '@/src/be/modules/auth/account-status'
+import { rateLimit, getClientIdentifier } from '@/src/be/shared/rate-limit'
 
 const log = logger.child({ module: 'auth-reset-password' })
+const limiter = rateLimit({ windowMs: 60_000, maxRequests: 5 })
 
 export async function POST(req: NextRequest) {
+  const { allowed } = await limiter.check(`auth-reset:${getClientIdentifier(req)}`)
+  if (!allowed) {
+    return NextResponse.json({ error: 'Quá nhiều yêu cầu. Vui lòng thử lại sau 1 phút.' }, { status: 429 })
+  }
+
   try {
     let raw: unknown
     try {
@@ -22,7 +31,7 @@ export async function POST(req: NextRequest) {
     const { token, password } = parsed.data
 
     const resetToken = await prisma.passwordResetToken.findUnique({
-      where: { token },
+      where: { token: hashResetToken(token) },
       include: { user: true }
     })
 
@@ -48,6 +57,8 @@ export async function POST(req: NextRequest) {
         where: { userId: resetToken.userId }
       })
     ])
+    // New password → new credential version: other sessions are revoked on their next request.
+    invalidateAccountStatus(resetToken.userId)
 
     return NextResponse.json({ message: 'Đặt lại mật khẩu thành công' })
   } catch (error) {

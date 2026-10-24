@@ -54,7 +54,7 @@ export default function FavoritesPage() {
     runtime: 0, runtimeFormatted: '',
     mediaType: m.contentType === 'series' ? 'tv' : 'movie',
     slug: m.slug,
-    customUrl: `/watch/${m.slug}`,
+    customUrl: `/movie/${m.slug}`,
   })
 
   return (

@@ -4,7 +4,7 @@
 // Builds ES documents from Prisma data and handles index lifecycle.
 
 import { PrismaClient } from '@prisma/client'
-import { getClient, getMoviesIndex, MOVIES_INDEX_MAPPING, isAvailable } from './elastic-client'
+import { getClient, getMoviesIndex, moviesIndexDefinition, isAvailable, isServerless } from './elastic-client'
 import { logger } from '@/src/be/shared/utils/logger'
 import { normalizeVietnamese, stripDiacritics, joinAscii } from '@/lib/search/normalize'
 
@@ -217,8 +217,9 @@ export async function createIndex(force: boolean = false): Promise<void> {
     await client.indices.delete({ index })
   }
 
-  log.info({ index }, 'Creating index with mapping')
-  await client.indices.create({ index, ...MOVIES_INDEX_MAPPING })
+  const serverless = await isServerless()
+  log.info({ index, serverless }, 'Creating index with mapping')
+  await client.indices.create({ index, ...moviesIndexDefinition(serverless) })
   log.info({ index }, 'Index created successfully')
 }
 
