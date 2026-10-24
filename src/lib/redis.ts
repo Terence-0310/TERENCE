@@ -197,6 +197,8 @@ export async function withCache<T>(
   key: string,
   ttlSeconds: number,
   fetcher: () => Promise<T>,
+  /** Return false to skip caching this result (e.g. an empty list from a failing upstream). */
+  shouldCache: (data: T) => boolean = () => true,
 ): Promise<T> {
   if (!redis) return fetcher()
 
@@ -210,6 +212,7 @@ export async function withCache<T>(
   }
 
   const data = await fetcher()
+  if (!shouldCache(data)) return data
 
   try {
     await redis.setex(key, ttlSeconds, JSON.stringify(data))
