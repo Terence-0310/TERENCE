@@ -117,6 +117,31 @@ export async function getFeed(opts: FeedOptions = {}): Promise<ShortDto[]> {
   return rows.map((r) => toDto(r, liked))
 }
 
+/** Search TERENCE's own shorts by title, description, hashtag or linked movie. */
+export async function searchShorts(opts: { query: string; skip?: number; limit?: number; userId?: string | null }): Promise<ShortDto[]> {
+  const q = opts.query.trim().replace(/^#/, '')
+  if (!q) return []
+  const limit = Math.min(Math.max(opts.limit ?? 10, 1), 30)
+  const rows = await prisma.short.findMany({
+    where: {
+      status: 'published',
+      OR: [
+        { title: { contains: q, mode: 'insensitive' } },
+        { description: { contains: q, mode: 'insensitive' } },
+        { hashtags: { contains: q, mode: 'insensitive' } },
+        { movie: { title: { contains: q, mode: 'insensitive' } } },
+        { movie: { originalTitle: { contains: q, mode: 'insensitive' } } },
+      ],
+    },
+    include: SHORT_INCLUDE,
+    orderBy: [{ viewCount: 'desc' }, { publishedAt: 'desc' }],
+    skip: Math.max(opts.skip ?? 0, 0),
+    take: limit,
+  })
+  const liked = await likedSet(opts.userId, rows.map((r) => r.id))
+  return rows.map((r) => toDto(r, liked))
+}
+
 export async function getShortById(id: string, userId?: string | null): Promise<ShortDto | null> {
   const row = await prisma.short.findFirst({ where: { id, status: 'published' }, include: SHORT_INCLUDE })
   if (!row) return null

@@ -44,6 +44,7 @@
 | `SEPAY_API_KEY`, `SEPAY_BANK_CODE`, `SEPAY_BANK_ACCOUNT`, `VIETQR_ACCOUNT_NAME` (legacy `VIETQR_*`, `SEPAY_WEBHOOK_SECRET`) | | Bật SePay thì cần đủ cặp ngân hàng |
 | `KKPHIM_BASE_URL`, `OPHIM_BASE_URL`, `OPHIM18_BASE_URL`, `*_TIMEOUT`, `DISABLE_OPHIM_CHECK` | | Nguồn catalog |
 | `GEMINI_API_KEY`, `GEMINI_MODEL`, `GNEWS_API_KEY`, `YOUTUBE_API_KEY` | | Tin tức AI / Shorts |
+| `COVERR_API_KEY`, `SHORTS_LIBRARY_MOCK_FALLBACK` | | Tab Shorts "Khám phá" (Coverr). Trống → video mẫu Wikimedia Commons. Xem `docs/SHORT_VIDEO_API_SETUP.md` |
 | `DEMO_HLS_URL`, `PUBLIC_STREAM_ALLOWED_HOSTS` | | Player |
 | `LOG_LEVEL`, `TZ` | | `info`, `Asia/Ho_Chi_Minh` |
 | `ELASTICSEARCH_HOST`, `ELASTICSEARCH_API_KEY`, `ELASTICSEARCH_INDEX_MOVIES` | | Elastic Cloud (Serverless: Endpoints → Elasticsearch URL; key `essu_…`). Để trống host → search fallback PostgreSQL, cron reindex tự tắt. Không bao giờ chạy ES trên instance 512 MB |

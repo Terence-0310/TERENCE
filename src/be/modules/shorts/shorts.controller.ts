@@ -8,10 +8,12 @@ import { AuthService } from '@/src/be/modules/auth'
 import { hasPermission } from '@/src/be/modules/auth/permissions'
 import { requireAdmin } from '@/src/be/shared/guards/require-auth'
 import { logAdminAction, getClientIp } from '@/src/be/modules/admin/audit'
-import { ok, created, unauthorized, tooManyRequests, parseAndValidate, withErrorHandler } from '@/src/be/shared/api-handler'
+import { ok, created, badRequest, unauthorized, tooManyRequests, parseAndValidate, withErrorHandler } from '@/src/be/shared/api-handler'
 import { rateLimit, getClientIdentifier } from '@/src/be/shared/rate-limit'
 import { PERMISSIONS } from '@/src/constants/permissions'
 import * as ShortsService from './shorts.service'
+import { getLibraryVideo, isLibraryId, listLibrary, LIBRARY_TOPICS } from './video-library.service'
+import { VideoProviderError } from './video-providers/types'
 
 type IdCtx = { params: Promise<{ id: string }> }
 type CommentCtx = { params: Promise<{ id: string; commentId: string }> }
@@ -20,6 +22,8 @@ const viewLimiter = rateLimit({ windowMs: 10 * 60_000, maxRequests: 1 })   // 1 
 const shareLimiter = rateLimit({ windowMs: 10 * 60_000, maxRequests: 1 })
 const likeLimiter = rateLimit({ windowMs: 60_000, maxRequests: 30 })
 const commentLimiter = rateLimit({ windowMs: 60_000, maxRequests: 5 })
+// Search / trending: generous for scrolling, but caps scripted scraping of the library.
+const browseLimiter = rateLimit({ windowMs: 60_000, maxRequests: 60 })
 
 function intParam(v: string | null, fallback: number): number {
   const n = parseInt(v ?? '', 10)
@@ -44,13 +48,90 @@ export const getFeed = withErrorHandler(async (req: NextRequest) => {
   return ok(items)
 })
 
-// GET /api/v1/shorts/[id]
+// GET /api/v1/shorts/[id] — a TERENCE short, or a library video ("coverr:<id>", "mock:<id>")
 export const getShort = withErrorHandler(async (_req: NextRequest, ctx?: unknown) => {
-  const { id } = await (ctx as IdCtx).params
+  const { id: rawId } = await (ctx as IdCtx).params
+  const id = safeDecode(rawId)
+  if (isLibraryId(id)) {
+    const video = await getLibraryVideo(id)
+    if (!video) return NextResponse.json({ success: false, error: 'Không tìm thấy video' }, { status: 404 })
+    return ok(video)
+  }
   const user = await AuthService.getCurrentUser()
   const short = await ShortsService.getShortById(id, user?.id)
   if (!short) return NextResponse.json({ success: false, error: 'Không tìm thấy video' }, { status: 404 })
   return ok(short)
+})
+
+function safeDecode(v: string): string {
+  try { return decodeURIComponent(v) } catch { return v }
+}
+
+const browseSchema = z.object({
+  q: z.string().trim().max(100).optional(),
+  scope: z.enum(['terence', 'library']).default('terence'),
+  topic: z.enum(LIBRARY_TOPICS.map((t) => t.id) as [string, ...string[]]).optional(),
+  cursor: z.string().regex(/^\d{1,4}$/).optional(),
+  limit: z.coerce.number().int().min(1).max(24).default(10),
+})
+
+function parseBrowse(req: NextRequest) {
+  const sp = req.nextUrl.searchParams
+  return browseSchema.safeParse({
+    q: sp.get('q') ?? undefined,
+    scope: sp.get('scope') ?? undefined,
+    topic: sp.get('topic') || undefined,
+    cursor: sp.get('cursor') || undefined,
+    limit: sp.get('limit') ?? undefined,
+  })
+}
+
+/** Library failures degrade to an empty page with a reason instead of a 500. */
+async function libraryPage(opts: Parameters<typeof listLibrary>[0]) {
+  try {
+    const page = await listLibrary(opts)
+    return ok({ scope: 'library' as const, items: page.items, nextCursor: page.nextCursor, library: page.status })
+  } catch (err) {
+    if (err instanceof VideoProviderError) {
+      return NextResponse.json({ success: false, error: 'Thư viện video tạm thời không khả dụng', code: 'LIBRARY_UNAVAILABLE' }, { status: 503 })
+    }
+    throw err
+  }
+}
+
+// GET /api/v1/shorts/search?q=&scope=terence|library&topic=&cursor=&limit=
+export const search = withErrorHandler(async (req: NextRequest) => {
+  if (!(await browseLimiter.check(`short-browse:${getClientIdentifier(req)}`)).allowed) return tooManyRequests()
+  const parsed = parseBrowse(req)
+  if (!parsed.success) return badRequest('Tham số tìm kiếm không hợp lệ')
+  const { q = '', scope, topic, cursor, limit } = parsed.data
+
+  if (scope === 'library') {
+    if (!q && !topic) return badRequest('Nhập từ khoá hoặc chọn chủ đề')
+    return libraryPage({ sort: 'popular', query: q, topic, cursor, limit })
+  }
+  if (q.length < 2) return badRequest('Từ khoá cần ít nhất 2 ký tự')
+  const user = await AuthService.getCurrentUser()
+  const skip = Number(cursor ?? 0)
+  const items = await ShortsService.searchShorts({ query: q, skip, limit, userId: user?.id })
+  return ok({ scope: 'terence' as const, items, nextCursor: items.length === limit ? String(skip + limit) : null })
+})
+
+// GET /api/v1/shorts/trending?scope=library|terence&topic=&cursor=&limit=
+export const trending = withErrorHandler(async (req: NextRequest) => {
+  if (!(await browseLimiter.check(`short-browse:${getClientIdentifier(req)}`)).allowed) return tooManyRequests()
+  const parsed = parseBrowse(req)
+  if (!parsed.success) return badRequest('Tham số không hợp lệ')
+  const { topic, cursor, limit } = parsed.data
+  // Unlike search, this endpoint defaults to the library; TERENCE's own
+  // ranking (likes, views) is only used when scope=terence is explicit.
+  if (req.nextUrl.searchParams.get('scope') !== 'terence') {
+    return libraryPage({ sort: 'trending', topic, cursor, limit })
+  }
+  const user = await AuthService.getCurrentUser()
+  const skip = Number(cursor ?? 0)
+  const items = await ShortsService.getFeed({ tab: 'popular', skip, limit, userId: user?.id })
+  return ok({ scope: 'terence' as const, items, nextCursor: items.length === limit ? String(skip + limit) : null })
 })
 
 // POST /api/v1/shorts/[id]/like — toggle

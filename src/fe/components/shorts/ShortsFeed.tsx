@@ -6,6 +6,10 @@
 //     Space = pause, M = mute.
 //   • Infinite scroll with a per-session seed (stable "Dành cho bạn" order).
 //   • URL follows the active short (/shorts?v=<id>) so it can be shared.
+//   • "Khám phá" streams an external library (Coverr, or mock clips without a
+//     key). Those videos have no TERENCE likes / comments / views — only share
+//     and the provider's attribution are shown.
+//   • Search covers TERENCE shorts, or the library when on "Khám phá".
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
@@ -13,11 +17,14 @@ import { useSession } from 'next-auth/react'
 import { toast } from 'sonner'
 import {
   Heart, MessageCircle, Share2, Volume2, VolumeX, Play, ChevronUp, ChevronDown, Loader2, Film, Eye, Clapperboard,
+  Search, X, AlertTriangle, RotateCw, ExternalLink,
 } from 'lucide-react'
 import { authModalStore } from '@/src/fe/components/auth/auth-modal-store'
 import { ShortPlayer } from './ShortPlayer'
 import { ShortComments } from './ShortComments'
-import { formatCount, type FeedTab, type ShortItem } from './types'
+import {
+  formatCount, libraryToItem, LIBRARY_TOPICS, type FeedTab, type LibraryStatus, type LibraryVideo, type ShortItem,
+} from './types'
 
 const PAGE = 10
 const VIEW_AFTER_MS = 3000
@@ -25,32 +32,53 @@ const TABS: { id: FeedTab; label: string }[] = [
   { id: 'foryou', label: 'Dành cho bạn' },
   { id: 'latest', label: 'Mới nhất' },
   { id: 'popular', label: 'Phổ biến' },
+  { id: 'discover', label: 'Khám phá' },
 ]
 const MUTE_KEY = 'terence:shorts:muted'
+
+/** What the feed is currently showing. */
+interface FeedSource {
+  tab: FeedTab
+  query: string
+  topic: string | null
+}
+
+interface FetchResult {
+  items: ShortItem[]
+  next: string | null
+  library?: LibraryStatus
+}
 
 interface Props {
   initial: ShortItem[]
   initialTab: FeedTab
   seed: string
-  /** The deep-linked short (/shorts?v=…) was prepended to `initial`. */
-  pinnedFirst: boolean
+  /** Cursor for the page after `initial` (null = nothing more). */
+  initialCursor: string | null
+  initialLibrary?: LibraryStatus | null
 }
 
-export function ShortsFeed({ initial, initialTab, seed, pinnedFirst }: Props) {
+export function ShortsFeed({ initial, initialTab, seed, initialCursor, initialLibrary = null }: Props) {
   const { status } = useSession()
-  const [tab, setTab] = useState<FeedTab>(initialTab)
+  const [source, setSource] = useState<FeedSource>({ tab: initialTab, query: '', topic: null })
+  const tab = source.tab
   const [items, setItems] = useState<ShortItem[]>(initial)
   const [active, setActive] = useState(0)
   const [paused, setPaused] = useState(false)
   const [muted, setMuted] = useState(true)
   const [progress, setProgress] = useState(0)
   const [loading, setLoading] = useState(false)
-  const [done, setDone] = useState(initial.length - (pinnedFirst ? 1 : 0) < PAGE)
+  const [error, setError] = useState(false)
+  const [done, setDone] = useState(initialCursor === null)
+  const [library, setLibrary] = useState<LibraryStatus | null>(initialLibrary)
+  const [searchOpen, setSearchOpen] = useState(false)
   const [commentsFor, setCommentsFor] = useState<string | null>(null)
   const [burst, setBurst] = useState<{ id: string; key: number } | null>(null)
 
   const scrollerRef = useRef<HTMLDivElement>(null)
-  const offsetRef = useRef(pinnedFirst ? 1 : 0)
+  const cursorRef = useRef<string | null>(initialCursor)
+  // Bumped on every source change so responses for an old source are dropped.
+  const requestRef = useRef(0)
   const viewedRef = useRef(new Set<string>())
   const tapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const activeRef = useRef(0)
@@ -88,12 +116,15 @@ export function ShortsFeed({ initial, initialTab, seed, pinnedFirst }: Props) {
   useEffect(() => {
     setPaused(false)
     setProgress(0)
-    if (current) window.history.replaceState(null, '', `/shorts?v=${current.id}${tab !== 'foryou' ? `&tab=${tab}` : ''}`)
+    if (current) {
+      window.history.replaceState(null, '', `/shorts?v=${encodeURIComponent(current.id)}${tab !== 'foryou' ? `&tab=${tab}` : ''}`)
+    }
   }, [current, tab])
 
   // Count a view once the short has been on screen for a few seconds.
+  // Library videos have no TERENCE counters.
   useEffect(() => {
-    if (!current || viewedRef.current.has(current.id)) return
+    if (!current || current.external || viewedRef.current.has(current.id)) return
     const id = current.id
     const t = setTimeout(() => {
       viewedRef.current.add(id)
@@ -118,47 +149,98 @@ export function ShortsFeed({ initial, initialTab, seed, pinnedFirst }: Props) {
   const patch = (id: string, data: Partial<ShortItem>) =>
     setItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...data } : it)))
 
-  const fetchPage = useCallback(async (t: FeedTab, skip: number): Promise<ShortItem[]> => {
-    const res = await fetch(`/api/v1/shorts?tab=${t}&seed=${seed}&skip=${skip}&limit=${PAGE}`)
-    const json = await res.json()
-    return json?.data ?? []
+  const fetchPage = useCallback(async (src: FeedSource, cursor: string | null): Promise<FetchResult> => {
+    if (!src.query && src.tab !== 'discover') {
+      const skip = Number(cursor ?? 0)
+      const res = await fetch(`/api/v1/shorts?tab=${src.tab}&seed=${seed}&skip=${skip}&limit=${PAGE}`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const list: ShortItem[] = (await res.json())?.data ?? []
+      return { items: list, next: list.length === PAGE ? String(skip + PAGE) : null }
+    }
+
+    const params = new URLSearchParams({ limit: String(PAGE) })
+    if (cursor) params.set('cursor', cursor)
+    if (src.topic) params.set('topic', src.topic)
+    let url = `/api/v1/shorts/trending?${params}`
+    if (src.query) {
+      params.set('q', src.query)
+      params.set('scope', src.tab === 'discover' ? 'library' : 'terence')
+      url = `/api/v1/shorts/search?${params}`
+    }
+    const res = await fetch(url)
+    const json = await res.json().catch(() => null)
+    if (!res.ok || !json?.success) throw new Error(json?.error || `HTTP ${res.status}`)
+    const data = json.data as { scope: 'terence' | 'library'; items: unknown[]; nextCursor: string | null; library?: LibraryStatus }
+    return {
+      items: data.scope === 'library' ? (data.items as LibraryVideo[]).map(libraryToItem) : (data.items as ShortItem[]),
+      next: data.nextCursor,
+      library: data.library,
+    }
   }, [seed])
 
   const loadMore = useCallback(async () => {
-    if (loading || done) return
+    if (loading || done || error) return
+    const req = requestRef.current
     setLoading(true)
     try {
-      const more = await fetchPage(tab, items.length - offsetRef.current)
+      const page = await fetchPage(source, cursorRef.current)
+      if (req !== requestRef.current) return
       setItems((prev) => {
         const seen = new Set(prev.map((i) => i.id))
-        return [...prev, ...more.filter((m) => !seen.has(m.id))]
+        return [...prev, ...page.items.filter((m) => !seen.has(m.id))]
       })
-      if (more.length < PAGE) setDone(true)
+      cursorRef.current = page.next
+      if (page.library) setLibrary(page.library)
+      if (!page.next) setDone(true)
     } catch {
-      setDone(true)
+      // Keep what is already on screen and stop paging.
+      if (req === requestRef.current) setDone(true)
     } finally {
-      setLoading(false)
+      if (req === requestRef.current) setLoading(false)
     }
-  }, [loading, done, fetchPage, tab, items.length])
+  }, [loading, done, error, fetchPage, source])
 
   useEffect(() => {
     if (active >= items.length - 3) loadMore()
   }, [active, items.length, loadMore])
 
-  const switchTab = async (t: FeedTab) => {
-    if (t === tab) return
-    setTab(t)
+  /** Replace the feed with the first page of another source (tab / search / topic). */
+  const reload = useCallback(async (src: FeedSource) => {
+    const req = ++requestRef.current
+    setSource(src)
+    setCommentsFor(null)
+    setItems([])
+    setActive(0)
+    setError(false)
+    setDone(false)
     setLoading(true)
+    scrollerRef.current?.scrollTo({ top: 0 })
     try {
-      const fresh = await fetchPage(t, 0)
-      offsetRef.current = 0
-      setItems(fresh)
-      setDone(fresh.length < PAGE)
-      setActive(0)
-      scrollerRef.current?.scrollTo({ top: 0 })
+      const page = await fetchPage(src, null)
+      if (req !== requestRef.current) return
+      setItems(page.items)
+      cursorRef.current = page.next
+      setDone(!page.next)
+      setLibrary(page.library ?? null)
+    } catch {
+      if (req === requestRef.current) setError(true)
     } finally {
-      setLoading(false)
+      if (req === requestRef.current) setLoading(false)
     }
+  }, [fetchPage])
+
+  const switchTab = (t: FeedTab) => {
+    if (t === tab && !source.query) return
+    reload({ tab: t, query: '', topic: null })
+  }
+
+  const runSearch = (q: string) => {
+    const query = q.trim()
+    setSearchOpen(false)
+    if (!query || query === source.query) return
+    // A search replaces the topic filter (and vice versa) — combining them
+    // would just AND two keywords together upstream.
+    reload({ ...source, query, topic: null })
   }
 
   // ── Navigation ────────────────────────────────────────────────
@@ -183,6 +265,7 @@ export function ShortsFeed({ initial, initialTab, seed, pinnedFirst }: Props) {
 
   // ── Actions ───────────────────────────────────────────────────
   const like = useCallback(async (item: ShortItem, forceOn = false) => {
+    if (item.external) return
     if (status !== 'authenticated') {
       authModalStore.open('login')
       return
@@ -202,7 +285,7 @@ export function ShortsFeed({ initial, initialTab, seed, pinnedFirst }: Props) {
   }, [status])
 
   const share = async (item: ShortItem) => {
-    const url = `${window.location.origin}/shorts?v=${item.id}`
+    const url = `${window.location.origin}/shorts?v=${encodeURIComponent(item.id)}${item.external ? '&tab=discover' : ''}`
     try {
       if (navigator.share) await navigator.share({ title: item.title, url })
       else {
@@ -212,6 +295,7 @@ export function ShortsFeed({ initial, initialTab, seed, pinnedFirst }: Props) {
     } catch {
       return // user cancelled the share sheet
     }
+    if (item.external) return
     fetch(`/api/v1/shorts/${item.id}/share`, { method: 'POST' })
       .then((r) => r.json())
       .then((j) => j?.data?.counted && patch(item.id, { shareCount: j.data.shareCount }))
@@ -227,6 +311,11 @@ export function ShortsFeed({ initial, initialTab, seed, pinnedFirst }: Props) {
 
   // Single tap → pause; double tap → like with a heart burst.
   const onStageTap = (item: ShortItem) => {
+    // Library videos can't be liked: every tap just toggles playback.
+    if (item.external) {
+      setPaused((p) => !p)
+      return
+    }
     if (tapTimerRef.current) {
       clearTimeout(tapTimerRef.current)
       tapTimerRef.current = null
@@ -240,12 +329,18 @@ export function ShortsFeed({ initial, initialTab, seed, pinnedFirst }: Props) {
     }, 250)
   }
 
+  const clearSearch = () => reload({ ...source, query: '' })
+  const pickTopic = (id: string) => reload({ ...source, query: '', topic: source.topic === id ? null : id })
+  // Search chip / topic chips sit under the tabs on mobile.
+  const filterRow = !!source.query || tab === 'discover'
+  const searchPlaceholder = tab === 'discover' ? 'Tìm trong thư viện video…' : 'Tìm theo phim, hashtag…'
+
   // ── Render ────────────────────────────────────────────────────
   return (
     // Pinned under the fixed 4rem header so the feed is exactly one viewport tall.
     <main className="fixed inset-x-0 bottom-0 top-16 overflow-hidden bg-black">
       {/* Tabs — text tabs over the video on mobile, vertical list on desktop */}
-      <nav className="absolute left-1/2 top-3 z-30 flex -translate-x-1/2 items-center gap-5 whitespace-nowrap md:left-8 md:top-8 md:translate-x-0 md:flex-col md:items-stretch md:gap-1.5">
+      <nav className="absolute left-12 right-2 top-3 z-30 flex items-center gap-3.5 overflow-x-auto whitespace-nowrap scrollbar-hide md:left-8 md:right-auto md:top-8 md:w-56 md:flex-col md:items-stretch md:gap-1.5 md:overflow-visible md:whitespace-normal">
         <span className="mb-3 ml-3 hidden self-start rounded-lg bg-primary/15 px-2.5 py-1 text-xs font-bold uppercase tracking-wider text-primary md:block">
           Shorts
         </span>
@@ -254,7 +349,7 @@ export function ShortsFeed({ initial, initialTab, seed, pinnedFirst }: Props) {
             key={t.id}
             type="button"
             onClick={() => switchTab(t.id)}
-            className={`relative pb-1.5 text-[15px] font-bold drop-shadow transition md:rounded-xl md:px-4 md:py-2.5 md:pb-2.5 md:text-left md:text-sm md:drop-shadow-none ${
+            className={`relative shrink-0 pb-1.5 text-[14px] font-bold drop-shadow transition md:rounded-xl md:px-4 md:py-2.5 md:pb-2.5 md:text-left md:text-sm md:drop-shadow-none ${
               tab === t.id
                 ? 'text-white md:bg-white/10'
                 : 'text-white/60 hover:text-white md:hover:bg-white/5'
@@ -266,18 +361,106 @@ export function ShortsFeed({ initial, initialTab, seed, pinnedFirst }: Props) {
             )}
           </button>
         ))}
+
+        <SearchForm
+          key={`d-${tab}-${source.query}`}
+          className="mt-4 hidden md:flex"
+          initial={source.query}
+          placeholder={searchPlaceholder}
+          onSubmit={runSearch}
+        />
+        {source.query && (
+          <SearchChip query={source.query} onClear={clearSearch} className="mt-2 hidden self-start md:inline-flex" />
+        )}
+        {tab === 'discover' && (
+          <div className="mt-3 hidden flex-wrap gap-1.5 md:flex">
+            {LIBRARY_TOPICS.map((t) => (
+              <TopicChip key={t.id} label={t.label} active={source.topic === t.id} onClick={() => pickTopic(t.id)} />
+            ))}
+          </div>
+        )}
+        {tab === 'discover' && library && <LibraryNote status={library} className="mt-4 hidden md:block" />}
       </nav>
 
-      {items.length === 0 ? (
-        <div className="flex h-full flex-col items-center justify-center text-center text-white/60">
-          {loading ? <Loader2 className="h-8 w-8 animate-spin text-primary" /> : (
-            <>
-              <Clapperboard className="mb-4 h-12 w-12 text-white/15" />
-              <p className="text-sm">Chưa có video ngắn nào</p>
-              <p className="mt-1 text-xs text-white/35">Quản trị viên có thể nhập Shorts trong Dashboard → Shorts</p>
-            </>
-          )}
+      {/* Mobile search */}
+      <button
+        type="button"
+        onClick={() => setSearchOpen(true)}
+        aria-label="Tìm kiếm video"
+        className="absolute left-2 top-1.5 z-30 flex h-9 w-9 items-center justify-center rounded-full text-white drop-shadow transition hover:bg-white/10 md:hidden"
+      >
+        <Search className="h-5 w-5" />
+      </button>
+      {searchOpen && (
+        <div className="absolute inset-x-0 top-0 z-40 bg-black/90 p-3 backdrop-blur-md md:hidden">
+          <SearchForm
+            initial={source.query}
+            placeholder={searchPlaceholder}
+            onSubmit={runSearch}
+            onCancel={() => setSearchOpen(false)}
+            autoFocus
+          />
         </div>
+      )}
+      {filterRow && (
+        <div className="absolute inset-x-0 top-12 z-30 flex gap-2 overflow-x-auto px-3 pb-1 scrollbar-hide md:hidden">
+          {source.query && <SearchChip query={source.query} onClear={clearSearch} />}
+          {tab === 'discover' && LIBRARY_TOPICS.map((t) => (
+            <TopicChip key={t.id} label={t.label} active={source.topic === t.id} onClick={() => pickTopic(t.id)} />
+          ))}
+        </div>
+      )}
+
+      {items.length === 0 ? (
+        loading ? (
+          <FeedSkeleton />
+        ) : (
+          <div className="flex h-full flex-col items-center justify-center px-6 text-center text-white/60">
+            {error ? (
+              <>
+                <AlertTriangle className="mb-4 h-12 w-12 text-amber-400/70" />
+                <p className="text-sm">Không tải được video</p>
+                <p className="mt-1 text-xs text-white/35">
+                  {tab === 'discover' ? 'Thư viện video tạm thời không khả dụng.' : 'Kiểm tra kết nối mạng rồi thử lại.'}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => reload(source)}
+                  className="mt-4 inline-flex items-center gap-2 rounded-xl bg-white/10 px-4 py-2 text-xs font-semibold text-white transition hover:bg-white/20"
+                >
+                  <RotateCw className="h-3.5 w-3.5" /> Thử lại
+                </button>
+              </>
+            ) : source.query ? (
+              <>
+                <Search className="mb-4 h-12 w-12 text-white/15" />
+                <p className="text-sm">Không tìm thấy video cho “{source.query}”</p>
+                <p className="mt-1 text-xs text-white/35">
+                  Thử từ khoá khác{tab !== 'discover' ? ' hoặc tìm trong tab Khám phá' : ''}.
+                </p>
+                <button
+                  type="button"
+                  onClick={clearSearch}
+                  className="mt-4 rounded-xl bg-white/10 px-4 py-2 text-xs font-semibold text-white transition hover:bg-white/20"
+                >
+                  Xoá tìm kiếm
+                </button>
+              </>
+            ) : (
+              <>
+                <Clapperboard className="mb-4 h-12 w-12 text-white/15" />
+                {tab === 'discover' ? (
+                  <p className="text-sm">Chưa có video cho chủ đề này</p>
+                ) : (
+                  <>
+                    <p className="text-sm">Chưa có video ngắn nào</p>
+                    <p className="mt-1 text-xs text-white/35">Quản trị viên có thể nhập Shorts trong Dashboard → Shorts</p>
+                  </>
+                )}
+              </>
+            )}
+          </div>
+        )
       ) : (
         <div ref={scrollerRef} className="h-full snap-y snap-mandatory overflow-y-scroll scrollbar-hide">
           {items.map((item, i) => (
@@ -333,7 +516,7 @@ export function ShortsFeed({ initial, initialTab, seed, pinnedFirst }: Props) {
                   <button
                     type="button"
                     onClick={toggleMute}
-                    className="absolute right-3 top-14 z-20 flex items-center gap-1.5 rounded-full bg-black/45 px-3 py-2 text-xs font-medium text-white backdrop-blur-md transition hover:bg-black/60 md:top-4"
+                    className={`absolute right-3 z-20 flex ${filterRow ? 'top-[6.5rem]' : 'top-14'} items-center gap-1.5 rounded-full bg-black/45 px-3 py-2 text-xs font-medium text-white backdrop-blur-md transition hover:bg-black/60 md:top-4`}
                     aria-label={muted ? 'Bật tiếng' : 'Tắt tiếng'}
                   >
                     {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
@@ -360,9 +543,13 @@ export function ShortsFeed({ initial, initialTab, seed, pinnedFirst }: Props) {
                         {item.hashtags.slice(0, 5).map((h) => `#${h}`).join(' ')}
                       </p>
                     )}
-                    <div className="mt-2 flex items-center gap-1 text-[11px] text-white/50">
-                      <Eye className="h-3 w-3" /> {formatCount(item.viewCount)} lượt xem
-                    </div>
+                    {item.external ? (
+                      <ExternalCredit item={item} />
+                    ) : (
+                      <div className="mt-2 flex items-center gap-1 text-[11px] text-white/50">
+                        <Eye className="h-3 w-3" /> {formatCount(item.viewCount)} lượt xem
+                      </div>
+                    )}
                     {item.movie && (
                       <Link
                         href={`/watch/${item.movie.slug}`}
@@ -443,6 +630,16 @@ function ActionRail({ item, className, onLike, onComment, onShare }: {
   onShare: () => void
 }) {
   const btn = 'flex h-12 w-12 items-center justify-center rounded-full bg-black/35 backdrop-blur-md transition hover:bg-white/15 md:bg-white/10'
+  if (item.external) {
+    // No TERENCE likes / comments for library videos — and no fake counts.
+    return (
+      <div className={`flex-col items-center gap-4 ${className}`}>
+        <button type="button" onClick={onShare} className={btn} aria-label="Chia sẻ">
+          <Share2 className="h-6 w-6 text-white" />
+        </button>
+      </div>
+    )
+  }
   return (
     <div className={`flex-col items-center gap-4 ${className}`}>
       {item.movie && (
@@ -472,6 +669,130 @@ function ActionRail({ item, className, onLike, onComment, onShare }: {
           <Share2 className="h-6 w-6 text-white" />
         </button>
         <span className="text-xs font-semibold text-white drop-shadow">{formatCount(item.shareCount)}</span>
+      </div>
+    </div>
+  )
+}
+
+function SearchForm({ initial, placeholder, onSubmit, onCancel, autoFocus, className = '' }: {
+  initial: string
+  placeholder: string
+  onSubmit: (q: string) => void
+  onCancel?: () => void
+  autoFocus?: boolean
+  className?: string
+}) {
+  const [value, setValue] = useState(initial)
+  return (
+    <form
+      role="search"
+      className={`flex items-center gap-2 ${className}`}
+      onSubmit={(e) => {
+        e.preventDefault()
+        onSubmit(value)
+      }}
+    >
+      <label className="flex min-w-0 flex-1 items-center gap-2 rounded-xl bg-white/10 px-3 py-2 ring-1 ring-white/10 focus-within:ring-primary/60">
+        <Search className="h-4 w-4 shrink-0 text-white/50" />
+        <input
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => e.key === 'Escape' && onCancel?.()}
+          placeholder={placeholder}
+          maxLength={100}
+          autoFocus={autoFocus}
+          enterKeyHint="search"
+          aria-label="Từ khoá tìm kiếm"
+          className="min-w-0 flex-1 bg-transparent text-sm text-white placeholder:text-white/40 focus:outline-none"
+        />
+      </label>
+      {onCancel && (
+        <button type="button" onClick={onCancel} className="shrink-0 px-1 text-sm font-semibold text-white/70 hover:text-white">
+          Huỷ
+        </button>
+      )}
+    </form>
+  )
+}
+
+function SearchChip({ query, onClear, className = '' }: { query: string; onClear: () => void; className?: string }) {
+  return (
+    <span className={`inline-flex max-w-[16rem] shrink-0 items-center gap-1.5 rounded-full bg-primary/20 py-1 pl-3 pr-1 text-xs font-semibold text-primary ring-1 ring-primary/30 ${className}`}>
+      <Search className="h-3 w-3 shrink-0" />
+      <span className="truncate">{query}</span>
+      <button type="button" onClick={onClear} aria-label="Xoá tìm kiếm" className="rounded-full p-0.5 hover:bg-primary/20">
+        <X className="h-3.5 w-3.5" />
+      </button>
+    </span>
+  )
+}
+
+function TopicChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold backdrop-blur-md transition ${
+        active ? 'bg-primary text-teal-950' : 'bg-black/40 text-white/80 ring-1 ring-white/15 hover:bg-white/15 md:bg-white/5'
+      }`}
+    >
+      {label}
+    </button>
+  )
+}
+
+function LibraryNote({ status, className = '' }: { status: LibraryStatus; className?: string }) {
+  let text: string | null = null
+  if (status.provider === 'mock') {
+    text = status.mode === 'fallback'
+      ? 'Coverr tạm thời không khả dụng — đang hiện video mẫu.'
+      : 'Video mẫu từ Wikimedia Commons. Thêm COVERR_API_KEY để dùng thư viện Coverr.'
+  } else if (status.mode === 'stale') {
+    text = 'Đang hiện dữ liệu đã lưu — Coverr tạm thời không phản hồi.'
+  }
+  if (!text) return null
+  return <p className={`rounded-xl bg-white/5 px-3 py-2 text-[11px] leading-relaxed text-white/45 ${className}`}>{text}</p>
+}
+
+function ExternalCredit({ item }: { item: ShortItem }) {
+  const ext = item.external!
+  const link = 'pointer-events-auto inline-flex items-center gap-1 hover:text-white'
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-white/55">
+      {ext.license.attribution && (
+        ext.license.attributionUrl ? (
+          <a href={ext.license.attributionUrl} target="_blank" rel="noopener noreferrer" className={`${link} font-semibold text-white/85`}>
+            {ext.license.attribution}
+            <ExternalLink className="h-3 w-3" />
+          </a>
+        ) : (
+          <span className="font-semibold text-white/85">{ext.license.attribution}</span>
+        )
+      )}
+      {ext.author && <span>· {ext.author.name}</span>}
+      {ext.license.url ? (
+        <a href={ext.license.url} target="_blank" rel="noopener noreferrer" className={link}>· {ext.license.name}</a>
+      ) : (
+        <span>· {ext.license.name}</span>
+      )}
+    </div>
+  )
+}
+
+function FeedSkeleton() {
+  return (
+    <div className="flex h-full w-full items-end justify-center md:gap-5 md:py-5" aria-busy="true" aria-label="Đang tải video">
+      <div className="relative h-full w-full animate-pulse overflow-hidden bg-white/[0.04] md:aspect-[9/16] md:w-auto md:rounded-2xl md:ring-1 md:ring-white/10">
+        <div className="absolute inset-x-4 bottom-8 space-y-2.5">
+          <div className="h-4 w-2/3 rounded bg-white/10" />
+          <div className="h-3 w-1/2 rounded bg-white/10" />
+          <div className="h-3 w-1/3 rounded bg-white/10" />
+        </div>
+        <Loader2 className="absolute left-1/2 top-1/2 h-8 w-8 -translate-x-1/2 -translate-y-1/2 animate-spin text-primary/60" />
+      </div>
+      <div className="mb-6 hidden flex-col gap-4 md:flex">
+        {[0, 1, 2].map((i) => <div key={i} className="h-12 w-12 animate-pulse rounded-full bg-white/10" />)}
       </div>
     </div>
   )

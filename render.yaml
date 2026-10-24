@@ -140,6 +140,9 @@ services:
         sync: false
       - key: YOUTUBE_API_KEY
         sync: false
+      # Shorts "Khám phá" library — Coverr API key (empty → sample clips)
+      - key: COVERR_API_KEY
+        sync: false
 
       # ── Elasticsearch: Elastic Cloud (hosted — never run ES on the 512 MB instance) ──
       # Leave ELASTICSEARCH_HOST empty to use the PostgreSQL search fallback.
